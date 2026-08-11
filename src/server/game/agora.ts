@@ -15,11 +15,10 @@ const APP_CERTIFICATE = process.env.AGORA_APP_CERTIFICATE || '';
  */
 export function generateAgoraToken(channelName: string, uid: string): string {
   if (!APP_ID || !APP_CERTIFICATE) {
-    // وضع offline: إرجاع token وهمي للتطوير المحلي
     return 'dev_token_no_agora_config';
   }
 
-  const expirationInSeconds = 3600; // ساعة واحدة
+  const expirationInSeconds = 3600;
   const currentTimestamp = Math.floor(Date.now() / 1000);
   const privilegeExpiredTs = currentTimestamp + expirationInSeconds;
 
@@ -27,7 +26,7 @@ export function generateAgoraToken(channelName: string, uid: string): string {
     APP_ID,
     APP_CERTIFICATE,
     channelName,
-    0, // uid = 0 means Agora assigns one
+    0,
     RtcRole.PUBLISHER,
     privilegeExpiredTs
   );

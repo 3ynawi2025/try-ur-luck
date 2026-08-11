@@ -17,7 +17,7 @@ services:
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
       - key: AGORA_APP_ID
-        sync: false
+        value: cd0d928f09c14ec192574a8c4358d08e
       - key: AGORA_APP_CERTIFICATE
         sync: false
       - key: JWT_SECRET
