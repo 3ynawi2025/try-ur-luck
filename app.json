@@ -1,21 +1,27 @@
 {
   "expo": {
-    "name": "try-ur-luck",
+    "name": "جرب حظك",
     "slug": "try-ur-luck",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "myapp",
-    "userInterfaceStyle": "automatic",
+    "scheme": "jareb-hazzak",
+    "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.jarebhazzak.app",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "يحتاج التطبيق إذن المايك للدردشة الصوتية داخل الطاولات"
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
-      }
+        "backgroundColor": "#0A0F14"
+      },
+      "package": "com.jarebhazzak.app",
+      "permissions": ["RECORD_AUDIO"]
     },
     "web": {
       "bundler": "metro",
@@ -24,18 +30,24 @@
     },
     "plugins": [
       "expo-router",
+      "expo-secure-store",
       [
         "expo-splash-screen",
         {
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
+          "backgroundColor": "#0A0F14"
         }
       ]
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "PUT_EAS_PROJECT_ID_HERE"
+      }
     }
   }
 }
