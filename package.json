@@ -23,6 +23,7 @@
     "@react-navigation/bottom-tabs": "^7.2.0",
     "@react-navigation/native": "^7.0.14",
     "@supabase/supabase-js": "^2.112.3",
+    "agora-access-token": "^2.0.4",
     "cors": "^2.8.6",
     "expo": "~52.0.49",
     "expo-blur": "~14.0.3",

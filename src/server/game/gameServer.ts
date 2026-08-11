@@ -5,6 +5,7 @@
 import { Server, Socket } from 'socket.io';
 import { TexasHoldemEngine } from '../game/texasHoldem';
 import { GameSnapshot } from '../game/texasHoldem';
+import { generateAgoraToken, AGORA_APP_ID } from '../game/agora';
 
 interface TableRoom {
   engine: TexasHoldemEngine;
@@ -56,6 +57,14 @@ export function setupGameHandlers(io: Server) {
 
         // Send hole cards only to the player
         socket.emit('game:holeCards', { cards: holeCards });
+
+        // Send Agora token for voice chat
+        const agoraToken = generateAgoraToken(tableId, playerId);
+        socket.emit('voice:token', {
+          appId: AGORA_APP_ID,
+          channelName: tableId,
+          token: agoraToken,
+        });
 
         // Check if we can start
         if (table.engine.canStart() && !table.autoStartTimer) {
