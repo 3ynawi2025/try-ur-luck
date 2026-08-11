@@ -6,7 +6,7 @@ services:
     name: jareb-hazzak-server
     runtime: node
     region: singapore
-    plan: pro
+    plan: starter
     buildCommand: npm install && npx tsc -p tsconfig.server.json
     startCommand: node dist/server/index.js
     envVars:
@@ -28,7 +28,7 @@ services:
     name: weekly-refill
     runtime: node
     region: singapore
-    plan: pro
+    plan: starter
     schedule: "0 9 * * 5"
     buildCommand: npm install
     startCommand: node scripts/weekly-refill.js
