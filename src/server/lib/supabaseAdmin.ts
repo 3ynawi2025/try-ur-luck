@@ -6,10 +6,11 @@ let supabaseAdminInstance: SupabaseClient | null = null;
 
 export function getSupabaseAdmin(): SupabaseClient {
   if (!supabaseAdminInstance) {
-    const url = process.env.SUPABASE_URL || 'https://iycuncfqxjlcqhupyvyq.supabase.co';
-    const key = process.env.SUPABASE_SERVICE_ROLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml5Y3VuY2ZxeGpsY3FodXB5dnlxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4NjQ4Njc0NywiZXhwIjoyMTAyMDYyNzQ3fQ.KRj7aq3gnNGsfVrd4cseCdZPptgnpAe9ZAbELfvlM3Q';
-
-    supabaseAdminInstance = createClient(url, key);
+    supabaseAdminInstance = createClient(
+      'https://iycuncfqxjlcqhupyvyq.supabase.co',
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml5Y3VuY2ZxeGpsY3FodXB5dnlxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4NjQ4Njc0NywiZXhwIjoyMTAyMDYyNzQ3fQ.KRj7aq3gnNGsfVrd4cseCdZPptgnpAe9ZAbELfvlM3Q',
+      { auth: { persistSession: false } }
+    );
   }
   return supabaseAdminInstance;
 }
@@ -28,7 +29,6 @@ export async function checkUserReports(userId: string): Promise<number> {
     .select('*', { count: 'exact', head: true })
     .eq('reported_id', userId)
     .eq('status', 'pending');
-
   if (error) return 0;
   return count || 0;
 }
