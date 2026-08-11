@@ -1,0 +1,39 @@
+# جرب حظك — Render Blueprint
+# بعد الرفع، اذهب لـ Render Dashboard > Environment وأضف القيم
+
+services:
+  - type: web
+    name: jareb-hazzak-server
+    runtime: node
+    region: singapore
+    plan: pro
+    buildCommand: npm install && npx tsc -p tsconfig.server.json
+    startCommand: node dist/server/index.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: SUPABASE_URL
+        value: https://iycuncfqxjlcqhupyvyq.supabase.co
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: AGORA_APP_ID
+        sync: false
+      - key: AGORA_APP_CERTIFICATE
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+    autoDeploy: yes
+
+  - type: cron
+    name: weekly-refill
+    runtime: node
+    region: singapore
+    plan: pro
+    schedule: "0 9 * * 5"
+    buildCommand: npm install
+    startCommand: node scripts/weekly-refill.js
+    envVars:
+      - key: SUPABASE_URL
+        value: https://iycuncfqxjlcqhupyvyq.supabase.co
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
