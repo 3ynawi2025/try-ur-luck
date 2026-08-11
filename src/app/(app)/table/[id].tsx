@@ -3,20 +3,12 @@
 // ============================================================
 
 import React, { useState, useCallback, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Dimensions,
-  TouchableOpacity,
-  ScrollView,
-} from 'react-native';
+import { View, Text, StyleSheet, Dimensions, TouchableOpacity } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
 import Avatar from '../../../components/ui/Avatar';
 import Chip from '../../../components/ui/Chip';
 import PlayingCard, { Card } from '../../../components/game/PlayingCard';
-import { COLORS, FONTS, FONT_SIZES, SPACING, RADIUS, GRADIENTS } from '../../../constants/theme';
+import { COLORS, FONTS, FONT_SIZES, SPACING, RADIUS } from '../../../constants/theme';
 import { TexasHoldemEngine, GameSnapshot, TablePlayer } from '../../../server/game/texasHoldem';
 import { Card as GameCard } from '../../../server/game/deck';
 
@@ -101,11 +93,8 @@ export default function PlayableTableScreen() {
       {/* Felt */}
       <View style={styles.felt}>
         {/* Table oval */}
-        <View style={styles.tableOval}>
-          <LinearGradient
-            colors={GRADIENTS.table as readonly [string, string, ...string[]]}
-            style={styles.tableGradient}
-          >
+        <View style={[styles.tableOval, styles.tableFelt]}>
+          <View style={styles.tableGradient}>
             {/* Community cards */}
             <View style={styles.communityCards}>
               {(snapshot?.communityCards || []).map((card, i) => (
@@ -121,7 +110,7 @@ export default function PlayableTableScreen() {
               <Text style={styles.potLabel}>الرهان</Text>
               <Text style={styles.potAmount}>{snapshot?.pot?.toLocaleString() || '0'}</Text>
             </View>
-          </LinearGradient>
+          </View>
         </View>
 
         {/* Player seats */}
@@ -236,9 +225,12 @@ const styles = StyleSheet.create({
     position: 'absolute', top: '18%', left: '8%', right: '8%', bottom: '38%',
     borderRadius: 200, overflow: 'hidden',
   },
+  tableFelt: {
+    backgroundColor: COLORS.tableGreen,
+    borderWidth: 3, borderColor: COLORS.primaryDark,
+  },
   tableGradient: {
-    flex: 1, alignItems: 'center', justifyContent: 'center',
-    borderWidth: 3, borderColor: COLORS.primaryDark, borderRadius: 200,
+    flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: 200,
   },
   communityCards: { flexDirection: 'row', gap: 4, marginBottom: 4 },
   emptyCard: {
