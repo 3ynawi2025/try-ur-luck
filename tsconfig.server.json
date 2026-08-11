@@ -1,10 +1,17 @@
 {
-  "extends": "./tsconfig.json",
   "compilerOptions": {
     "outDir": "./dist",
-    "noEmit": false,
+    "rootDir": "./src/server",
     "module": "commonjs",
-    "target": "ES2022"
+    "moduleResolution": "node16",
+    "target": "ES2022",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "declaration": false,
+    "noEmit": false
   },
   "include": [
     "src/server/**/*.ts"

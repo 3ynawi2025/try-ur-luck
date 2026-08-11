@@ -7,8 +7,8 @@ services:
     runtime: node
     region: singapore
     plan: starter
-    buildCommand: npm install && npx tsc -p tsconfig.server.json
-    startCommand: node dist/index.js
+    buildCommand: npm install
+    startCommand: npx tsx src/server/index.ts
     envVars:
       - key: NODE_ENV
         value: production
@@ -31,7 +31,7 @@ services:
     plan: starter
     schedule: "0 9 * * 5"
     buildCommand: npm install
-    startCommand: node scripts/weekly-refill.js
+    startCommand: npx tsx scripts/weekly-refill.js
     envVars:
       - key: SUPABASE_URL
         value: https://iycuncfqxjlcqhupyvyq.supabase.co
