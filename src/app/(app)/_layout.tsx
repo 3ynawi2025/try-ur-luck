@@ -78,6 +78,14 @@ export default function AppLayout() {
           ),
         }}
       />
+      <Tabs.Screen
+        name="table/[id]"
+        options={{ href: null }}
+      />
+      <Tabs.Screen
+        name="blackjack/[id]"
+        options={{ href: null }}
+      />
     </Tabs>
   );
 }
