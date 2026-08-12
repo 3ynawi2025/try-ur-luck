@@ -10,7 +10,8 @@ import GlassCard from '../../components/ui/GlassCard';
 import GoldButton from '../../components/ui/GoldButton';
 import Avatar from '../../components/ui/Avatar';
 import Chip from '../../components/ui/Chip';
-import { COLORS, FONTS, FONT_SIZES, SPACING, RADIUS, GRADIENTS } from '../../constants/theme';
+import { TexasIcon, BlackjackIcon } from '../../components/icons/GameIcons';
+import { COLORS, FONTS, FONT_SIZES, SPACING, RADIUS } from '../../constants/theme';
 
 const { width } = Dimensions.get('window');
 const GAME_CARD_WIDTH = (width - SPACING.xl * 2 - SPACING.md) / 2;
@@ -22,8 +23,8 @@ const MOCK_TABLES = [
 ];
 
 const GAME_TYPES = [
-  { key: 'texas_holdem', icon: '🃏', name: 'تكساس\nهولدم' },
-  { key: 'blackjack', icon: '🎰', name: 'بلاك\nجاك' },
+  { key: 'texas_holdem', Icon: TexasIcon, name: 'تكساس\nهولدم' },
+  { key: 'blackjack', Icon: BlackjackIcon, name: 'بلاك\nجاك' },
 ];
 
 export default function HomeScreen() {
@@ -67,7 +68,7 @@ export default function HomeScreen() {
                 style={styles.gameCardGradient}
               >
                 <View style={styles.gameCardBorder}>
-                  <Text style={styles.gameIcon}>{game.icon}</Text>
+                  <game.Icon size={44} color={COLORS.primary} />
                   <Text style={styles.gameName}>{game.name}</Text>
                 </View>
               </LinearGradient>
@@ -89,9 +90,6 @@ export default function HomeScreen() {
               <GlassCard glow style={styles.tableCard}>
                 <View style={styles.tableHeader}>
                   <View style={styles.tableGameBadge}>
-                    <Text style={styles.tableGameIcon}>
-                      {table.gameType === 'texas_holdem' ? '🃏' : '🎰'}
-                    </Text>
                     <Text style={styles.tableGameText}>
                       {table.gameType === 'texas_holdem' ? 'تكساس هولدم' : 'بلاك جاك'}
                     </Text>
@@ -218,13 +216,10 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
+    gap: 8,
     borderWidth: 1,
     borderColor: 'rgba(212,175,55,0.15)',
     borderRadius: RADIUS.md - 2,
-  },
-  gameIcon: {
-    fontSize: 40,
   },
   gameName: {
     fontFamily: FONTS.arabic.bold,
@@ -247,9 +242,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-  },
-  tableGameIcon: {
-    fontSize: 18,
   },
   tableGameText: {
     fontFamily: FONTS.arabic.regular,

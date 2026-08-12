@@ -1,11 +1,11 @@
 // ============================================================
-// جرب حظك — PlayingCard
-// بطاقة لعب بتصميم كلاسيكي
+// جرب حظك — PlayingCard v2 (SVG Edition)
 // ============================================================
 
 import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Animated } from 'react-native';
-import { RADIUS, SHADOWS, FONTS, COLORS } from '../../constants/theme';
+import { RADIUS, SHADOWS, FONTS } from '../../constants/theme';
+import SuitIcon, { SUIT_COLORS } from './SuitIcons';
 
 export type Suit = 'spades' | 'hearts' | 'diamonds' | 'clubs';
 export type Rank = 'A' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | '10' | 'J' | 'Q' | 'K';
@@ -24,20 +24,6 @@ interface PlayingCardProps {
   delay?: number;
 }
 
-const SUIT_SYMBOLS: Record<Suit, string> = {
-  spades: '♠',
-  hearts: '♥',
-  diamonds: '♦',
-  clubs: '♣',
-};
-
-const SUIT_COLORS: Record<Suit, string> = {
-  spades: '#212121',
-  hearts: '#D32F2F',
-  diamonds: '#D32F2F',
-  clubs: '#212121',
-};
-
 export default function PlayingCard({
   card,
   faceDown = false,
@@ -52,18 +38,8 @@ export default function PlayingCard({
   useEffect(() => {
     if (animate) {
       Animated.parallel([
-        Animated.timing(opacity, {
-          toValue: 1,
-          duration: 300,
-          delay,
-          useNativeDriver: true,
-        }),
-        Animated.timing(translateY, {
-          toValue: 0,
-          duration: 300,
-          delay,
-          useNativeDriver: true,
-        }),
+        Animated.timing(opacity, { toValue: 1, duration: 300, delay, useNativeDriver: true }),
+        Animated.timing(translateY, { toValue: 0, duration: 300, delay, useNativeDriver: true }),
       ]).start();
     }
   }, [animate]);
@@ -73,17 +49,12 @@ export default function PlayingCard({
       <Animated.View
         style={[
           styles.card,
-          {
-            width,
-            height,
-            opacity: animate ? opacity : 1,
-            transform: [{ translateY: animate ? translateY : 0 }],
-          },
+          { width, height, opacity: animate ? opacity : 1, transform: [{ translateY: animate ? translateY : 0 }] },
           styles.faceDown,
         ]}
       >
-        <View style={styles.pattern}>
-          <Text style={styles.patternText}>🃏</Text>
+        <View style={styles.faceDownPattern}>
+          <View style={styles.faceDownInner} />
         </View>
       </Animated.View>
     );
@@ -91,35 +62,34 @@ export default function PlayingCard({
 
   const { suit, rank } = card;
   const color = SUIT_COLORS[suit];
-  const symbol = SUIT_SYMBOLS[suit];
+  const symbolSize = Math.min(width, height) * 0.28;
 
   return (
     <Animated.View
       style={[
         styles.card,
-        {
-          width,
-          height,
-          opacity: animate ? opacity : 1,
-          transform: [{ translateY: animate ? translateY : 0 }],
-        },
+        { width, height, opacity: animate ? opacity : 1, transform: [{ translateY: animate ? translateY : 0 }] },
       ]}
     >
       {/* Top left */}
-      <View style={styles.corner}>
-        <Text style={[styles.rank, { color }]}>{rank}</Text>
-        <Text style={[styles.suitCorner, { color }]}>{symbol}</Text>
+      <View style={[styles.corner, { top: 4, left: 5 }]}>
+        <Text style={[styles.rank, { color, fontSize: height * 0.17 }]}>{rank}</Text>
+        <View style={{ marginTop: -2 }}>
+          <SuitIcon suit={suit} size={symbolSize * 0.65} color={color} />
+        </View>
       </View>
 
       {/* Center */}
       <View style={styles.center}>
-        <Text style={[styles.centerSuit, { color, fontSize: height * 0.4 }]}>{symbol}</Text>
+        <SuitIcon suit={suit} size={symbolSize * 1.4} color={color} />
       </View>
 
-      {/* Bottom right (rotated) */}
-      <View style={[styles.corner, styles.cornerBottom]}>
-        <Text style={[styles.rank, { color }]}>{rank}</Text>
-        <Text style={[styles.suitCorner, { color }]}>{symbol}</Text>
+      {/* Bottom right */}
+      <View style={[styles.corner, styles.cornerBottom, { bottom: 4, right: 5 }]}>
+        <Text style={[styles.rank, { color, fontSize: height * 0.17 }]}>{rank}</Text>
+        <View style={{ marginTop: -2 }}>
+          <SuitIcon suit={suit} size={symbolSize * 0.65} color={color} />
+        </View>
       </View>
     </Animated.View>
   );
@@ -131,48 +101,46 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.card,
     ...SHADOWS.card,
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.08)',
   },
   faceDown: {
     backgroundColor: '#1A237E',
     borderWidth: 2,
-    borderColor: COLORS.primary,
-  },
-  pattern: {
-    flex: 1,
+    borderColor: '#D4AF37',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  patternText: {
-    fontSize: 24,
+  faceDownPattern: {
+    width: '86%',
+    height: '90%',
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  faceDownInner: {
+    width: '70%',
+    height: '70%',
+    borderRadius: 4,
+    backgroundColor: 'rgba(255,255,255,0.08)',
   },
   corner: {
     position: 'absolute',
-    top: 4,
-    left: 4,
     alignItems: 'center',
   },
   cornerBottom: {
-    top: undefined,
-    left: undefined,
-    bottom: 4,
-    right: 4,
     transform: [{ rotate: '180deg' }],
   },
   rank: {
-    fontSize: 12,
     fontFamily: FONTS.english.bold,
-    lineHeight: 14,
-  },
-  suitCorner: {
-    fontSize: 10,
-    lineHeight: 12,
+    lineHeight: 18,
   },
   center: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  centerSuit: {
-    opacity: 0.3,
+    opacity: 0.35,
   },
 });
