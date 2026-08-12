@@ -239,16 +239,15 @@ export default function BlackjackScreen() {
       </View>
 
       {/* ===== منطقة الموزع ===== */}
-      <FeltTable style={styles.dealerFelt} radius={140} railWidth={11} watermark="">
+      <FeltTable style={styles.dealerFelt} radius={150} railWidth={11} watermark="">
         <Text style={styles.dealerLabel}>الموزع</Text>
         <View style={styles.dealerCards}>
           {snap.dealerCards.map((c, i) => (
             <PlayingCard
               key={i}
               card={toPCard(c)}
-              faceDown={!snap.dealerRevealed && i === snap.dealerCards.length - 1}
-              width={50}
-              height={71}
+              width={46}
+              height={65}
               animate
               delay={i * 140}
             />
@@ -487,8 +486,8 @@ const styles = StyleSheet.create({
 
   dealerFelt: {
     alignSelf: 'center',
-    width: 300,
-    height: 150,
+    width: 340,
+    height: 200,
     marginTop: SPACING.sm,
   },
   dealerLabel: {
@@ -504,7 +503,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    marginTop: 28,
+    marginTop: 38,
   },
 
   players: {
