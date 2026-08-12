@@ -64,8 +64,8 @@ export default function Avatar({
           />
         ) : (
           <View style={[styles.fallback, { width: size, height: size, borderRadius: size / 2 }]}>
-            <Text style={[styles.fallbackText, { fontSize: size * 0.4 }]}>
-              {name ? getFallbackEmoji(name) : '👤'}
+            <Text style={[styles.fallbackText, { fontSize: size * 0.45, color: COLORS.textPrimary }]}>
+              {name ? getInitial(name) : '؟'}
             </Text>
           </View>
         )}
@@ -107,9 +107,12 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.bgSurfaceLight,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(0,212,255,0.3)',
   },
   fallbackText: {
     textAlign: 'center',
+    fontFamily: FONTS.arabic.bold,
   },
   badge: {
     position: 'absolute',

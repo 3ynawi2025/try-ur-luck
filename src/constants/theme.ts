@@ -5,41 +5,47 @@
 
 export const COLORS = {
   // خلفيات
-  bgPrimary: '#0A0F14',
-  bgSurface: '#132E35',
-  bgSurfaceLight: '#1B3A42',
+  bgPrimary: '#0A0A1A',
+  bgSurface: '#1A0A2E',
+  bgSurfaceLight: '#2A1040',
 
   // ألوان ذهبية
-  primary: '#D4AF37',
-  primaryLight: '#F4D03F',
-  primaryDark: '#B5902A',
+  primary: '#00D4FF',
+  primaryLight: '#7B2CBF',
+  primaryDark: '#00B4D8',
+
+  // نيون
+  neonBlue: '#00D4FF',
+  neonPurple: '#7B2CBF',
+  neonPink: '#FF0055',
+  neonCyan: '#00F5FF',
 
   // الطاولة
-  tableGreen: '#1B5E20',
-  tableGreenLight: '#2E7D32',
-  tableGreenDark: '#0D3B10',
+  tableGreen: '#0F0F2A',
+  tableGreenLight: '#1A1A3E',
+  tableGreenDark: '#050510',
 
   // إجراءات
-  danger: '#C62828',
-  success: '#43A047',
-  info: '#1565C0',
+  danger: '#FF0055',
+  success: '#00F5FF',
+  info: '#7B2CBF',
 
   // نصوص
   textPrimary: '#FFFFFF',
   textMuted: '#B0BEC5',
-  textDark: '#0A0F14',
+  textDark: '#0A0A1A',
 
   // حدود
-  border: 'rgba(212, 175, 55, 0.3)',
+  border: 'rgba(0, 212, 255, 0.3)',
 
   // شفافيات
-  overlay: 'rgba(10, 15, 20, 0.85)',
+  overlay: 'rgba(10, 10, 26, 0.9)',
 } as const;
 
 export const GRADIENTS = {
-  gold: ['#D4AF37', '#F4D03F', '#B5902A'] as readonly string[],
-  surface: ['#132E35', '#0A0F14'] as readonly string[],
-  table: ['#2E7D32', '#1B5E20', '#0D3B10'] as readonly string[],
+  gold: ['#00D4FF', '#7B2CBF', '#00B4D8'] as readonly string[],
+  surface: ['#1A0A2E', '#0A0A1A'] as readonly string[],
+  table: ['#1A1A3E', '#0F0F2A', '#050510'] as readonly string[],
 };
 
 export const FONTS = {
@@ -99,18 +105,25 @@ export const SIZES = {
 
 export const SHADOWS = {
   gold: {
-    shadowColor: '#D4AF37',
+    shadowColor: '#00D4FF',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
+    shadowOpacity: 0.5,
     shadowRadius: 20,
     elevation: 8,
   },
   card: {
-    shadowColor: '#000',
+    shadowColor: '#00D4FF',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 4,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  neon: {
+    shadowColor: '#00D4FF',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 12,
+    elevation: 10,
   },
 };
 

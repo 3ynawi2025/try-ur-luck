@@ -14,10 +14,10 @@ interface ChipProps {
 }
 
 function getChipColors(amount: number): { base: string; dark: string; light: string } {
-  if (amount >= 5000) return { base: '#6A1B9A', dark: '#4A148C', light: '#E1BEE7' };
-  if (amount >= 1000) return { base: '#263238', dark: '#101518', light: '#B0BEC5' };
-  if (amount >= 500) return { base: '#1565C0', dark: '#0D47A1', light: '#90CAF9' };
-  if (amount >= 100) return { base: '#C62828', dark: '#8E0000', light: '#FFCDD2' };
+  if (amount >= 5000) return { base: '#7B2CBF', dark: '#4A148C', light: '#E1BEE7' };
+  if (amount >= 1000) return { base: '#0F0F2A', dark: '#050510', light: '#00D4FF' };
+  if (amount >= 500) return { base: '#1A0A2E', dark: '#0A0A1A', light: '#FF0055' };
+  if (amount >= 100) return { base: '#0A0A1A', dark: '#000000', light: '#00F5FF' };
   return { base: '#ECEFF1', dark: '#90A4AE', light: '#37474F' };
 }
 

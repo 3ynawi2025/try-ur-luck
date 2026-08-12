@@ -1,10 +1,10 @@
 // ============================================================
-// جرب حظك — PlayingCard v2 (SVG Edition)
+// جرب حظك — PlayingCard v3 (Neon Edition)
 // ============================================================
 
 import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Animated } from 'react-native';
-import { RADIUS, SHADOWS, FONTS } from '../../constants/theme';
+import { RADIUS, FONTS, COLORS } from '../../constants/theme';
 import SuitIcon, { SUIT_COLORS } from './SuitIcons';
 
 export type Suit = 'spades' | 'hearts' | 'diamonds' | 'clubs';
@@ -69,9 +69,9 @@ export default function PlayingCard({
       style={[
         styles.card,
         { width, height, opacity: animate ? opacity : 1, transform: [{ translateY: animate ? translateY : 0 }] },
+        styles.faceUp,
       ]}
     >
-      {/* Top left */}
       <View style={[styles.corner, { top: 4, left: 5 }]}>
         <Text style={[styles.rank, { color, fontSize: height * 0.17 }]}>{rank}</Text>
         <View style={{ marginTop: -2 }}>
@@ -79,12 +79,10 @@ export default function PlayingCard({
         </View>
       </View>
 
-      {/* Center */}
       <View style={styles.center}>
         <SuitIcon suit={suit} size={symbolSize * 1.4} color={color} />
       </View>
 
-      {/* Bottom right */}
       <View style={[styles.corner, styles.cornerBottom, { bottom: 4, right: 5 }]}>
         <Text style={[styles.rank, { color, fontSize: height * 0.17 }]}>{rank}</Text>
         <View style={{ marginTop: -2 }}>
@@ -97,26 +95,36 @@ export default function PlayingCard({
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#FFFFFF',
     borderRadius: RADIUS.card,
-    ...SHADOWS.card,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.08)',
   },
   faceDown: {
-    backgroundColor: '#1A237E',
-    borderWidth: 2,
-    borderColor: '#D4AF37',
+    backgroundColor: '#0A0A1A',
+    borderColor: COLORS.neonBlue,
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: COLORS.neonBlue,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  faceUp: {
+    backgroundColor: 'rgba(10,10,26,0.95)',
+    borderColor: 'rgba(0,212,255,0.3)',
+    shadowColor: COLORS.neonBlue,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 6,
   },
   faceDownPattern: {
     width: '86%',
     height: '90%',
     borderRadius: 6,
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(0,212,255,0.3)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -124,7 +132,7 @@ const styles = StyleSheet.create({
     width: '70%',
     height: '70%',
     borderRadius: 4,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: 'rgba(0,212,255,0.08)',
   },
   corner: {
     position: 'absolute',

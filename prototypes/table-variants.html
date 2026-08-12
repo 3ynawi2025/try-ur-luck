@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>جرب حظك — 3 تصاميم طاولة</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&family=Inter:wght@700&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Cairo', sans-serif; background: #05070a; color: white; }
+    .page { padding: 20px; }
+    h2 { color: #D4AF37; margin: 30px 0 15px; font-size: 18px; }
+
+    .phone {
+      width: 375px; height: 812px;
+      border-radius: 30px;
+      overflow: hidden;
+      position: relative;
+      border: 4px solid #1a1a1a;
+      margin-bottom: 30px;
+    }
+
+    /* Variant 1: Luxury Gold */
+    .v1 { background: radial-gradient(circle at 50% 30%, #1B5E20 0%, #0D3B10 50%, #05070a 100%); }
+    .v1 .table {
+      position: absolute; top: 16%; left: 5%; right: 5%; bottom: 30%;
+      border-radius: 50%;
+      background: radial-gradient(ellipse at center, #2E7D32 0%, #1B5E20 50%, #0D3B10 100%);
+      border: 6px solid #D4AF37;
+      box-shadow: 0 0 40px rgba(212,175,55,0.3), inset 0 0 80px rgba(0,0,0,0.5);
+    }
+    .v1 .felt-texture {
+      position: absolute; inset: 0;
+      background-image: radial-gradient(circle, rgba(255,255,255,0.03) 1px, transparent 1px);
+      background-size: 8px 8px;
+      border-radius: 50%;
+    }
+    .v1 .community { position: absolute; top: 38%; left: 50%; transform: translateX(-50%); display: flex; gap: 6px; }
+    .v1 .card {
+      width: 44px; height: 62px; background: #fff; border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'Inter'; font-size: 20px; box-shadow: 0 3px 10px rgba(0,0,0,0.4);
+    }
+    .v1 .pot {
+      position: absolute; top: 54%; left: 50%; transform: translateX(-50%);
+      background: rgba(0,0,0,0.6); padding: 8px 20px; border-radius: 20px;
+      border: 1px solid rgba(212,175,55,0.4); text-align: center;
+    }
+    .v1 .pot-label { font-size: 10px; color: #aaa; }
+    .v1 .pot-amount { color: #D4AF37; font-family: 'Inter'; font-size: 20px; }
+    .v1 .seat {
+      position: absolute; display: flex; flex-direction: column; align-items: center;
+      background: rgba(0,0,0,0.7); padding: 6px 10px; border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+    .v1 .seat.active { border-color: #D4AF37; box-shadow: 0 0 15px rgba(212,175,55,0.4); }
+    .v1 .avatar {
+      width: 40px; height: 40px; border-radius: 50%;
+      background: linear-gradient(135deg, #F4D03F, #B5902A);
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; color: #0A0F14;
+    }
+    .v1 .s1 { bottom: 4%; left: 50%; transform: translateX(-50%); }
+    .v1 .s2 { bottom: 22%; right: 2%; }
+    .v1 .s3 { top: 22%; right: 2%; }
+    .v1 .s4 { top: 4%; left: 50%; transform: translateX(-50%); }
+    .v1 .s5 { top: 22%; left: 2%; }
+    .v1 .s6 { bottom: 22%; left: 2%; }
+    .v1 .actions {
+      position: absolute; bottom: 0; left: 0; right: 0;
+      background: rgba(5,7,10,0.95); padding: 16px;
+      display: flex; gap: 10px; border-top: 1px solid rgba(212,175,55,0.3);
+    }
+    .v1 .btn { flex: 1; height: 48px; border-radius: 10px; border: none; font-weight: 700; color: white; }
+    .v1 .fold { background: #C62828; }
+    .v1 .call { background: #1565C0; }
+    .v1 .raise { background: linear-gradient(135deg, #F4D03F, #D4AF37); color: #0A0F14; }
+
+    /* Variant 2: Neon Cyberpunk */
+    .v2 { background: linear-gradient(180deg, #0a0a1a 0%, #1a0a2e 50%, #0a0a1a 100%); }
+    .v2 .table {
+      position: absolute; top: 16%; left: 5%; right: 5%; bottom: 30%;
+      border-radius: 40%;
+      background: radial-gradient(ellipse at center, #1a1a3e 0%, #0f0f2a 60%, #050510 100%);
+      border: 3px solid #00d4ff;
+      box-shadow: 0 0 30px rgba(0,212,255,0.3), inset 0 0 60px rgba(0,212,255,0.1);
+    }
+    .v2 .community { position: absolute; top: 38%; left: 50%; transform: translateX(-50%); display: flex; gap: 6px; }
+    .v2 .card {
+      width: 44px; height: 62px; background: #0a0a1a; border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'Inter'; font-size: 20px; color: #00d4ff;
+      border: 1px solid #00d4ff; box-shadow: 0 0 10px rgba(0,212,255,0.3);
+    }
+    .v2 .pot {
+      position: absolute; top: 54%; left: 50%; transform: translateX(-50%);
+      background: rgba(0,0,0,0.6); padding: 8px 20px; border-radius: 20px;
+      border: 1px solid #00d4ff; text-align: center;
+      box-shadow: 0 0 15px rgba(0,212,255,0.2);
+    }
+    .v2 .pot-amount { color: #00d4ff; font-family: 'Inter'; font-size: 20px; }
+    .v2 .seat {
+      position: absolute; display: flex; flex-direction: column; align-items: center;
+      background: rgba(0,0,0,0.7); padding: 6px 10px; border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+    .v2 .seat.active { border-color: #00d4ff; box-shadow: 0 0 15px rgba(0,212,255,0.4); }
+    .v2 .avatar {
+      width: 40px; height: 40px; border-radius: 50%;
+      background: linear-gradient(135deg, #00d4ff, #7b2cbf);
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; color: white;
+    }
+    .v2 .s1 { bottom: 4%; left: 50%; transform: translateX(-50%); }
+    .v2 .s2 { bottom: 22%; right: 2%; }
+    .v2 .s3 { top: 22%; right: 2%; }
+    .v2 .s4 { top: 4%; left: 50%; transform: translateX(-50%); }
+    .v2 .s5 { top: 22%; left: 2%; }
+    .v2 .s6 { bottom: 22%; left: 2%; }
+    .v2 .actions {
+      position: absolute; bottom: 0; left: 0; right: 0;
+      background: rgba(10,10,30,0.95); padding: 16px;
+      display: flex; gap: 10px; border-top: 1px solid #00d4ff;
+    }
+    .v2 .btn { flex: 1; height: 48px; border-radius: 10px; border: none; font-weight: 700; color: white; }
+    .v2 .fold { background: #ff0055; }
+    .v2 .call { background: #7b2cbf; }
+    .v2 .raise { background: linear-gradient(135deg, #00d4ff, #7b2cbf); }
+
+    /* Variant 3: Glassmorphism Royal */
+    .v3 { background: linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%); }
+    .v3 .table {
+      position: absolute; top: 16%; left: 5%; right: 5%; bottom: 30%;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.05);
+      backdrop-filter: blur(10px);
+      border: 2px solid rgba(255,255,255,0.2);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4), inset 0 0 60px rgba(212,175,55,0.1);
+    }
+    .v3 .community { position: absolute; top: 38%; left: 50%; transform: translateX(-50%); display: flex; gap: 6px; }
+    .v3 .card {
+      width: 44px; height: 62px; background: rgba(255,255,255,0.95); border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'Inter'; font-size: 20px; color: #C62828;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+    .v3 .pot {
+      position: absolute; top: 54%; left: 50%; transform: translateX(-50%);
+      background: rgba(255,255,255,0.1); padding: 8px 20px; border-radius: 20px;
+      border: 1px solid rgba(255,255,255,0.2); text-align: center;
+      backdrop-filter: blur(10px);
+    }
+    .v3 .pot-amount { color: #F4D03F; font-family: 'Inter'; font-size: 20px; }
+    .v3 .seat {
+      position: absolute; display: flex; flex-direction: column; align-items: center;
+      background: rgba(255,255,255,0.1); padding: 6px 10px; border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.2);
+      backdrop-filter: blur(10px);
+    }
+    .v3 .seat.active { border-color: #F4D03F; box-shadow: 0 0 15px rgba(244,208,63,0.3); }
+    .v3 .avatar {
+      width: 40px; height: 40px; border-radius: 50%;
+      background: linear-gradient(135deg, #F4D03F, #D4AF37);
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; color: #0A0F14;
+    }
+    .v3 .s1 { bottom: 4%; left: 50%; transform: translateX(-50%); }
+    .v3 .s2 { bottom: 22%; right: 2%; }
+    .v3 .s3 { top: 22%; right: 2%; }
+    .v3 .s4 { top: 4%; left: 50%; transform: translateX(-50%); }
+    .v3 .s5 { top: 22%; left: 2%; }
+    .v3 .s6 { bottom: 22%; left: 2%; }
+    .v3 .actions {
+      position: absolute; bottom: 0; left: 0; right: 0;
+      background: rgba(255,255,255,0.08); padding: 16px;
+      display: flex; gap: 10px; border-top: 1px solid rgba(255,255,255,0.2);
+      backdrop-filter: blur(20px);
+    }
+    .v3 .btn { flex: 1; height: 48px; border-radius: 10px; border: none; font-weight: 700; color: white; }
+    .v3 .fold { background: rgba(198,40,40,0.9); }
+    .v3 .call { background: rgba(21,101,192,0.9); }
+    .v3 .raise { background: linear-gradient(135deg, #F4D03F, #D4AF37); color: #0A0F14; }
+
+    .label {
+      position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+      background: rgba(0,0,0,0.6); padding: 4px 12px; border-radius: 20px;
+      font-size: 12px; color: #D4AF37; z-index: 10;
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <h2>التصميم 1: Luxury Gold (كلاسيكي ذهبي)</h2>
+    <div class="phone v1">
+      <div class="label">طاولة الرياض — Pre-flop</div>
+      <div class="table">
+        <div class="felt-texture"></div>
+        <div class="community">
+          <div class="card">♠</div>
+          <div class="card">♥</div>
+          <div class="card">♦</div>
+          <div class="card">♣</div>
+          <div class="card">♠</div>
+        </div>
+        <div class="pot">
+          <div class="pot-label">الرهان</div>
+          <div class="pot-amount">1,240</div>
+        </div>
+      </div>
+      <div class="seat s1 active"><div class="avatar">أ</div><div style="font-size:10px">أنت</div></div>
+      <div class="seat s2"><div class="avatar">س</div><div style="font-size:10px">سلطان</div></div>
+      <div class="seat s3"><div class="avatar">ف</div><div style="font-size:10px">فهد</div></div>
+      <div class="seat s4"><div class="avatar">ن</div><div style="font-size:10px">نورة</div></div>
+      <div class="seat s5"><div class="avatar">ع</div><div style="font-size:10px">عبدالله</div></div>
+      <div class="seat s6"><div class="avatar">م</div><div style="font-size:10px">محمد</div></div>
+      <div class="actions">
+        <button class="btn fold">Fold</button>
+        <button class="btn call">Call 40</button>
+        <button class="btn raise">Raise</button>
+      </div>
+    </div>
+
+    <h2>التصميم 2: Neon Cyberpunk (نيون داكن)</h2>
+    <div class="phone v2">
+      <div class="label">طاولة الرياض — Pre-flop</div>
+      <div class="table"></div>
+      <div class="community">
+        <div class="card">♠</div>
+        <div class="card">♥</div>
+        <div class="card">♦</div>
+        <div class="card">♣</div>
+        <div class="card">♠</div>
+      </div>
+      <div class="pot">
+        <div class="pot-label">الرهان</div>
+        <div class="pot-amount">1,240</div>
+      </div>
+      <div class="seat s1 active"><div class="avatar">أ</div><div style="font-size:10px">أنت</div></div>
+      <div class="seat s2"><div class="avatar">س</div><div style="font-size:10px">سلطان</div></div>
+      <div class="seat s3"><div class="avatar">ف</div><div style="font-size:10px">فهد</div></div>
+      <div class="seat s4"><div class="avatar">ن</div><div style="font-size:10px">نورة</div></div>
+      <div class="seat s5"><div class="avatar">ع</div><div style="font-size:10px">عبدالله</div></div>
+      <div class="seat s6"><div class="avatar">م</div><div style="font-size:10px">محمد</div></div>
+      <div class="actions">
+        <button class="btn fold">Fold</button>
+        <button class="btn call">Call 40</button>
+        <button class="btn raise">Raise</button>
+      </div>
+    </div>
+
+    <h2>التصميم 3: Glassmorphism Royal (زجاجي ملكي)</h2>
+    <div class="phone v3">
+      <div class="label">طاولة الرياض — Pre-flop</div>
+      <div class="table"></div>
+      <div class="community">
+        <div class="card">♠</div>
+        <div class="card">♥</div>
+        <div class="card">♦</div>
+        <div class="card">♣</div>
+        <div class="card">♠</div>
+      </div>
+      <div class="pot">
+        <div class="pot-label">الرهان</div>
+        <div class="pot-amount">1,240</div>
+      </div>
+      <div class="seat s1 active"><div class="avatar">أ</div><div style="font-size:10px">أنت</div></div>
+      <div class="seat s2"><div class="avatar">س</div><div style="font-size:10px">سلطان</div></div>
+      <div class="seat s3"><div class="avatar">ف</div><div style="font-size:10px">فهد</div></div>
+      <div class="seat s4"><div class="avatar">ن</div><div style="font-size:10px">نورة</div></div>
+      <div class="seat s5"><div class="avatar">ع</div><div style="font-size:10px">عبدالله</div></div>
+      <div class="seat s6"><div class="avatar">م</div><div style="font-size:10px">محمد</div></div>
+      <div class="actions">
+        <button class="btn fold">Fold</button>
+        <button class="btn call">Call 40</button>
+        <button class="btn raise">Raise</button>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

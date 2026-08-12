@@ -36,11 +36,10 @@ export default function HomeScreen() {
       {/* Header */}
       <GlassCard style={styles.header}>
         <View style={styles.headerLeft}>
-          <Text style={styles.greeting}>أهلاً، {user.display_name} 👋</Text>
+          <Text style={styles.greeting}>أهلاً، {user.display_name}</Text>
           <View style={styles.balanceRow}>
             <Text style={styles.balanceLabel}>رصيدك</Text>
             <Text style={styles.balanceAmount}>{balance.toLocaleString()}</Text>
-            <Text style={styles.balanceCurrency}>💰</Text>
           </View>
         </View>
         <TouchableOpacity onPress={() => router.push('/(app)/profile')}>
@@ -62,7 +61,7 @@ export default function HomeScreen() {
               onPress={() => router.push('/(app)/tables')}
             >
               <LinearGradient
-                colors={['rgba(212,175,55,0.35)', 'rgba(19,46,53,0.95)', 'rgba(10,15,20,0.95)']}
+                colors={['rgba(0,212,255,0.35)', 'rgba(26,10,46,0.95)', 'rgba(10,10,26,0.95)']}
                 start={{ x: 0.5, y: 0 }}
                 end={{ x: 0.5, y: 1 }}
                 style={styles.gameCardGradient}
@@ -116,10 +115,10 @@ export default function HomeScreen() {
         {/* Weekly Tournament */}
         <GlassCard glow style={styles.tournamentCard}>
           <View style={styles.tournamentHeader}>
-            <Text style={styles.tournamentTitle}>🏆 البطولة الأسبوعية</Text>
+            <Text style={styles.tournamentTitle}>البطولة الأسبوعية</Text>
             <Text style={styles.tournamentTimer}>تنتهي خلال 3 أيام</Text>
           </View>
-          <Text style={styles.tournamentPrize}>💰 الجائزة: 50,000 درهم</Text>
+          <Text style={styles.tournamentPrize}>الجائزة: 50,000 درهم</Text>
           <GoldButton
             title="انضم الآن"
             onPress={() => router.push('/(app)/leaderboard')}
@@ -169,9 +168,6 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.h2,
     color: COLORS.primary,
   },
-  balanceCurrency: {
-    fontSize: 18,
-  },
   scroll: {
     flex: 1,
     paddingHorizontal: SPACING.xl,
@@ -218,7 +214,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     borderWidth: 1,
-    borderColor: 'rgba(212,175,55,0.15)',
+    borderColor: 'rgba(0,212,255,0.15)',
     borderRadius: RADIUS.md - 2,
   },
   gameName: {
@@ -249,7 +245,7 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted,
   },
   playerCount: {
-    backgroundColor: 'rgba(212,175,55,0.12)',
+    backgroundColor: 'rgba(0,212,255,0.12)',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: RADIUS.full,

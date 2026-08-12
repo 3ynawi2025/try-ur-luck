@@ -1,123 +1,107 @@
 // ============================================================
-// جرب حظك — GoldButton v2
-// زر ذهبي فاخر بتدرج ومتوهج
+// جرب حظك — GoldButton v3 (Neon Edition)
+// زر نيون بتدرج أزرق/بنفسجي + variants
 // ============================================================
 
 import React from 'react';
-import { TouchableOpacity, Text, StyleSheet, ViewStyle, TextStyle } from 'react-native';
+import { TouchableOpacity, Text, StyleSheet, ViewStyle, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { COLORS, FONTS, FONT_SIZES, RADIUS, SIZES } from '../../constants/theme';
+import { COLORS, FONTS, FONT_SIZES, RADIUS } from '../../constants/theme';
 
 interface GoldButtonProps {
   title: string;
   onPress: () => void;
-  variant?: 'primary' | 'outline' | 'danger';
+  style?: ViewStyle | ViewStyle[];
   disabled?: boolean;
-  style?: ViewStyle;
-  textStyle?: TextStyle;
+  variant?: 'primary' | 'outline' | 'danger';
 }
 
 export default function GoldButton({
   title,
   onPress,
-  variant = 'primary',
-  disabled = false,
   style,
-  textStyle,
+  disabled = false,
+  variant = 'primary',
 }: GoldButtonProps) {
-  const isPrimary = variant === 'primary';
-
-  if (isPrimary) {
-    return (
-      <TouchableOpacity
-        onPress={onPress}
-        disabled={disabled}
-        activeOpacity={0.85}
-        style={[styles.wrapper, disabled && styles.disabled, style]}
-      >
-        <LinearGradient
-          colors={['#F4D03F', '#D4AF37', '#B5902A'] as readonly [string, string, string]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={[styles.base, styles.gradientFill]}
-        >
-          <Text style={[styles.text, styles.textDark, textStyle]}>{title}</Text>
-        </LinearGradient>
-      </TouchableOpacity>
-    );
-  }
+  const isOutline = variant === 'outline';
+  const isDanger = variant === 'danger';
 
   return (
     <TouchableOpacity
       onPress={onPress}
       disabled={disabled}
       activeOpacity={0.85}
-      style={[
-        styles.base,
-        styles.outline,
-        variant === 'danger' && styles.dangerOutline,
-        disabled && styles.disabled,
-        style,
-      ]}
+      style={[styles.wrapper, isOutline && styles.outlineWrapper, style]}
     >
-      <Text
-        style={[
-          styles.text,
-          variant === 'danger' ? styles.textDanger : styles.textOutline,
-          textStyle,
-        ]}
-      >
-        {title}
-      </Text>
+      {isOutline || isDanger ? (
+        <View style={[styles.inner, isOutline && styles.outlineInner, isDanger && styles.dangerInner]}>
+          <Text style={[styles.text, isOutline && styles.outlineText, isDanger && styles.dangerText]}>
+            {title}
+          </Text>
+        </View>
+      ) : (
+        <LinearGradient
+          colors={disabled ? ['#333', '#222'] : ['#00D4FF', '#7B2CBF']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.gradient}
+        >
+          <Text style={[styles.text, disabled && styles.textDisabled]}>{title}</Text>
+        </LinearGradient>
+      )}
     </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
   wrapper: {
-    borderRadius: RADIUS.lg,
-    shadowColor: '#D4AF37',
+    borderRadius: RADIUS.md,
+    overflow: 'hidden',
+    shadowColor: COLORS.neonBlue,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.45,
-    shadowRadius: 18,
-    elevation: 10,
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 8,
   },
-  base: {
-    height: SIZES.buttonHeight,
-    borderRadius: RADIUS.lg,
+  outlineWrapper: {
+    shadowOpacity: 0.15,
+    elevation: 3,
+  },
+  gradient: {
+    paddingVertical: 16,
+    paddingHorizontal: 24,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  inner: {
+    paddingVertical: 16,
     paddingHorizontal: 24,
-  },
-  gradientFill: {
-    width: '100%',
-  },
-  outline: {
+    alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: 'transparent',
-    borderWidth: 2,
-    borderColor: COLORS.primary,
   },
-  dangerOutline: {
-    borderColor: COLORS.danger,
+  outlineInner: {
+    backgroundColor: 'rgba(0,212,255,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(0,212,255,0.4)',
   },
-  disabled: {
-    opacity: 0.45,
+  dangerInner: {
+    backgroundColor: 'rgba(255,0,85,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,0,85,0.4)',
   },
   text: {
-    fontSize: FONT_SIZES.body,
     fontFamily: FONTS.arabic.bold,
-    textAlign: 'center',
+    fontSize: FONT_SIZES.body,
+    color: COLORS.textPrimary,
   },
-  textDark: {
-    color: COLORS.textDark,
-    textShadowColor: 'rgba(255,255,255,0.25)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
+  textDisabled: {
+    color: COLORS.textMuted,
   },
-  textOutline: {
-    color: COLORS.primary,
+  outlineText: {
+    color: COLORS.neonBlue,
   },
-  textDanger: {
-    color: COLORS.danger,
+  dangerText: {
+    color: COLORS.neonPink,
   },
 });
