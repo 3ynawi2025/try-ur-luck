@@ -588,6 +588,8 @@ export class TexasHoldemEngine {
       case 'raise': {
         if (this.currentBet === 0) return { error: 'استخدم رهان', code: 'MUST_BET' };
         if (amount === undefined) return { error: 'حدد مبلغ الزيادة', code: 'INVALID_AMOUNT' };
+        // A raise must exceed the current bet (raise-TO semantics). Below it is a call.
+        if (amount <= this.currentBet) return { error: 'مبلغ الزيادة أقل من الرهان الحالي', code: 'RAISE_BELOW_CURRENT_BET' };
         const maxLegal = player.committedThisStreet + player.balance;
         if (amount > maxLegal) return { error: 'رصيد غير كاف', code: 'INSUFFICIENT_STACK' };
 
@@ -850,9 +852,8 @@ export class TexasHoldemEngine {
   // ===== Pots & awards =====
 
   private awardToLastPlayer(winner: TablePlayer): void {
-    // Return any uncalled excess (only one non-folded player → nothing to return).
-    const refund = this.uncalledExcess();
-    winner.balance += refund;
+    // uncalledExcess() credits any uncalled refund directly to its owner's balance.
+    this.uncalledExcess();
 
     const total = this.totalChipsInPots();
     winner.balance += total;
@@ -868,12 +869,17 @@ export class TexasHoldemEngine {
     this.assertChipConservation();
   }
 
-  /** If exactly one in-hand player committed more than every other, refund the difference. */
+  /**
+   * Uncalled-bet return: if exactly ONE player (folded or in-hand) committed more than
+   * every other player, refund the difference to them immediately. A folded player's
+   * excess (e.g. an uncalled blind) is still their money — it returns to them and only
+   * the matched portion stays as dead money.
+   */
   private uncalledExcess(): number {
-    const inHand = this.players.filter((p) => p.status === 'active' || p.status === 'all_in');
-    if (inHand.length === 0) return 0;
-    const sorted = [...inHand].sort((a, b) => b.committedThisHand - a.committedThisHand);
-    if (sorted.length >= 2 && sorted[0].committedThisHand > sorted[1].committedThisHand) {
+    const all = this.players.filter((p) => p.status !== 'sitting_out');
+    if (all.length < 2) return 0;
+    const sorted = [...all].sort((a, b) => b.committedThisHand - a.committedThisHand);
+    if (sorted[0].committedThisHand > sorted[1].committedThisHand) {
       const refund = sorted[0].committedThisHand - sorted[1].committedThisHand;
       sorted[0].committedThisHand -= refund;
       sorted[0].committedThisStreet = Math.max(0, sorted[0].committedThisStreet - refund);
@@ -899,7 +905,16 @@ export class TexasHoldemEngine {
     const refund = this.uncalledExcess();
     this.history.push({ event: 'uncalled_return', amount: refund });
 
+    // Pre-award conservation check: Σ pots must equal Σ committed chips.
+    const committedTotal = this.players.reduce((s, p) => s + p.committedThisHand, 0);
     const pots = this.buildPots();
+    const potsTotal = pots.reduce((s, p) => s + p.amount, 0);
+    if (potsTotal !== committedTotal) {
+      const detail = this.players.map((p) => ({ id: p.id, seat: p.seatIndex, status: p.status, committed: p.committedThisHand }));
+      throw new Error(
+        `POT_BUILD_MISMATCH: pots=${potsTotal} committed=${committedTotal} players=${JSON.stringify(detail)}`
+      );
+    }
     const results = new Map<number, HandResult>();
     for (const seat of new Set(pots.flatMap((p) => p.eligibleSeats))) {
       const p = this.bySeat(seat)!;
@@ -948,7 +963,12 @@ export class TexasHoldemEngine {
       return;
     }
     if (totalBefore !== this.handBaseline) {
-      throw new Error(`CHIP_CONSERVATION_VIOLATION: baseline ${this.handBaseline} vs ${totalBefore}`);
+      const committed = this.players.reduce((s, p) => s + p.committedThisHand, 0);
+      const balances = this.players.reduce((s, p) => s + p.balance, 0);
+      throw new Error(
+        `CHIP_CONSERVATION_VIOLATION: baseline ${this.handBaseline} vs ${totalBefore} ` +
+        `(balances=${balances} committed=${committed} pot=${this.totalChipsInPots()} lastPots=${JSON.stringify(this.lastPots)})`
+      );
     }
   }
 

@@ -596,7 +596,13 @@ describe('TexasHoldemEngine — all-in / side pots / conservation', () => {
     const engine = setupEngine(4, { stacks: [1000, 1000, 1000, 1000], rngSeed: 7 });
     const total = 4000;
     for (let hand = 0; hand < 1000; hand++) {
-      assertOk(engine.startHand() as Res);
+      const startRes = engine.startHand();
+      if ('error' in startRes) {
+        // The random bots busted the table below 2 players — game over.
+        // Conservation has held for every completed hand so far.
+        expect(startRes.code).toBe('NOT_ENOUGH_PLAYERS');
+        return;
+      }
       let guard = 0;
       while (engine.snapshot().phase !== 'showdown' && guard++ < 400) {
         const s = engine.snapshot();
@@ -607,7 +613,7 @@ describe('TexasHoldemEngine — all-in / side pots / conservation', () => {
         let res: Res;
         if (r < 1) res = act(engine, actor.id, 'fold');
         else if (la.check) res = act(engine, actor.id, 'check');
-        else if (r < 8) res = act(engine, actor.id, 'call');
+        else if (r < 8 || !la.raise) res = act(engine, actor.id, 'call');
         else res = act(engine, actor.id, 'raise', Math.min(la.maxRaiseTo, la.minRaiseTo));
         if ('error' in res) throw new Error(`bot error: ${res.code}`);
       }
