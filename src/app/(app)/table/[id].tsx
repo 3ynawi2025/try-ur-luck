@@ -20,6 +20,7 @@ import PlayingCard from '../../../components/game/PlayingCard';
 import FeltTable from '../../../components/game/FeltTable';
 import InstructionsModal from '../../../components/game/InstructionsModal';
 import { Badge } from '../../../components/ui/Bits';
+import GoldButton from '../../../components/ui/GoldButton';
 import { BackIcon, MicIcon, MicOffIcon, InfoIcon } from '../../../components/icons/GameIcons';
 import {
   COLORS,
@@ -434,6 +435,14 @@ export default function PokerTableScreen() {
             <Text style={styles.waitingText}>
               بانتظار {snapshot?.players.find((p) => p.isCurrentTurn)?.name || 'اللاعبين'}…
             </Text>
+            {!snapshot && (
+              <View style={styles.waitingHint}>
+                <Text style={styles.waitingHintText}>
+                  تكساس هولدم لعبة بين اللاعبين — لكن يمكنك اللعب وحدك ضد الموزع في بلاك جاك
+                </Text>
+                <GoldButton title="العب مع الموزع — بلاك جاك" onPress={() => router.push('/(app)/blackjack/1')} />
+              </View>
+            )}
           </View>
         )}
 
@@ -762,14 +771,27 @@ const styles = StyleSheet.create({
     color: 'rgba(26,18,6,0.75)',
   },
   waiting: {
-    height: 56,
     alignItems: 'center',
     justifyContent: 'center',
+    gap: SPACING.md,
+    paddingVertical: SPACING.md,
   },
   waitingText: {
     fontFamily: FONTS.ar.medium,
     fontSize: TYPE.small.fontSize,
     color: COLORS.textDim,
+  },
+  waitingHint: {
+    alignItems: 'center',
+    gap: SPACING.md,
+    width: '100%',
+  },
+  waitingHintText: {
+    fontFamily: FONTS.ar.regular,
+    fontSize: TYPE.small.fontSize,
+    color: COLORS.textFaint,
+    textAlign: 'center',
+    lineHeight: TYPE.small.lineHeight * 1.3,
   },
   showdown: {
     gap: SPACING.md,
