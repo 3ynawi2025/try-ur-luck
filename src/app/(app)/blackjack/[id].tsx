@@ -1,135 +1,267 @@
 // ============================================================
-// جرب حظك — Blackjack Table Screen
+// جرب حظك — طاولة بلاك جاك
 // ============================================================
 
-import React, { useState, useRef } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Dimensions,
-  TouchableOpacity,
-  Animated,
-} from 'react-native';
+import React, { useRef, useState } from 'react';
+import { View, Text, StyleSheet, Pressable, Animated, ScrollView } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Haptics from 'expo-haptics';
 import Avatar from '../../../components/ui/Avatar';
 import Chip from '../../../components/ui/Chip';
 import PlayingCard, { Card as PCard } from '../../../components/game/PlayingCard';
-import GlassCard from '../../../components/ui/GlassCard';
-import GoldButton from '../../../components/ui/GoldButton';
-import { COLORS, FONTS, FONT_SIZES, SPACING, RADIUS, GRADIENTS } from '../../../constants/theme';
+import FeltTable from '../../../components/game/FeltTable';
+import { BackIcon, MicIcon, MicOffIcon } from '../../../components/icons/GameIcons';
+import {
+  COLORS,
+  FONTS,
+  TYPE,
+  SPACING,
+  RADIUS,
+  SHADOWS,
+  formatCompact,
+} from '../../../constants/theme';
 
-const { width } = Dimensions.get('window');
-
-// Mock data
-const MOCK_PLAYERS = [
-  { id: 'p1', name: 'أنت', balance: 8500, bet: 200, status: 'playing' as const, cards: [{ suit: 'hearts' as const, rank: 'A' as const }, { suit: 'clubs' as const, rank: '8' as const }], score: 19 },
-  { id: 'p2', name: 'سلطان', balance: 12000, bet: 500, status: 'stood' as const, cards: [{ suit: 'spades' as const, rank: 'K' as const }, { suit: 'hearts' as const, rank: '9' as const }], score: 19 },
-  { id: 'p3', name: 'نورة', balance: 6200, bet: 100, status: 'bust' as const, cards: [{ suit: 'diamonds' as const, rank: '10' as const }, { suit: 'spades' as const, rank: '5' as const }, { suit: 'clubs' as const, rank: 'J' as const }], score: 25 },
+const PLAYERS = [
+  {
+    id: 'p1',
+    name: 'أنت',
+    balance: 8500,
+    bet: 200,
+    status: 'playing' as const,
+    cards: [
+      { suit: 'hearts', rank: 'A' },
+      { suit: 'clubs', rank: '8' },
+    ] as PCard[],
+    score: 19,
+  },
+  {
+    id: 'p2',
+    name: 'سلطان',
+    balance: 12000,
+    bet: 500,
+    status: 'stood' as const,
+    cards: [
+      { suit: 'spades', rank: 'K' },
+      { suit: 'hearts', rank: '9' },
+    ] as PCard[],
+    score: 19,
+  },
+  {
+    id: 'p3',
+    name: 'نورة',
+    balance: 6200,
+    bet: 100,
+    status: 'bust' as const,
+    cards: [
+      { suit: 'diamonds', rank: '10' },
+      { suit: 'spades', rank: '5' },
+      { suit: 'clubs', rank: 'J' },
+    ] as PCard[],
+    score: 25,
+  },
 ];
 
-const MOCK_DEALER = {
-  cards: [{ suit: 'spades' as const, rank: 'K' as const }, { suit: 'diamonds' as const, rank: '7' as const }] as PCard[],
+const DEALER = {
+  cards: [
+    { suit: 'spades', rank: 'K' },
+    { suit: 'diamonds', rank: '7' },
+  ] as PCard[],
   score: 17,
   revealed: true,
 };
 
+const STATUS_TONE = {
+  playing: { bg: 'rgba(212,175,55,0.16)', bd: 'rgba(212,175,55,0.45)', fg: COLORS.goldLight, label: 'دورك' },
+  stood: { bg: 'rgba(31,191,117,0.14)', bd: 'rgba(31,191,117,0.4)', fg: '#5BE0A4', label: 'وقف' },
+  bust: { bg: 'rgba(226,61,77,0.15)', bd: 'rgba(226,61,77,0.42)', fg: '#FF8A94', label: 'احترق' },
+};
+
+function ActionButton({
+  label,
+  colors,
+  onPress,
+  flex = 1,
+  darkText = false,
+}: {
+  label: string;
+  colors: readonly [string, string];
+  onPress: () => void;
+  flex?: number;
+  /** نص داكن — للأزرار الذهبية الفاتحة */
+  darkText?: boolean;
+}) {
+  const scale = useRef(new Animated.Value(1)).current;
+  const to = (v: number) =>
+    Animated.spring(scale, { toValue: v, useNativeDriver: true, speed: 50, bounciness: 6 }).start();
+
+  return (
+    <Animated.View style={{ flex, transform: [{ scale }] }}>
+      <Pressable
+        onPress={() => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+          onPress();
+        }}
+        onPressIn={() => to(0.95)}
+        onPressOut={() => to(1)}
+      >
+        <LinearGradient
+          colors={colors}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0, y: 1 }}
+          style={[styles.actionBtn, SHADOWS.e2]}
+        >
+          <LinearGradient
+            colors={['rgba(255,255,255,0.26)', 'rgba(255,255,255,0)']}
+            style={styles.actionGloss}
+            pointerEvents="none"
+          />
+          <Text style={[styles.actionLabel, darkText && styles.actionLabelDark]}>{label}</Text>
+        </LinearGradient>
+      </Pressable>
+    </Animated.View>
+  );
+}
+
+function ScoreBubble({ score, tone }: { score: number | string; tone?: string }) {
+  return (
+    <View style={[styles.score, !!tone && { borderColor: tone }]}>
+      <Text style={[styles.scoreText, !!tone && { color: tone }]}>{score}</Text>
+    </View>
+  );
+}
+
 export default function BlackjackScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  useLocalSearchParams<{ id: string }>();
+  const insets = useSafeAreaInsets();
   const [voiceMuted, setVoiceMuted] = useState(true);
+
+  const me = PLAYERS[0];
 
   return (
     <View style={styles.container}>
-      {/* Felt background */}
-      <View style={styles.felt}>
-        {/* Dealer area */}
-        <View style={styles.dealerArea}>
-          <Text style={styles.dealerLabel}>الموزع</Text>
-          <Text style={styles.dealerScore}>
-            {MOCK_DEALER.revealed ? MOCK_DEALER.score : '؟'}
-          </Text>
-          <View style={styles.dealerCards}>
-            {MOCK_DEALER.cards.map((card, i) => (
-              <PlayingCard
-                key={i}
-                card={card}
-                faceDown={!MOCK_DEALER.revealed && i === 1}
-                width={52}
-                height={73}
-                animate
-                delay={i * 150}
-              />
-            ))}
-          </View>
+      <LinearGradient colors={['#0A1410', '#050908', '#020403']} style={StyleSheet.absoluteFill} />
+
+      {/* ===== الترويسة ===== */}
+      <View style={[styles.header, { paddingTop: insets.top + SPACING.sm }]}>
+        <Pressable style={styles.iconBtn} onPress={() => router.back()} hitSlop={8}>
+          <BackIcon size={20} color={COLORS.text} />
+        </Pressable>
+        <View style={styles.headerCenter}>
+          <Text style={styles.tableTitle}>بلاك جاك</Text>
+          <Text style={styles.phaseText}>الموزع يقف على ١٧</Text>
         </View>
+        <Pressable
+          style={[styles.iconBtn, !voiceMuted && styles.iconBtnLive]}
+          onPress={() => setVoiceMuted((v) => !v)}
+          hitSlop={8}
+        >
+          {voiceMuted ? (
+            <MicOffIcon size={20} color={COLORS.textDim} />
+          ) : (
+            <MicIcon size={20} color={COLORS.emerald} />
+          )}
+        </Pressable>
+      </View>
 
-        {/* Divider */}
-        <View style={styles.divider} />
-
-        {/* Player areas */}
-        <View style={styles.playersArea}>
-          {MOCK_PLAYERS.map((player, pi) => (
-            <View key={player.id} style={[styles.playerSpot, pi === 0 && styles.mySpot]}>
-              <View style={styles.playerInfo}>
-                <Avatar name={player.name} size={36} />
-                <View style={styles.playerMeta}>
-                  <Text style={styles.playerName}>{player.name}</Text>
-                  <Text style={styles.playerBalance}>
-                    {player.balance.toLocaleString()} 💰
-                  </Text>
-                </View>
-                <View style={styles.betChip}>
-                  <Chip amount={player.bet} size={32} />
-                </View>
-              </View>
-              <View style={styles.playerCards}>
-                {player.cards.map((card, i) => (
-                  <PlayingCard
-                    key={i}
-                    card={card}
-                    width={44}
-                    height={62}
-                    animate
-                    delay={pi * 200 + i * 150}
-                  />
-                ))}
-                {player.status === 'bust' && (
-                  <Text style={styles.bustLabel}>BUST!</Text>
-                )}
-                {player.status === 'stood' && (
-                  <Text style={styles.stoodLabel}>{player.score}</Text>
-                )}
-              </View>
-            </View>
+      {/* ===== منطقة الموزع ===== */}
+      <FeltTable style={styles.dealerFelt} radius={140} railWidth={11} watermark="">
+        <Text style={styles.dealerLabel}>الموزع</Text>
+        <View style={styles.dealerCards}>
+          {DEALER.cards.map((c, i) => (
+            <PlayingCard
+              key={i}
+              card={c}
+              faceDown={!DEALER.revealed && i === 1}
+              width={50}
+              height={71}
+              animate
+              delay={i * 140}
+            />
           ))}
         </View>
-      </View>
+        <ScoreBubble score={DEALER.revealed ? DEALER.score : '؟'} />
+      </FeltTable>
 
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Text style={styles.backButton}>⬅️</Text>
-        </TouchableOpacity>
-        <Text style={styles.tableName}>طاولة بلاك جاك</Text>
-        <TouchableOpacity onPress={() => setVoiceMuted(!voiceMuted)}>
-          <Text style={styles.voiceButton}>{voiceMuted ? '🔇' : '🎤'}</Text>
-        </TouchableOpacity>
-      </View>
+      {/* ===== اللاعبون ===== */}
+      <ScrollView
+        style={styles.players}
+        contentContainerStyle={styles.playersContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {PLAYERS.map((p, pi) => {
+          const tone = STATUS_TONE[p.status];
+          const isMe = pi === 0;
 
-      {/* Action bar */}
-      <View style={styles.actionBar}>
-        <Text style={styles.turnLabel}>دورك — {MOCK_PLAYERS[0].score}</Text>
-        <View style={styles.actionButtons}>
-          <TouchableOpacity style={[styles.actionBtn, styles.hitBtn]}>
-            <Text style={styles.actionBtnText}>Hit</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.actionBtn, styles.standBtn]}>
-            <Text style={styles.actionBtnText}>Stand</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.actionBtn, styles.doubleBtn]}>
-            <Text style={styles.actionBtnText}>Double</Text>
-          </TouchableOpacity>
+          return (
+            <View key={p.id} style={[styles.spot, isMe && styles.spotMe]}>
+              {isMe && (
+                <LinearGradient
+                  colors={['rgba(212,175,55,0.10)', 'rgba(212,175,55,0)']}
+                  style={StyleSheet.absoluteFill}
+                />
+              )}
+
+              <View style={styles.spotTop}>
+                <View style={styles.spotWho}>
+                  <Avatar name={p.name} size={36} showBorder={isMe} isActive={isMe} />
+                  <View style={styles.spotMeta}>
+                    <Text style={styles.spotName}>{p.name}</Text>
+                    <Text style={styles.spotBalance}>{formatCompact(p.balance)}</Text>
+                  </View>
+                </View>
+
+                <View style={styles.spotStatus}>
+                  <View style={[styles.tag, { backgroundColor: tone.bg, borderColor: tone.bd }]}>
+                    <Text style={[styles.tagText, { color: tone.fg }]}>{tone.label}</Text>
+                  </View>
+                  <Chip amount={p.bet} size={30} />
+                </View>
+              </View>
+
+              <View style={styles.spotCards}>
+                <View style={styles.cardRow}>
+                  {p.cards.map((c, i) => (
+                    <View key={i} style={{ marginRight: i === 0 ? 0 : -14 }}>
+                      <PlayingCard
+                        card={c}
+                        width={44}
+                        height={62}
+                        animate
+                        delay={pi * 180 + i * 130}
+                        dimmed={p.status === 'bust'}
+                      />
+                    </View>
+                  ))}
+                </View>
+                <ScoreBubble score={p.score} tone={p.status === 'bust' ? COLORS.crimson : undefined} />
+              </View>
+            </View>
+          );
+        })}
+      </ScrollView>
+
+      {/* ===== شريط الإجراءات ===== */}
+      <View style={[styles.actionBar, { paddingBottom: insets.bottom + SPACING.md }]}>
+        <LinearGradient
+          colors={['rgba(2,4,3,0)', 'rgba(2,4,3,0.95)']}
+          style={StyleSheet.absoluteFill}
+          pointerEvents="none"
+        />
+        <Text style={styles.turnLabel}>
+          دورك — مجموعك <Text style={styles.turnScore}>{me.score}</Text>
+        </Text>
+        <View style={styles.actions}>
+          <ActionButton label="سحب" colors={['#5AA0FF', '#1B4EA8'] as const} onPress={() => {}} />
+          <ActionButton label="وقوف" colors={['#2FD98A', '#0B7345'] as const} onPress={() => {}} />
+          <ActionButton
+            label="مضاعفة"
+            colors={['#F7E7A6', '#B8912C'] as const}
+            flex={1.2}
+            darkText
+            onPress={() => {}}
+          />
         </View>
       </View>
     </View>
@@ -137,141 +269,191 @@ export default function BlackjackScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.bgPrimary,
-  },
-  felt: {
-    flex: 1,
-    paddingTop: 80,
-    paddingBottom: 20,
-    paddingHorizontal: 16,
-  },
-  dealerArea: {
-    alignItems: 'center',
-    gap: 4,
-    marginBottom: 8,
-  },
-  dealerLabel: {
-    fontFamily: FONTS.arabic.bold,
-    fontSize: FONT_SIZES.body,
-    color: COLORS.textMuted,
-  },
-  dealerScore: {
-    fontFamily: FONTS.english.bold,
-    fontSize: FONT_SIZES.h3,
-    color: COLORS.primary,
-  },
-  dealerCards: {
-    flexDirection: 'row',
-    gap: 4,
-  },
-  divider: {
-    height: 2,
-    backgroundColor: COLORS.border,
-    marginVertical: 12,
-  },
-  playersArea: {
-    gap: 12,
-  },
-  playerSpot: {
-    backgroundColor: 'rgba(19, 46, 53, 0.7)',
-    borderRadius: RADIUS.md,
-    padding: 12,
-    gap: 8,
-  },
-  mySpot: {
-    borderWidth: 1.5,
-    borderColor: COLORS.primary,
-  },
-  playerInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  playerMeta: {
-    flex: 1,
-    gap: 2,
-  },
-  playerName: {
-    fontFamily: FONTS.arabic.regular,
-    fontSize: FONT_SIZES.small,
-    color: COLORS.textPrimary,
-  },
-  playerBalance: {
-    fontFamily: FONTS.english.semibold,
-    fontSize: FONT_SIZES.caption,
-    color: COLORS.textMuted,
-  },
-  betChip: {
-    marginLeft: 'auto',
-  },
-  playerCards: {
-    flexDirection: 'row',
-    gap: 4,
-    alignItems: 'center',
-  },
-  bustLabel: {
-    fontFamily: FONTS.english.bold,
-    fontSize: FONT_SIZES.h3,
-    color: COLORS.danger,
-    marginLeft: 8,
-  },
-  stoodLabel: {
-    fontFamily: FONTS.english.bold,
-    fontSize: FONT_SIZES.h3,
-    color: COLORS.success,
-    marginLeft: 8,
-  },
+  container: { flex: 1, backgroundColor: '#020403' },
+
   header: {
-    position: 'absolute',
-    top: 50,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: 'row-reverse',
     alignItems: 'center',
-    paddingHorizontal: SPACING.md,
+    justifyContent: 'space-between',
+    paddingHorizontal: SPACING.lg,
+    paddingBottom: SPACING.md,
   },
-  backButton: { fontSize: 24 },
-  tableName: {
-    fontFamily: FONTS.arabic.bold,
-    fontSize: FONT_SIZES.h3,
-    color: COLORS.textPrimary,
-  },
-  voiceButton: { fontSize: 24 },
-  actionBar: {
-    backgroundColor: COLORS.bgSurface,
-    paddingHorizontal: SPACING.md,
-    paddingBottom: SPACING.lg,
-    paddingTop: SPACING.md,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border,
-    gap: SPACING.sm,
-  },
-  turnLabel: {
-    fontFamily: FONTS.arabic.regular,
-    fontSize: FONT_SIZES.body,
-    color: COLORS.textPrimary,
-    textAlign: 'center',
-  },
-  actionButtons: {
-    flexDirection: 'row',
-    gap: SPACING.sm,
-  },
-  actionBtn: {
-    flex: 1,
-    height: 48,
-    borderRadius: RADIUS.md,
+  iconBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1,
+    borderColor: COLORS.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  hitBtn: { backgroundColor: COLORS.info },
-  standBtn: { backgroundColor: COLORS.success },
-  doubleBtn: { backgroundColor: COLORS.primary },
-  actionBtnText: {
-    fontFamily: FONTS.english.bold,
-    fontSize: FONT_SIZES.body,
-    color: COLORS.textPrimary,
+  iconBtnLive: {
+    backgroundColor: 'rgba(31,191,117,0.13)',
+    borderColor: 'rgba(31,191,117,0.45)',
+  },
+  headerCenter: { alignItems: 'center', gap: 1 },
+  tableTitle: {
+    fontFamily: FONTS.ar.bold,
+    fontSize: TYPE.h3.fontSize,
+    lineHeight: TYPE.h3.lineHeight,
+    color: COLORS.text,
+  },
+  phaseText: {
+    fontFamily: FONTS.ar.medium,
+    fontSize: TYPE.caption.fontSize,
+    color: COLORS.gold,
+  },
+
+  // الموزع
+  dealerFelt: {
+    marginHorizontal: SPACING.xl,
+    height: 168,
+  },
+  dealerLabel: {
+    fontFamily: FONTS.ar.semibold,
+    fontSize: TYPE.caption.fontSize,
+    color: 'rgba(246,242,232,0.72)',
+    letterSpacing: 1,
+    marginBottom: SPACING.sm,
+  },
+  dealerCards: {
+    flexDirection: 'row',
+    gap: 5,
+    marginBottom: SPACING.sm,
+  },
+
+  score: {
+    minWidth: 34,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 2,
+    borderRadius: RADIUS.full,
+    backgroundColor: 'rgba(2,10,7,0.72)',
+    borderWidth: 1,
+    borderColor: 'rgba(212,175,55,0.4)',
+    alignItems: 'center',
+  },
+  scoreText: {
+    fontFamily: FONTS.num.bold,
+    fontSize: TYPE.small.fontSize,
+    lineHeight: 19,
+    color: COLORS.goldLight,
+    includeFontPadding: false,
+  },
+
+  // اللاعبون
+  players: { flex: 1 },
+  playersContent: {
+    paddingHorizontal: SPACING.xl,
+    paddingTop: SPACING.lg,
+    paddingBottom: SPACING.xl,
+    gap: SPACING.md,
+  },
+  spot: {
+    borderRadius: RADIUS.lg,
+    padding: SPACING.md,
+    gap: SPACING.md,
+    backgroundColor: 'rgba(255,255,255,0.035)',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    overflow: 'hidden',
+  },
+  spotMe: {
+    borderColor: 'rgba(212,175,55,0.4)',
+  },
+  spotTop: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  spotWho: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: SPACING.sm,
+  },
+  spotMeta: { alignItems: 'flex-end' },
+  spotName: {
+    fontFamily: FONTS.ar.bold,
+    fontSize: TYPE.small.fontSize,
+    lineHeight: TYPE.small.lineHeight,
+    color: COLORS.text,
+  },
+  spotBalance: {
+    fontFamily: FONTS.num.semibold,
+    fontSize: TYPE.caption.fontSize,
+    color: COLORS.textDim,
+  },
+  spotStatus: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: SPACING.sm,
+  },
+  tag: {
+    paddingHorizontal: SPACING.md,
+    paddingVertical: 3,
+    borderRadius: RADIUS.full,
+    borderWidth: 1,
+  },
+  tagText: {
+    fontFamily: FONTS.ar.semibold,
+    fontSize: TYPE.caption.fontSize,
+    lineHeight: TYPE.caption.lineHeight + 2,
+    includeFontPadding: false,
+  },
+  spotCards: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  cardRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  // الإجراءات
+  actionBar: {
+    paddingTop: SPACING.xl,
+    paddingHorizontal: SPACING.lg,
+    gap: SPACING.md,
+  },
+  turnLabel: {
+    fontFamily: FONTS.ar.medium,
+    fontSize: TYPE.small.fontSize,
+    color: COLORS.textDim,
+    textAlign: 'center',
+  },
+  turnScore: {
+    fontFamily: FONTS.num.bold,
+    color: COLORS.goldLight,
+  },
+  actions: {
+    flexDirection: 'row-reverse',
+    gap: SPACING.sm,
+  },
+  actionBtn: {
+    height: 54,
+    borderRadius: RADIUS.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.14)',
+  },
+  actionGloss: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: '46%',
+  },
+  actionLabel: {
+    fontFamily: FONTS.ar.bold,
+    fontSize: TYPE.body.fontSize,
+    lineHeight: TYPE.body.lineHeight,
+    color: '#FFFFFF',
+    includeFontPadding: false,
+  },
+  actionLabelDark: {
+    color: COLORS.onGold,
   },
 });

@@ -1,88 +1,143 @@
 // ============================================================
-// جرب حظك — Phone Input Screen
+// جرب حظك — إدخال رقم الجوال
 // ============================================================
 
 import React, { useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Pressable,
+  KeyboardAvoidingView,
+  Platform,
+} from 'react-native';
 import { router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Screen from '../../components/ui/Screen';
 import GoldButton from '../../components/ui/GoldButton';
 import Input from '../../components/ui/Input';
-import { COLORS, FONTS, FONT_SIZES, SPACING } from '../../constants/theme';
+import { BackIcon } from '../../components/icons/GameIcons';
+import { COLORS, FONTS, TYPE, SPACING, SIZES } from '../../constants/theme';
 
 export default function PhoneScreen() {
   const [phone, setPhone] = useState('');
+  const insets = useSafeAreaInsets();
+  const valid = phone.length >= 8;
 
   const handleSubmit = () => {
-    if (phone.length >= 8) {
-      router.push({ pathname: '/(auth)/otp', params: { phone: `+966${phone}` } });
-    }
+    if (!valid) return;
+    router.push({ pathname: '/(auth)/otp', params: { phone: `+966${phone}` } });
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.content}>
-        <Text style={styles.title}>مرحباً بك</Text>
-        <Text style={styles.subtitle}>أدخل رقم جوالك للمتابعة</Text>
-
-        <View style={styles.form}>
-          <Input
-            label="رقم الجوال"
-            prefix="🇸🇦 +966"
-            placeholder="5X XXX XXXX"
-            keyboardType="phone-pad"
-            value={phone}
-            onChangeText={setPhone}
-            maxLength={9}
-          />
+    <Screen>
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <View style={styles.header}>
+          <Pressable style={styles.back} onPress={() => router.back()} hitSlop={8}>
+            <BackIcon size={20} color={COLORS.text} />
+          </Pressable>
         </View>
 
-        <GoldButton
-          title="أرسل رمز التحقق"
-          onPress={handleSubmit}
-          disabled={phone.length < 8}
-        />
-      </View>
+        <View style={styles.content}>
+          <View style={styles.stepRow}>
+            <View style={[styles.step, styles.stepActive]} />
+            <View style={styles.step} />
+            <View style={styles.step} />
+          </View>
 
-      <Text style={styles.terms}>
-        بالدخول، أنت توافق على الشروط والأحكام وسياسة الخصوصية
-      </Text>
-    </View>
+          <Text style={styles.title}>مرحباً بك</Text>
+          <Text style={styles.subtitle}>
+            أدخل رقم جوالك وسنرسل لك رمز تحقق من أربعة أرقام
+          </Text>
+
+          <View style={styles.form}>
+            <Input
+              label="رقم الجوال"
+              prefix="+966"
+              placeholder="5X XXX XXXX"
+              keyboardType="phone-pad"
+              value={phone}
+              onChangeText={setPhone}
+              maxLength={9}
+              numeric
+            />
+          </View>
+
+          <GoldButton title="أرسل رمز التحقق" onPress={handleSubmit} disabled={!valid} />
+        </View>
+
+        <Text style={[styles.terms, { paddingBottom: insets.bottom + SPACING.lg }]}>
+          بالمتابعة أنت توافق على الشروط والأحكام وسياسة الخصوصية
+        </Text>
+      </KeyboardAvoidingView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.bgPrimary,
-    padding: SPACING.xl,
-    justifyContent: 'space-between',
+  flex: { flex: 1 },
+  header: {
+    paddingHorizontal: SIZES.screenPadding,
+    paddingTop: SPACING.sm,
+    alignItems: 'flex-end',
+  },
+  back: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   content: {
     flex: 1,
     justifyContent: 'center',
-    gap: SPACING.lg,
+    paddingHorizontal: SIZES.screenPadding,
+  },
+  stepRow: {
+    flexDirection: 'row-reverse',
+    gap: 6,
+    marginBottom: SPACING.xl,
+  },
+  step: {
+    width: 26,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: COLORS.border,
+  },
+  stepActive: {
+    backgroundColor: COLORS.gold,
+    width: 34,
   },
   title: {
-    fontFamily: FONTS.arabic.bold,
-    fontSize: FONT_SIZES.h1,
-    color: COLORS.textPrimary,
+    fontFamily: FONTS.ar.bold,
+    fontSize: TYPE.display.fontSize,
+    lineHeight: TYPE.display.lineHeight,
+    color: COLORS.text,
     textAlign: 'right',
   },
   subtitle: {
-    fontFamily: FONTS.arabic.regular,
-    fontSize: FONT_SIZES.body,
-    color: COLORS.textMuted,
+    fontFamily: FONTS.ar.regular,
+    fontSize: TYPE.body.fontSize,
+    lineHeight: TYPE.body.lineHeight,
+    color: COLORS.textDim,
     textAlign: 'right',
+    marginTop: SPACING.sm,
   },
   form: {
-    marginVertical: SPACING.md,
+    marginTop: SPACING.xxl,
   },
   terms: {
-    fontFamily: FONTS.arabic.light,
-    fontSize: FONT_SIZES.caption,
-    color: COLORS.textMuted,
+    fontFamily: FONTS.ar.regular,
+    fontSize: TYPE.caption.fontSize,
+    lineHeight: TYPE.caption.lineHeight + 4,
+    color: COLORS.textFaint,
     textAlign: 'center',
-    opacity: 0.6,
-    paddingBottom: SPACING.lg,
+    paddingHorizontal: SPACING.xxl,
   },
 });

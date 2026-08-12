@@ -1,9 +1,9 @@
 // ============================================================
 // جرب حظك — Input
-// حقل إدخال بتصميم زجاجي
+// حقل غائر مع تفعيل ذهبي عند التركيز
 // ============================================================
 
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   TextInput,
@@ -11,14 +11,17 @@ import {
   StyleSheet,
   TextInputProps,
   ViewStyle,
+  StyleProp,
 } from 'react-native';
-import { COLORS, FONTS, FONT_SIZES, RADIUS, SPACING, SIZES } from '../../constants/theme';
+import { COLORS, FONTS, TYPE, RADIUS, SPACING, SIZES } from '../../constants/theme';
 
 interface InputProps extends TextInputProps {
   label?: string;
   prefix?: string;
   error?: string;
-  containerStyle?: ViewStyle;
+  containerStyle?: StyleProp<ViewStyle>;
+  /** أرقام لاتينية بمسافة حروف — لرقم الجوال ورمز التحقق */
+  numeric?: boolean;
 }
 
 export default function Input({
@@ -27,66 +30,99 @@ export default function Input({
   error,
   containerStyle,
   style,
+  numeric = false,
+  onFocus,
+  onBlur,
   ...props
 }: InputProps) {
+  const [focused, setFocused] = useState(false);
+
   return (
     <View style={[styles.wrapper, containerStyle]}>
       {label && <Text style={styles.label}>{label}</Text>}
-      <View style={[styles.container, error && styles.errorBorder]}>
+
+      <View
+        style={[
+          styles.field,
+          focused && styles.fieldFocused,
+          !!error && styles.fieldError,
+        ]}
+      >
         {prefix && <Text style={styles.prefix}>{prefix}</Text>}
         <TextInput
-          style={[styles.input, style]}
-          placeholderTextColor={COLORS.textMuted}
-          textAlign="right"
+          style={[styles.input, numeric && styles.inputNumeric, style]}
+          placeholderTextColor={COLORS.textFaint}
+          selectionColor={COLORS.gold}
+          textAlign={numeric ? 'center' : 'right'}
+          onFocus={(e) => {
+            setFocused(true);
+            onFocus?.(e);
+          }}
+          onBlur={(e) => {
+            setFocused(false);
+            onBlur?.(e);
+          }}
           {...props}
         />
       </View>
-      {error && <Text style={styles.error}>{error}</Text>}
+
+      {!!error && <Text style={styles.error}>{error}</Text>}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   wrapper: {
-    marginBottom: SPACING.md,
+    marginBottom: SPACING.lg,
   },
   label: {
-    color: COLORS.textMuted,
-    fontSize: FONT_SIZES.small,
-    fontFamily: FONTS.arabic.regular,
+    color: COLORS.textDim,
+    fontSize: TYPE.small.fontSize,
+    lineHeight: TYPE.small.lineHeight,
+    fontFamily: FONTS.ar.medium,
     marginBottom: SPACING.sm,
     textAlign: 'right',
   },
-  container: {
+  field: {
     height: SIZES.inputHeight,
-    backgroundColor: COLORS.bgSurface,
+    backgroundColor: COLORS.surfaceSunken,
     borderWidth: 1,
     borderColor: COLORS.border,
     borderRadius: RADIUS.md,
-    flexDirection: 'row',
+    flexDirection: 'row-reverse',
     alignItems: 'center',
-    paddingHorizontal: SPACING.md,
+    paddingHorizontal: SPACING.lg,
+    gap: SPACING.sm,
   },
-  errorBorder: {
-    borderColor: COLORS.danger,
+  fieldFocused: {
+    borderColor: COLORS.gold,
+    backgroundColor: 'rgba(212,175,55,0.05)',
+  },
+  fieldError: {
+    borderColor: COLORS.crimson,
   },
   prefix: {
-    color: COLORS.textMuted,
-    fontSize: FONT_SIZES.body,
-    fontFamily: FONTS.arabic.regular,
-    marginRight: SPACING.sm,
+    color: COLORS.textDim,
+    fontSize: TYPE.body.fontSize,
+    fontFamily: FONTS.num.semibold,
   },
   input: {
     flex: 1,
-    color: COLORS.textPrimary,
-    fontSize: FONT_SIZES.body,
-    fontFamily: FONTS.arabic.regular,
+    color: COLORS.text,
+    fontSize: TYPE.body.fontSize,
+    fontFamily: FONTS.ar.medium,
     height: '100%',
+    padding: 0,
+  },
+  inputNumeric: {
+    fontFamily: FONTS.num.bold,
+    fontSize: TYPE.h2.fontSize,
+    letterSpacing: 4,
   },
   error: {
-    color: COLORS.danger,
-    fontSize: FONT_SIZES.caption,
-    fontFamily: FONTS.arabic.regular,
+    color: COLORS.crimson,
+    fontSize: TYPE.caption.fontSize,
+    fontFamily: FONTS.ar.medium,
     marginTop: SPACING.xs,
     textAlign: 'right',
   },

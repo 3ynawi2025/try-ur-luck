@@ -1,6 +1,9 @@
 // ============================================================
 // جرب حظك — Card Deck
+// CSPRNG-seeded shuffle, injectable RNG for tests/simulations.
 // ============================================================
+
+import { randomInt } from 'node:crypto';
 
 export type Suit = 'hearts' | 'diamonds' | 'clubs' | 'spades';
 export type Rank = '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | '10' | 'J' | 'Q' | 'K' | 'A';
@@ -10,8 +13,11 @@ export interface Card {
   rank: Rank;
 }
 
-const SUITS: Suit[] = ['hearts', 'diamonds', 'clubs', 'spades'];
-const RANKS: Rank[] = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
+export const SUITS: Suit[] = ['hearts', 'diamonds', 'clubs', 'spades'];
+export const RANKS: Rank[] = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
+
+/** RNG source: () => number in [0, 1). Inject a seeded generator for tests. */
+export type Rng = () => number;
 
 export function createDeck(): Card[] {
   const deck: Card[] = [];
@@ -23,14 +29,31 @@ export function createDeck(): Card[] {
   return deck;
 }
 
-/** Fisher-Yates shuffle */
-export function shuffleDeck(deck: Card[]): Card[] {
+/**
+ * Fisher-Yates shuffle driven by a CSPRNG (crypto.randomInt) by default.
+ * Pass `rng` for deterministic tests.
+ */
+export function shuffleDeck<T>(deck: T[], rng?: Rng): T[] {
   const shuffled = [...deck];
   for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = rng
+      ? Math.floor(rng() * (i + 1))
+      : randomInt(i + 1);
     [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
   }
   return shuffled;
+}
+
+/** Deterministic seeded PRNG (mulberry32). For tests and simulations only — never production. */
+export function seededRng(seed: number): Rng {
+  let a = seed >>> 0;
+  return () => {
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
 }
 
 export function dealCards(deck: Card[], count: number): { cards: Card[]; remaining: Card[] } {
@@ -53,4 +76,31 @@ export function cardToString(card: Card): string {
     hearts: '♥', diamonds: '♦', clubs: '♣', spades: '♠',
   };
   return `${card.rank}${suitSymbols[card.suit]}`;
+}
+
+/** Canonical card key used by the invariant checker (duplicate detection). */
+export function cardKey(card: Card): string {
+  return `${card.rank}-${card.suit}`;
+}
+
+/**
+ * Invariant check: a deck resource must contain exactly the expected composition
+ * with no duplicates and no unknown cards. Throws on violation.
+ */
+export function assertDeckComposition(cards: Card[], expectedMultiples: number = 1): void {
+  const seen = new Set<string>();
+  const counts = new Map<string, number>();
+  for (const c of cards) {
+    const key = cardKey(c);
+    if (seen.has(key)) throw new Error(`DUPLICATE_CARD: ${key}`);
+    seen.add(key);
+    counts.set(c.rank, (counts.get(c.rank) ?? 0) + 1);
+  }
+  for (const suit of SUITS) {
+    for (const rank of RANKS) {
+      if (expectedMultiples === 1 && !seen.has(cardKey({ suit, rank }))) {
+        throw new Error(`MISSING_CARD: ${cardKey({ suit, rank })}`);
+      }
+    }
+  }
 }

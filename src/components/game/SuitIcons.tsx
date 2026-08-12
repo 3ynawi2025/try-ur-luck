@@ -1,60 +1,41 @@
+// ============================================================
+// جرب حظك — Suit Icons
+// رموز الأوراق الأربعة (مسارات نظيفة داخل 24×24)
+// ============================================================
+
 import React from 'react';
 import Svg, { Path } from 'react-native-svg';
 
+export type Suit = 'spades' | 'hearts' | 'diamonds' | 'clubs';
+
 interface SuitProps {
-  suit: 'spades' | 'hearts' | 'diamonds' | 'clubs';
+  suit: Suit;
   size?: number;
   color?: string;
 }
 
-const Spade = ({ size = 24, color = '#212121' }: { size?: number; color?: string }) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24">
-    <Path
-      d="M12 2.5C9.5 6 4.5 9 4.5 13.5 4.5 16.5 6.5 18.5 9 18.5c1.6 0 3-.8 3.9-2V21c0 .6-.4 1-1 1h-1c-.6 0-1 .4-1 1s.4 1 1 1h5c.6 0 1-.4 1-1s-.4-1-1-1h-1c-.6 0-1-.4-1-1v-4.5c.9 1.2 2.3 2 3.9 2 2.5 0 4.5-2 4.5-5C19.5 9 14.5 6 12 2.5z"
-      fill={color}
-    />
-  </Svg>
-);
+const PATHS: Record<Suit, string> = {
+  spades:
+    'M12 2c-.6 3.2-4.3 5.6-6.2 7.6C4.3 11.1 3.6 12.5 3.6 14c0 2.4 1.8 4.2 4.1 4.2 1.4 0 2.6-.7 3.3-1.7-.2 2-1 3.5-2.3 4.6h6.6c-1.3-1.1-2.1-2.6-2.3-4.6.7 1 1.9 1.7 3.3 1.7 2.3 0 4.1-1.8 4.1-4.2 0-1.5-.7-2.9-2.2-4.4C16.3 7.6 12.6 5.2 12 2z',
+  hearts:
+    'M12 21c-.4 0-.8-.2-1.1-.4C6.4 16.8 3 14 3 10.3 3 7.4 5.2 5.2 8 5.2c1.6 0 3.1.8 4 2 .9-1.2 2.4-2 4-2 2.8 0 5 2.2 5 5.1 0 3.7-3.4 6.5-7.9 10.3-.3.2-.7.4-1.1.4z',
+  diamonds: 'M12 2.2 20.4 12 12 21.8 3.6 12z',
+  clubs:
+    'M12 2.6a4.1 4.1 0 0 0-3.3 6.6 4.1 4.1 0 1 0-1.5 7.7c1.2 0 2.3-.5 3-1.4-.2 2-1 3.6-2.3 4.7h8.2c-1.3-1.1-2.1-2.7-2.3-4.7.7.9 1.8 1.4 3 1.4a4.1 4.1 0 1 0-1.5-7.7A4.1 4.1 0 0 0 12 2.6z',
+};
 
-const Heart = ({ size = 24, color = '#D32F2F' }: { size?: number; color?: string }) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24">
-    <Path
-      d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"
-      fill={color}
-    />
-  </Svg>
-);
-
-const Diamond = ({ size = 24, color = '#D32F2F' }: { size?: number; color?: string }) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24">
-    <Path d="M12 2L22 12L12 22L2 12L12 2Z" fill={color} />
-  </Svg>
-);
-
-const Club = ({ size = 24, color = '#212121' }: { size?: number; color?: string }) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24">
-    <Path
-      d="M16.5 9c-1.2 0-2.3.5-3.1 1.3.4-.8.6-1.7.6-2.6 0-2.8-2.2-5-5-5s-5 2.2-5 5c0 .9.2 1.8.6 2.6-.8-.8-1.9-1.3-3.1-1.3-2.5 0-4.5 2-4.5 4.5S3.5 18 6 18c1.6 0 3-.8 3.9-2-.3.8-.4 1.7-.4 2.5 0 2.8 2.2 5 5 5s5-2.2 5-5c0-.8-.1-1.7-.4-2.5.9 1.2 2.3 2 3.9 2 2.5 0 4.5-2 4.5-4.5S19 9 16.5 9z"
-      fill={color}
-    />
-  </Svg>
-);
+/** أحمر دافئ للكوبة/الديناري، فحمي للبستوني/السباتي */
+export const SUIT_COLORS = {
+  spades: '#16161A',
+  hearts: '#C1272D',
+  diamonds: '#C1272D',
+  clubs: '#16161A',
+} as const;
 
 export default function SuitIcon({ suit, size = 24, color }: SuitProps) {
-  const defaultColor = suit === 'hearts' || suit === 'diamonds' ? '#C62828' : '#212121';
-  const c = color || defaultColor;
-
-  switch (suit) {
-    case 'spades': return <Spade size={size} color={c} />;
-    case 'hearts': return <Heart size={size} color={c} />;
-    case 'diamonds': return <Diamond size={size} color={c} />;
-    case 'clubs': return <Club size={size} color={c} />;
-  }
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24">
+      <Path d={PATHS[suit]} fill={color || SUIT_COLORS[suit]} />
+    </Svg>
+  );
 }
-
-export const SUIT_COLORS = {
-  spades: '#212121',
-  hearts: '#C62828',
-  diamonds: '#C62828',
-  clubs: '#212121',
-} as const;

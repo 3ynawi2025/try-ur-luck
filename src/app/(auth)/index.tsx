@@ -1,120 +1,201 @@
 // ============================================================
-// جرب حظك — Onboarding / Splash
+// جرب حظك — شاشة الترحيب
 // ============================================================
 
-import React from 'react';
-import { View, Text, StyleSheet, Dimensions } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, Animated, Easing, Dimensions } from 'react-native';
 import { router } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Screen from '../../components/ui/Screen';
 import GoldButton from '../../components/ui/GoldButton';
-import { COLORS, FONTS, FONT_SIZES, SPACING } from '../../constants/theme';
+import PlayingCard from '../../components/game/PlayingCard';
+import { LogoMark } from '../../components/icons/GameIcons';
+import { COLORS, FONTS, TYPE, SPACING, SIZES } from '../../constants/theme';
 
-const { width, height } = Dimensions.get('window');
+const { width } = Dimensions.get('window');
 
-export default function OnboardingScreen() {
+/** أوراق مروحة خلف الشعار */
+const FAN = [
+  { card: { suit: 'spades', rank: 'A' }, rotate: '-18deg', x: -76, y: 16 },
+  { card: { suit: 'hearts', rank: 'K' }, rotate: '-6deg', x: -26, y: 0 },
+  { card: { suit: 'diamonds', rank: 'Q' }, rotate: '6deg', x: 26, y: 0 },
+  { card: { suit: 'clubs', rank: 'J' }, rotate: '18deg', x: 76, y: 16 },
+] as const;
+
+export default function WelcomeScreen() {
+  const insets = useSafeAreaInsets();
+  const enter = useRef(new Animated.Value(0)).current;
+  const float = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(enter, {
+      toValue: 1,
+      duration: 700,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(float, {
+          toValue: 1,
+          duration: 2600,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+        Animated.timing(float, {
+          toValue: 0,
+          duration: 2600,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, []);
+
+  const floatY = float.interpolate({ inputRange: [0, 1], outputRange: [0, -9] });
+
   return (
-    <View style={styles.container}>
-      {/* Background pattern */}
-      <View style={styles.bgPattern}>
-        <Text style={styles.bgPatternText}>♠</Text>
-        <Text style={[styles.bgPatternText, styles.bgPatternOffset]}>♥</Text>
-        <Text style={[styles.bgPatternText, styles.bgPatternOffset2]}>♦</Text>
-        <Text style={[styles.bgPatternText, styles.bgPatternOffset3]}>♣</Text>
-      </View>
+    <Screen safeTop={false}>
+      <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+        {/* ===== البطل ===== */}
+        <Animated.View
+          style={[
+            styles.hero,
+            {
+              opacity: enter,
+              transform: [
+                { translateY: enter.interpolate({ inputRange: [0, 1], outputRange: [26, 0] }) },
+              ],
+            },
+          ]}
+        >
+          <Animated.View style={[styles.fan, { transform: [{ translateY: floatY }] }]}>
+            {FAN.map((f, i) => (
+              <View
+                key={i}
+                style={[
+                  styles.fanCard,
+                  { transform: [{ translateX: f.x }, { translateY: f.y }, { rotate: f.rotate }] },
+                ]}
+              >
+                <PlayingCard card={f.card as any} width={70} height={98} />
+              </View>
+            ))}
+          </Animated.View>
 
-      {/* Main content */}
-      <View style={styles.content}>
-        <Text style={styles.emoji}>🎰</Text>
-        <Text style={styles.title}>جرب حظك</Text>
-        <Text style={styles.subtitle}>try ur luck</Text>
-        <Text style={styles.tagline}>مجلسك الاجتماعي للألعاب</Text>
-      </View>
+          <View style={styles.logo}>
+            <LogoMark size={84} />
+          </View>
 
-      {/* Action */}
-      <View style={styles.footer}>
-        <GoldButton
-          title="ابدأ الرحلة"
-          onPress={() => router.push('/(auth)/phone')}
-        />
-        <Text style={styles.note}>الدراهم افتراضية وليس لها قيمة نقدية</Text>
+          <Text style={styles.title}>جرب حظك</Text>
+          <View style={styles.ruleRow}>
+            <LinearGradient
+              colors={['rgba(212,175,55,0)', COLORS.gold]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.rule}
+            />
+            <Text style={styles.latin}>TRY UR LUCK</Text>
+            <LinearGradient
+              colors={[COLORS.gold, 'rgba(212,175,55,0)']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.rule}
+            />
+          </View>
+          <Text style={styles.tagline}>مجلسك الاجتماعي للورق — بصوت مباشر</Text>
+        </Animated.View>
+
+        {/* ===== الإجراء ===== */}
+        <Animated.View
+          style={[
+            styles.footer,
+            {
+              opacity: enter,
+              transform: [
+                { translateY: enter.interpolate({ inputRange: [0, 1], outputRange: [30, 0] }) },
+              ],
+            },
+          ]}
+        >
+          <GoldButton title="ابدأ الآن" onPress={() => router.push('/(auth)/phone')} />
+          <Text style={styles.note}>الدراهم افتراضية بالكامل وليس لها أي قيمة نقدية</Text>
+        </Animated.View>
       </View>
-    </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.bgPrimary,
+    paddingHorizontal: SIZES.screenPadding,
     justifyContent: 'space-between',
-    padding: SPACING.xl,
   },
-  bgPattern: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    justifyContent: 'center',
-    alignItems: 'center',
-    opacity: 0.08,
-  },
-  bgPatternText: {
-    fontSize: 120,
-    color: COLORS.primary,
-    position: 'absolute',
-    top: '20%',
-    left: '15%',
-  },
-  bgPatternOffset: {
-    top: '30%',
-    left: '65%',
-  },
-  bgPatternOffset2: {
-    top: '55%',
-    left: '25%',
-  },
-  bgPatternOffset3: {
-    top: '70%',
-    left: '70%',
-  },
-  content: {
+  hero: {
     flex: 1,
-    justifyContent: 'center',
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  emoji: {
-    fontSize: 64,
+  fan: {
+    position: 'absolute',
+    top: '18%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    opacity: 0.5,
+  },
+  fanCard: {
+    position: 'absolute',
+  },
+  logo: {
+    marginTop: 120,
     marginBottom: SPACING.lg,
   },
   title: {
-    fontFamily: FONTS.arabic.bold,
-    fontSize: FONT_SIZES.hero,
-    color: COLORS.primary,
+    fontFamily: FONTS.ar.black,
+    fontSize: 44,
+    lineHeight: 62,
+    color: COLORS.goldLight,
     textAlign: 'center',
+    includeFontPadding: false,
   },
-  subtitle: {
-    fontFamily: FONTS.english.regular,
-    fontSize: FONT_SIZES.h3,
-    color: COLORS.textMuted,
-    marginTop: 4,
-    textAlign: 'center',
+  ruleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.md,
+    marginTop: SPACING.xs,
+  },
+  rule: {
+    width: 42,
+    height: 1,
+  },
+  latin: {
+    fontFamily: FONTS.num.semibold,
+    fontSize: TYPE.caption.fontSize,
+    color: COLORS.gold,
+    letterSpacing: 4,
   },
   tagline: {
-    fontFamily: FONTS.arabic.regular,
-    fontSize: FONT_SIZES.body,
-    color: COLORS.textMuted,
-    marginTop: SPACING.lg,
+    fontFamily: FONTS.ar.medium,
+    fontSize: TYPE.body.fontSize,
+    lineHeight: TYPE.body.lineHeight,
+    color: COLORS.textDim,
     textAlign: 'center',
+    marginTop: SPACING.xl,
   },
   footer: {
+    gap: SPACING.lg,
     paddingBottom: SPACING.xl,
-    gap: SPACING.md,
   },
   note: {
-    fontFamily: FONTS.arabic.light,
-    fontSize: FONT_SIZES.caption,
-    color: COLORS.textMuted,
+    fontFamily: FONTS.ar.regular,
+    fontSize: TYPE.caption.fontSize,
+    color: COLORS.textFaint,
     textAlign: 'center',
-    opacity: 0.6,
   },
 });

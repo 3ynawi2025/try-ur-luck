@@ -1,79 +1,160 @@
 // ============================================================
 // جرب حظك — Avatar
-// صورة دائرية مع إمكانية حافة ذهبية وbadge
+// حرف على تدرّج مشتق من الاسم + حلقة ذهبية نابضة عند الدور
 // ============================================================
 
-import React from 'react';
-import { View, Image, Text, StyleSheet } from 'react-native';
-import { COLORS, FONTS, SIZES } from '../../constants/theme';
+import React, { useEffect, useRef } from 'react';
+import { View, Image, Text, StyleSheet, Animated, Easing } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { COLORS, FONTS, SIZES, SHADOWS } from '../../constants/theme';
+import { MicIcon, MicOffIcon } from '../icons/GameIcons';
 
 interface AvatarProps {
   uri?: string | null;
   name?: string;
   size?: number;
+  /** حلقة ذهبية ثابتة */
   showBorder?: boolean;
+  /** دور اللاعب الآن — حلقة نابضة */
   isActive?: boolean;
   showMuteBadge?: boolean;
   isMuted?: boolean;
 }
 
-const DEFAULT_AVATARS = [
-  '🦁', '🦊', '🐯', '🐺', '🦅', '🐉', '🦚', '🐆',
+/** أزواج ألوان هادئة تنسجم مع الذهب */
+const PALETTES: [string, string][] = [
+  ['#1E5E48', '#0B3227'],
+  ['#4A2E6B', '#241338'],
+  ['#7A3B22', '#3A1A0E'],
+  ['#1D4E7A', '#0C2740'],
+  ['#6B2B3C', '#33121C'],
+  ['#2C5C2E', '#123014'],
+  ['#5A4A1E', '#2B220B'],
+  ['#28525C', '#0F2B31'],
 ];
 
-function getInitial(name: string): string {
-  return name.charAt(0).toUpperCase();
-}
-
-function getFallbackEmoji(name: string): string {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) {
-    hash = ((hash << 5) - hash) + name.charCodeAt(i);
-    hash |= 0;
+function hash(str: string): number {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) {
+    h = (h << 5) - h + str.charCodeAt(i);
+    h |= 0;
   }
-  return DEFAULT_AVATARS[Math.abs(hash) % DEFAULT_AVATARS.length];
+  return Math.abs(h);
 }
 
 export default function Avatar({
   uri,
-  name,
+  name = '',
   size = SIZES.avatarMd,
   showBorder = false,
   isActive = false,
   showMuteBadge = false,
   isMuted = false,
 }: AvatarProps) {
+  const pulse = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (!isActive) {
+      pulse.setValue(0);
+      return;
+    }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, {
+          toValue: 1,
+          duration: 900,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulse, {
+          toValue: 0,
+          duration: 900,
+          easing: Easing.in(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [isActive]);
+
+  const palette = PALETTES[hash(name || '?') % PALETTES.length];
+  const initial = name ? name.trim().charAt(0).toUpperCase() : '؟';
+  const ring = size * 0.055;
+  const badge = Math.max(16, size * 0.34);
+
   return (
-    <View style={[styles.wrapper, { width: size, height: size }]}>
+    <View style={{ width: size, height: size }}>
+      {/* حلقة الدور النابضة */}
+      {isActive && (
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.pulseRing,
+            {
+              width: size,
+              height: size,
+              borderRadius: size / 2,
+              borderWidth: Math.max(2, ring),
+              opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.9, 0.15] }),
+              transform: [
+                { scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.32] }) },
+              ],
+            },
+          ]}
+        />
+      )}
+
       <View
         style={[
-          styles.container,
-          {
-            width: size,
-            height: size,
-            borderRadius: size / 2,
+          styles.frame,
+          { width: size, height: size, borderRadius: size / 2 },
+          (showBorder || isActive) && {
+            borderWidth: Math.max(1.5, ring),
+            borderColor: isActive ? COLORS.gold : COLORS.hairlineGold,
           },
-          showBorder && styles.border,
-          isActive && styles.activeBorder,
+          isActive && SHADOWS.goldSoft,
         ]}
       >
         {uri ? (
-          <Image
-            source={{ uri }}
-            style={[styles.image, { width: size, height: size, borderRadius: size / 2 }]}
-          />
+          <Image source={{ uri }} style={styles.fill} resizeMode="cover" />
         ) : (
-          <View style={[styles.fallback, { width: size, height: size, borderRadius: size / 2 }]}>
-            <Text style={[styles.fallbackText, { fontSize: size * 0.45, color: COLORS.textPrimary }]}>
-              {name ? getInitial(name) : '؟'}
+          <LinearGradient
+            colors={palette}
+            start={{ x: 0.2, y: 0 }}
+            end={{ x: 0.9, y: 1 }}
+            style={[styles.fill, styles.center]}
+          >
+            <Text
+              style={[
+                styles.initial,
+                { fontSize: size * 0.42, lineHeight: size * 0.56 },
+              ]}
+            >
+              {initial}
             </Text>
-          </View>
+          </LinearGradient>
         )}
       </View>
 
       {showMuteBadge && (
-        <View style={[styles.badge, isMuted ? styles.mutedBadge : styles.unmutedBadge]}>
-          <Text style={styles.badgeText}>{isMuted ? '🔇' : '🎤'}</Text>
+        <View
+          style={[
+            styles.badge,
+            {
+              width: badge,
+              height: badge,
+              borderRadius: badge / 2,
+              backgroundColor: isMuted ? 'rgba(30,16,18,0.95)' : 'rgba(10,32,22,0.95)',
+              borderColor: isMuted ? COLORS.crimson : COLORS.emerald,
+            },
+          ]}
+        >
+          {isMuted ? (
+            <MicOffIcon size={badge * 0.68} color={COLORS.crimson} />
+          ) : (
+            <MicIcon size={badge * 0.68} color={COLORS.emerald} />
+          )}
         </View>
       )}
     </View>
@@ -81,58 +162,34 @@ export default function Avatar({
 }
 
 const styles = StyleSheet.create({
-  wrapper: {
-    position: 'relative',
-  },
-  container: {
+  frame: {
     overflow: 'hidden',
+    backgroundColor: COLORS.surfaceRaised,
   },
-  border: {
-    borderWidth: 2,
-    borderColor: COLORS.border,
+  pulseRing: {
+    position: 'absolute',
+    borderColor: COLORS.gold,
   },
-  activeBorder: {
-    borderColor: COLORS.primary,
-    borderWidth: 2,
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.6,
-    shadowRadius: 8,
-    elevation: 6,
+  fill: {
+    width: '100%',
+    height: '100%',
   },
-  image: {
-    resizeMode: 'cover',
-  },
-  fallback: {
-    backgroundColor: COLORS.bgSurfaceLight,
+  center: {
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(220,38,38,0.3)',
   },
-  fallbackText: {
+  initial: {
+    fontFamily: FONTS.ar.bold,
+    color: COLORS.text,
+    includeFontPadding: false,
     textAlign: 'center',
-    fontFamily: FONTS.arabic.bold,
   },
   badge: {
     position: 'absolute',
     bottom: -2,
     right: -2,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1.5,
-    borderColor: COLORS.bgPrimary,
-  },
-  mutedBadge: {
-    backgroundColor: COLORS.danger,
-  },
-  unmutedBadge: {
-    backgroundColor: COLORS.success,
-  },
-  badgeText: {
-    fontSize: 10,
   },
 });

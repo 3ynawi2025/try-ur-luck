@@ -1,19 +1,46 @@
 // ============================================================
-// جرب حظك — GoldButton v4 (Cyberpunk UI)
-// زر نيون أحمر/أزرق
+// جرب حظك — GoldButton
+// زر ذهبي معدني: تدرّج 4 محطات + لمعة علوية + ارتداد عند الضغط
 // ============================================================
 
-import React from 'react';
-import { TouchableOpacity, Text, StyleSheet, ViewStyle, View } from 'react-native';
+import React, { useRef } from 'react';
+import {
+  Pressable,
+  Text,
+  StyleSheet,
+  ViewStyle,
+  StyleProp,
+  View,
+  Animated,
+  ActivityIndicator,
+  Platform,
+} from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { COLORS, FONTS, FONT_SIZES, RADIUS } from '../../constants/theme';
+import * as Haptics from 'expo-haptics';
+import {
+  COLORS,
+  FONTS,
+  TYPE,
+  RADIUS,
+  SIZES,
+  SPACING,
+  GRADIENTS,
+  SHADOWS,
+} from '../../constants/theme';
+
+type Variant = 'primary' | 'outline' | 'danger' | 'ghost';
+type Size = 'md' | 'sm';
 
 interface GoldButtonProps {
   title: string;
   onPress: () => void;
-  style?: ViewStyle | ViewStyle[];
+  style?: StyleProp<ViewStyle>;
   disabled?: boolean;
-  variant?: 'primary' | 'outline' | 'danger';
+  loading?: boolean;
+  variant?: Variant;
+  size?: Size;
+  /** أيقونة تظهر قبل النص */
+  icon?: React.ReactNode;
 }
 
 export default function GoldButton({
@@ -21,35 +48,111 @@ export default function GoldButton({
   onPress,
   style,
   disabled = false,
+  loading = false,
   variant = 'primary',
+  size = 'md',
+  icon,
 }: GoldButtonProps) {
-  const isOutline = variant === 'outline';
-  const isDanger = variant === 'danger';
+  const scale = useRef(new Animated.Value(1)).current;
+  const isPrimary = variant === 'primary';
+  const inactive = disabled || loading;
 
-  return (
-    <TouchableOpacity
-      onPress={onPress}
-      disabled={disabled}
-      activeOpacity={0.85}
-      style={[styles.wrapper, isOutline && styles.outlineWrapper, style]}
-    >
-      {isOutline || isDanger ? (
-        <View style={[styles.inner, isOutline && styles.outlineInner, isDanger && styles.dangerInner]}>
-          <Text style={[styles.text, isOutline && styles.outlineText, isDanger && styles.dangerText]}>
+  const press = (to: number) =>
+    Animated.spring(scale, {
+      toValue: to,
+      useNativeDriver: true,
+      speed: 40,
+      bounciness: 6,
+    }).start();
+
+  const handlePress = () => {
+    if (inactive) return;
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(
+        isPrimary ? Haptics.ImpactFeedbackStyle.Medium : Haptics.ImpactFeedbackStyle.Light
+      ).catch(() => {});
+    }
+    onPress();
+  };
+
+  const height = size === 'sm' ? SIZES.buttonHeightSm : SIZES.buttonHeight;
+  const label = (
+    <View style={styles.labelRow}>
+      {loading ? (
+        <ActivityIndicator
+          size="small"
+          color={isPrimary ? COLORS.onGold : COLORS.gold}
+        />
+      ) : (
+        <>
+          {icon}
+          <Text
+            style={[
+              styles.text,
+              size === 'sm' && styles.textSm,
+              variant === 'outline' && styles.textOutline,
+              variant === 'danger' && styles.textDanger,
+              variant === 'ghost' && styles.textGhost,
+              inactive && isPrimary && styles.textDisabled,
+            ]}
+            numberOfLines={1}
+          >
             {title}
           </Text>
-        </View>
-      ) : (
-        <LinearGradient
-          colors={disabled ? ['#333', '#222'] : [COLORS.primary, COLORS.primaryDark]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.gradient}
-        >
-          <Text style={[styles.text, disabled && styles.textDisabled]}>{title}</Text>
-        </LinearGradient>
+        </>
       )}
-    </TouchableOpacity>
+    </View>
+  );
+
+  return (
+    <Animated.View style={[{ transform: [{ scale }] }, style]}>
+      <Pressable
+        onPress={handlePress}
+        onPressIn={() => press(0.965)}
+        onPressOut={() => press(1)}
+        disabled={inactive}
+        style={[
+          styles.wrapper,
+          isPrimary && !inactive && SHADOWS.gold,
+          !isPrimary && SHADOWS.e1,
+          inactive && styles.wrapperDisabled,
+        ]}
+      >
+        {isPrimary ? (
+          <LinearGradient
+            colors={
+              inactive
+                ? (['#3A3830', '#26241E'] as const)
+                : GRADIENTS.goldMetal
+            }
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            locations={[0, 0.42, 0.78, 1]}
+            style={[styles.body, { height }]}
+          >
+            {/* لمعة زجاجية على النصف العلوي */}
+            <LinearGradient
+              colors={['rgba(255,255,255,0.42)', 'rgba(255,255,255,0)']}
+              style={styles.gloss}
+              pointerEvents="none"
+            />
+            {label}
+          </LinearGradient>
+        ) : (
+          <View
+            style={[
+              styles.body,
+              { height },
+              variant === 'outline' && styles.outline,
+              variant === 'danger' && styles.danger,
+              variant === 'ghost' && styles.ghost,
+            ]}
+          >
+            {label}
+          </View>
+        )}
+      </Pressable>
+    </Animated.View>
   );
 }
 
@@ -57,51 +160,57 @@ const styles = StyleSheet.create({
   wrapper: {
     borderRadius: RADIUS.md,
     overflow: 'hidden',
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    elevation: 8,
   },
-  outlineWrapper: {
-    shadowOpacity: 0.15,
-    elevation: 3,
+  wrapperDisabled: {
+    opacity: 0.6,
   },
-  gradient: {
-    paddingVertical: 16,
-    paddingHorizontal: 24,
+  body: {
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: SPACING.xl,
+    borderRadius: RADIUS.md,
   },
-  inner: {
-    paddingVertical: 16,
-    paddingHorizontal: 24,
+  gloss: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: '48%',
+  },
+  outline: {
+    backgroundColor: 'rgba(212,175,55,0.07)',
+    borderWidth: 1,
+    borderColor: 'rgba(212,175,55,0.42)',
+  },
+  danger: {
+    backgroundColor: 'rgba(226,61,77,0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(226,61,77,0.40)',
+  },
+  ghost: {
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  labelRow: {
+    flexDirection: 'row-reverse',
     alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'transparent',
-  },
-  outlineInner: {
-    backgroundColor: 'rgba(37,99,235,0.08)',
-    borderWidth: 1,
-    borderColor: 'rgba(37,99,235,0.4)',
-  },
-  dangerInner: {
-    backgroundColor: 'rgba(220,38,38,0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(220,38,38,0.4)',
+    gap: SPACING.sm,
   },
   text: {
-    fontFamily: FONTS.arabic.bold,
-    fontSize: FONT_SIZES.body,
-    color: COLORS.textPrimary,
+    fontFamily: FONTS.ar.bold,
+    fontSize: TYPE.body.fontSize,
+    lineHeight: TYPE.body.lineHeight,
+    color: COLORS.onGold,
+    letterSpacing: 0.2,
+    includeFontPadding: false,
   },
-  textDisabled: {
-    color: COLORS.textMuted,
+  textSm: {
+    fontSize: TYPE.small.fontSize,
+    lineHeight: TYPE.small.lineHeight,
   },
-  outlineText: {
-    color: COLORS.neonBlue,
-  },
-  dangerText: {
-    color: COLORS.neonRed,
-  },
+  textOutline: { color: COLORS.goldLight },
+  textDanger: { color: '#FF8A94' },
+  textGhost: { color: COLORS.text },
+  textDisabled: { color: COLORS.textFaint },
 });

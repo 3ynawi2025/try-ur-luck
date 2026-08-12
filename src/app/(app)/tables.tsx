@@ -1,213 +1,366 @@
 // ============================================================
-// جرب حظك — Tables Screen
+// جرب حظك — الطاولات
 // ============================================================
 
-import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-} from 'react-native';
+import React, { useRef, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, Pressable, Animated } from 'react-native';
 import { router } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
+import Screen from '../../components/ui/Screen';
 import GlassCard from '../../components/ui/GlassCard';
 import GoldButton from '../../components/ui/GoldButton';
 import Chip from '../../components/ui/Chip';
-import { COLORS, FONTS, FONT_SIZES, SPACING, RADIUS } from '../../constants/theme';
+import Avatar from '../../components/ui/Avatar';
+import { Badge, SeatCounter } from '../../components/ui/Bits';
+import {
+  ChevronIcon,
+  LockIcon,
+  PlusIcon,
+  CrownIcon,
+} from '../../components/icons/GameIcons';
+import {
+  COLORS,
+  FONTS,
+  TYPE,
+  SPACING,
+  RADIUS,
+  SIZES,
+  formatNumber,
+} from '../../constants/theme';
 
 type GameFilter = 'all' | 'texas_holdem' | 'blackjack';
 
 const MOCK_TABLES = [
-  { id: '1', gameType: 'texas_holdem', name: 'طاولة الرياض', players: 2, maxPlayers: 6, minBuyIn: 500, smallBlind: 10, bigBlind: 20 },
-  { id: '2', gameType: 'blackjack', name: 'طاولة الخليج', players: 3, maxPlayers: 5, minBuyIn: 1000 },
-  { id: '3', gameType: 'texas_holdem', name: 'طاولة VIP', players: 5, maxPlayers: 6, minBuyIn: 5000, smallBlind: 200, bigBlind: 400 },
-  { id: '4', gameType: 'texas_holdem', name: 'طاولة مبتدئين', players: 1, maxPlayers: 6, minBuyIn: 500, smallBlind: 10, bigBlind: 20 },
-  { id: '5', gameType: 'blackjack', name: 'طاولة المحترفين', players: 4, maxPlayers: 5, minBuyIn: 2500 },
-  { id: '6', gameType: 'texas_holdem', name: 'طاولة خاصة', players: 2, maxPlayers: 6, minBuyIn: 1500, smallBlind: 50, bigBlind: 100, isPrivate: true },
+  { id: '1', gameType: 'texas_holdem', name: 'طاولة الرياض', players: 2, maxPlayers: 6, minBuyIn: 500, smallBlind: 10, bigBlind: 20, seated: ['سلطان', 'نورة'] },
+  { id: '2', gameType: 'blackjack', name: 'طاولة الخليج', players: 3, maxPlayers: 5, minBuyIn: 1000, seated: ['فهد', 'لمى', 'خالد'] },
+  { id: '3', gameType: 'texas_holdem', name: 'طاولة VIP', players: 5, maxPlayers: 6, minBuyIn: 5000, smallBlind: 200, bigBlind: 400, vip: true, seated: ['ريم', 'بدر', 'هند', 'ماجد', 'سارة'] },
+  { id: '4', gameType: 'texas_holdem', name: 'طاولة مبتدئين', players: 1, maxPlayers: 6, minBuyIn: 500, smallBlind: 10, bigBlind: 20, seated: ['عمر'] },
+  { id: '5', gameType: 'blackjack', name: 'طاولة المحترفين', players: 4, maxPlayers: 5, minBuyIn: 2500, seated: ['ليان', 'طلال', 'دانة', 'يوسف'] },
+  { id: '6', gameType: 'texas_holdem', name: 'طاولة خاصة', players: 2, maxPlayers: 6, minBuyIn: 1500, smallBlind: 50, bigBlind: 100, isPrivate: true, seated: ['غير معروف', 'ضيف'] },
 ];
 
 const FILTERS: { key: GameFilter; label: string }[] = [
   { key: 'all', label: 'الكل' },
-  { key: 'texas_holdem', label: 'تكساس' },
+  { key: 'texas_holdem', label: 'تكساس هولدم' },
   { key: 'blackjack', label: 'بلاك جاك' },
 ];
+
+/** صيغ الجمع العربية: مفرد / مثنى / جمع قلة / جمع كثرة */
+function seatsAvailable(n: number): string {
+  if (n === 0) return 'الطاولة ممتلئة';
+  if (n === 1) return 'مقعد واحد متاح';
+  if (n === 2) return 'مقعدان متاحان';
+  if (n <= 10) return `${n} مقاعد متاحة`;
+  return `${n} مقعداً متاحاً`;
+}
+
+function tablesOpen(n: number): string {
+  if (n === 0) return 'لا توجد طاولات مفتوحة';
+  if (n === 1) return 'طاولة واحدة مفتوحة الآن';
+  if (n === 2) return 'طاولتان مفتوحتان الآن';
+  if (n <= 10) return `${n} طاولات مفتوحة الآن`;
+  return `${n} طاولة مفتوحة الآن`;
+}
+
+function FilterTab({
+  label,
+  active,
+  onPress,
+}: {
+  label: string;
+  active: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={[styles.filter, active && styles.filterActive]}
+    >
+      <Text style={[styles.filterText, active && styles.filterTextActive]}>{label}</Text>
+    </Pressable>
+  );
+}
+
+function TableRow({ table }: { table: (typeof MOCK_TABLES)[number] }) {
+  const scale = useRef(new Animated.Value(1)).current;
+  const to = (v: number) =>
+    Animated.spring(scale, { toValue: v, useNativeDriver: true, speed: 45, bounciness: 5 }).start();
+
+  const isFull = table.players >= table.maxPlayers;
+
+  return (
+    <Animated.View style={{ transform: [{ scale }] }}>
+      <Pressable
+        onPress={() => router.push(`/(app)/table/${table.id}`)}
+        onPressIn={() => to(0.98)}
+        onPressOut={() => to(1)}
+      >
+        <GlassCard variant={table.vip ? 'gold' : 'default'} padding={SPACING.lg}>
+          {/* السطر العلوي */}
+          <View style={styles.rowTop}>
+            <View style={styles.titleCol}>
+              <View style={styles.titleLine}>
+                {table.isPrivate && <LockIcon size={15} color={COLORS.textDim} />}
+                <Text style={styles.tableName}>{table.name}</Text>
+              </View>
+              <View style={styles.metaLine}>
+                <Text style={styles.gameLabel}>
+                  {table.gameType === 'texas_holdem' ? 'تكساس هولدم' : 'بلاك جاك'}
+                </Text>
+                {!!table.smallBlind && (
+                  <>
+                    <View style={styles.dot} />
+                    <Text style={styles.blinds}>
+                      {table.smallBlind}/{table.bigBlind}
+                    </Text>
+                  </>
+                )}
+              </View>
+            </View>
+            <SeatCounter players={table.players} max={table.maxPlayers} />
+          </View>
+
+          {/* الجالسون */}
+          <View style={styles.seatedRow}>
+            {table.seated.slice(0, 5).map((n, i) => (
+              <View key={`${n}-${i}`} style={{ marginRight: i === 0 ? 0 : -10 }}>
+                <Avatar name={n} size={26} showBorder />
+              </View>
+            ))}
+            <Text style={styles.seatedText}>
+              {seatsAvailable(table.maxPlayers - table.players)}
+            </Text>
+          </View>
+
+          {/* السطر السفلي */}
+          <View style={styles.rowBottom}>
+            <View style={styles.buyIn}>
+              <Chip amount={table.minBuyIn} size={32} />
+              <View>
+                <Text style={styles.buyInLabel}>حد الدخول</Text>
+                <Text style={styles.buyInValue}>{formatNumber(table.minBuyIn)}</Text>
+              </View>
+            </View>
+
+            {table.vip ? (
+              <Badge label="VIP" tone="gold" icon={<CrownIcon size={13} color={COLORS.goldLight} />} />
+            ) : isFull ? (
+              <Badge label="ممتلئة" tone="danger" />
+            ) : (
+              <ChevronIcon size={20} color={COLORS.textFaint} />
+            )}
+          </View>
+        </GlassCard>
+      </Pressable>
+    </Animated.View>
+  );
+}
 
 export default function TablesScreen() {
   const [filter, setFilter] = useState<GameFilter>('all');
 
-  const filteredTables = filter === 'all'
-    ? MOCK_TABLES
-    : MOCK_TABLES.filter((t) => t.gameType === filter);
+  const tables =
+    filter === 'all' ? MOCK_TABLES : MOCK_TABLES.filter((t) => t.gameType === filter);
 
   return (
-    <View style={styles.container}>
-      {/* Header */}
+    <Screen>
       <View style={styles.header}>
         <Text style={styles.title}>الطاولات</Text>
+        <Text style={styles.subtitle}>{tablesOpen(tables.length)}</Text>
       </View>
 
-      {/* Filters */}
-      <View style={styles.filters}>
+      <View style={styles.filterBar}>
         {FILTERS.map((f) => (
-          <TouchableOpacity
+          <FilterTab
             key={f.key}
-            style={[styles.filterButton, filter === f.key && styles.filterActive]}
+            label={f.label}
+            active={filter === f.key}
             onPress={() => setFilter(f.key)}
-          >
-            <Text
-              style={[styles.filterText, filter === f.key && styles.filterTextActive]}
-            >
-              {f.label}
-            </Text>
-          </TouchableOpacity>
+          />
         ))}
       </View>
 
-      {/* Tables */}
-      <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
-        {filteredTables.map((table) => (
-          <TouchableOpacity
-            key={table.id}
-            onPress={() => router.push(`/(app)/table/${table.id}`)}
-          >
-            <GlassCard style={styles.tableCard}>
-              <View style={styles.tableHeader}>
-                <Text style={styles.tableGame}>
-                  {table.gameType === 'texas_holdem' ? '🃏' : '🎰'}{' '}
-                  {table.gameType === 'texas_holdem' ? 'تكساس هولدم' : 'بلاك جاك'}
-                  {table.isPrivate && ' 🔒'}
-                </Text>
-                <View style={styles.playerCount}>
-                  <Text style={styles.playerCountText}>
-                    {table.players}/{table.maxPlayers}
-                  </Text>
-                </View>
-              </View>
-              <Text style={styles.tableName}>{table.name}</Text>
-              <View style={styles.tableFooter}>
-                <Chip amount={table.minBuyIn} size={32} />
-                <Text style={styles.tableBuyIn}>
-                  دخول: {table.minBuyIn.toLocaleString()} درهم
-                </Text>
-                {table.smallBlind && (
-                  <Text style={styles.blinds}>
-                    {table.smallBlind}/{table.bigBlind}
-                  </Text>
-                )}
-              </View>
-            </GlassCard>
-          </TouchableOpacity>
-        ))}
-
-        <View style={{ height: SPACING.xl }} />
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.list}>
+          {tables.map((t) => (
+            <TableRow key={t.id} table={t} />
+          ))}
+        </View>
       </ScrollView>
 
-      {/* Create Table Button */}
-      <View style={styles.createContainer}>
+      <View style={styles.footer}>
+        {/* تدرّج يفصل الزر عن القائمة المتحركة خلفه */}
+        <LinearGradient
+          colors={['rgba(6,10,8,0)', 'rgba(6,10,8,0.96)']}
+          style={styles.footerScrim}
+          pointerEvents="none"
+        />
         <GoldButton
-          title="+ إنشاء طاولة خاصة"
-          onPress={() => {/* TODO: open modal */}}
+          title="إنشاء طاولة خاصة"
+          icon={<PlusIcon size={18} color={COLORS.onGold} />}
+          onPress={() => {}}
         />
       </View>
-    </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.bgPrimary,
-  },
   header: {
-    paddingHorizontal: SPACING.xl,
-    paddingTop: SPACING.lg,
-    paddingBottom: SPACING.sm,
+    paddingHorizontal: SIZES.screenPadding,
+    paddingTop: SPACING.md,
+    paddingBottom: SPACING.lg,
+    alignItems: 'flex-end',
   },
   title: {
-    fontFamily: FONTS.arabic.bold,
-    fontSize: FONT_SIZES.h1,
-    color: COLORS.textPrimary,
-    textAlign: 'right',
+    fontFamily: FONTS.ar.bold,
+    fontSize: TYPE.display.fontSize,
+    lineHeight: TYPE.display.lineHeight,
+    color: COLORS.text,
   },
-  filters: {
-    flexDirection: 'row',
+  subtitle: {
+    fontFamily: FONTS.ar.regular,
+    fontSize: TYPE.small.fontSize,
+    color: COLORS.textDim,
+    marginTop: -4,
+  },
+
+  filterBar: {
+    flexDirection: 'row-reverse',
     gap: SPACING.sm,
-    paddingHorizontal: SPACING.xl,
-    marginBottom: SPACING.md,
+    paddingHorizontal: SIZES.screenPadding,
+    paddingBottom: SPACING.lg,
   },
-  filterButton: {
-    paddingHorizontal: SPACING.md,
+  filter: {
+    paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.sm,
     borderRadius: RADIUS.full,
-    backgroundColor: COLORS.bgSurface,
+    backgroundColor: 'rgba(255,255,255,0.045)',
     borderWidth: 1,
     borderColor: COLORS.border,
   },
   filterActive: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
+    backgroundColor: 'rgba(212,175,55,0.16)',
+    borderColor: COLORS.gold,
   },
   filterText: {
-    fontFamily: FONTS.arabic.regular,
-    fontSize: FONT_SIZES.small,
-    color: COLORS.textMuted,
+    fontFamily: FONTS.ar.semibold,
+    fontSize: TYPE.small.fontSize,
+    lineHeight: TYPE.small.lineHeight,
+    color: COLORS.textDim,
+    includeFontPadding: false,
   },
   filterTextActive: {
-    color: COLORS.textDark,
+    color: COLORS.goldLight,
   },
-  scroll: {
-    flex: 1,
-    paddingHorizontal: SPACING.xl,
+
+  scroll: { flex: 1 },
+  scrollContent: {
+    paddingHorizontal: SIZES.screenPadding,
+    paddingBottom: SPACING.xxxl,
   },
-  tableCard: {
-    marginBottom: SPACING.md,
-    gap: SPACING.sm,
+  list: {
+    gap: SPACING.md,
   },
-  tableHeader: {
-    flexDirection: 'row',
+
+  rowTop: {
+    flexDirection: 'row-reverse',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
+    gap: SPACING.md,
+  },
+  titleCol: {
+    flex: 1,
+    alignItems: 'flex-end',
+    gap: 2,
+  },
+  titleLine: {
+    flexDirection: 'row-reverse',
     alignItems: 'center',
-  },
-  tableGame: {
-    fontFamily: FONTS.arabic.regular,
-    fontSize: FONT_SIZES.body,
-    color: COLORS.textPrimary,
-  },
-  playerCount: {
-    backgroundColor: COLORS.bgSurfaceLight,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: RADIUS.full,
-  },
-  playerCountText: {
-    fontFamily: FONTS.english.semibold,
-    fontSize: FONT_SIZES.caption,
-    color: COLORS.primary,
+    gap: 6,
   },
   tableName: {
-    fontFamily: FONTS.arabic.bold,
-    fontSize: FONT_SIZES.h3,
-    color: COLORS.textPrimary,
+    fontFamily: FONTS.ar.bold,
+    fontSize: TYPE.h3.fontSize,
+    lineHeight: TYPE.h3.lineHeight,
+    color: COLORS.text,
   },
-  tableFooter: {
-    flexDirection: 'row',
+  metaLine: {
+    flexDirection: 'row-reverse',
     alignItems: 'center',
     gap: SPACING.sm,
   },
-  tableBuyIn: {
-    fontFamily: FONTS.arabic.regular,
-    fontSize: FONT_SIZES.small,
-    color: COLORS.textMuted,
+  gameLabel: {
+    fontFamily: FONTS.ar.regular,
+    fontSize: TYPE.small.fontSize,
+    color: COLORS.textDim,
+  },
+  dot: {
+    width: 3,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: COLORS.textFaint,
   },
   blinds: {
-    fontFamily: FONTS.english.regular,
-    fontSize: FONT_SIZES.small,
-    color: COLORS.textMuted,
-    marginLeft: 'auto',
+    fontFamily: FONTS.num.semibold,
+    fontSize: TYPE.small.fontSize,
+    color: COLORS.textDim,
   },
-  createContainer: {
-    paddingHorizontal: SPACING.xl,
-    paddingBottom: SPACING.lg,
+
+  seatedRow: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    marginTop: SPACING.lg,
+    gap: SPACING.sm,
+  },
+  seatedText: {
+    fontFamily: FONTS.ar.regular,
+    fontSize: TYPE.caption.fontSize,
+    color: COLORS.textFaint,
+    marginRight: SPACING.md,
+  },
+
+  rowBottom: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: SPACING.lg,
+    paddingTop: SPACING.lg,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: COLORS.border,
+  },
+  buyIn: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: SPACING.md,
+  },
+  buyInLabel: {
+    fontFamily: FONTS.ar.regular,
+    fontSize: TYPE.caption.fontSize,
+    color: COLORS.textDim,
+    textAlign: 'right',
+  },
+  buyInValue: {
+    fontFamily: FONTS.num.bold,
+    fontSize: TYPE.body.fontSize,
+    color: COLORS.goldLight,
+    textAlign: 'right',
+  },
+
+  footer: {
+    paddingHorizontal: SIZES.screenPadding,
+    paddingBottom: SPACING.md,
+    paddingTop: SPACING.sm,
+  },
+  footerScrim: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    top: -SPACING.xxl,
   },
 });

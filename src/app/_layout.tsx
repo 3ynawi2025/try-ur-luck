@@ -1,45 +1,78 @@
 // ============================================================
 // جرب حظك — Root Layout
-// Auth guard + Font loading
+// تحميل الخطوط (Cairo عربي + Inter أرقام) + شاشة إقلاع
 // ============================================================
 
+import React from 'react';
 import { Stack } from 'expo-router';
 import { useFonts } from 'expo-font';
+import { StatusBar } from 'expo-status-bar';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import {
-  Orbitron_400Regular,
-  Orbitron_500Medium,
-  Orbitron_700Bold,
-} from '@expo-google-fonts/orbitron';
+  Cairo_400Regular,
+  Cairo_500Medium,
+  Cairo_600SemiBold,
+  Cairo_700Bold,
+  Cairo_900Black,
+} from '@expo-google-fonts/cairo';
 import {
-  JetBrainsMono_400Regular,
-  JetBrainsMono_600SemiBold,
-  JetBrainsMono_700Bold,
-} from '@expo-google-fonts/jetbrains-mono';
-import { View, Text } from 'react-native';
-import { COLORS } from '../constants/theme';
+  Inter_500Medium,
+  Inter_600SemiBold,
+  Inter_700Bold,
+  Inter_900Black,
+} from '@expo-google-fonts/inter';
+import { COLORS, GRADIENTS, SPACING } from '../constants/theme';
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
-    'Orbitron-Regular': Orbitron_400Regular,
-    'Orbitron-Medium': Orbitron_500Medium,
-    'Orbitron-Bold': Orbitron_700Bold,
-    'JetBrainsMono-Regular': JetBrainsMono_400Regular,
-    'JetBrainsMono-SemiBold': JetBrainsMono_600SemiBold,
-    'JetBrainsMono-Bold': JetBrainsMono_700Bold,
+    'Cairo-Regular': Cairo_400Regular,
+    'Cairo-Medium': Cairo_500Medium,
+    'Cairo-SemiBold': Cairo_600SemiBold,
+    'Cairo-Bold': Cairo_700Bold,
+    'Cairo-Black': Cairo_900Black,
+    'Inter-Medium': Inter_500Medium,
+    'Inter-SemiBold': Inter_600SemiBold,
+    'Inter-Bold': Inter_700Bold,
+    'Inter-Black': Inter_900Black,
   });
 
   if (!fontsLoaded) {
     return (
-      <View style={{ flex: 1, backgroundColor: COLORS.bgPrimary, alignItems: 'center', justifyContent: 'center' }}>
-        <Text style={{ color: COLORS.primary, fontSize: 18 }}>جرب حظك...</Text>
+      <View style={styles.splash}>
+        <LinearGradient colors={GRADIENTS.screen} style={StyleSheet.absoluteFill} />
+        <ActivityIndicator color={COLORS.gold} size="large" />
+        <Text style={styles.splashText}>جرب حظك</Text>
       </View>
     );
   }
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="(auth)" />
-      <Stack.Screen name="(app)" options={{ contentStyle: { backgroundColor: COLORS.bgPrimary } }} />
-    </Stack>
+    <SafeAreaProvider>
+      <StatusBar style="light" />
+      <Stack screenOptions={{ headerShown: false, animation: 'fade' }}>
+        <Stack.Screen name="(auth)" />
+        <Stack.Screen
+          name="(app)"
+          options={{ contentStyle: { backgroundColor: COLORS.bg } }}
+        />
+      </Stack>
+    </SafeAreaProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  splash: {
+    flex: 1,
+    backgroundColor: COLORS.bg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.lg,
+  },
+  splashText: {
+    color: COLORS.goldLight,
+    fontSize: 20,
+    letterSpacing: 1,
+  },
+});

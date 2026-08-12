@@ -1,91 +1,212 @@
 // ============================================================
-// جرب حظك — OTP Screen
+// جرب حظك — رمز التحقق
 // ============================================================
 
-import React, { useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useRef, useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Pressable,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
+} from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
+import Screen from '../../components/ui/Screen';
 import GoldButton from '../../components/ui/GoldButton';
-import Input from '../../components/ui/Input';
-import { COLORS, FONTS, FONT_SIZES, SPACING } from '../../constants/theme';
+import { BackIcon } from '../../components/icons/GameIcons';
+import { COLORS, FONTS, TYPE, SPACING, RADIUS, SIZES } from '../../constants/theme';
+
+const LENGTH = 4;
 
 export default function OtpScreen() {
   const { phone } = useLocalSearchParams<{ phone: string }>();
   const [otp, setOtp] = useState('');
+  const [focused, setFocused] = useState(false);
+  const inputRef = useRef<TextInput>(null);
 
-  const handleVerify = () => {
-    // TODO: actual OTP verification
-    router.push('/(auth)/profile-setup');
-  };
+  const complete = otp.length === LENGTH;
 
   return (
-    <View style={styles.container}>
-      <View style={styles.content}>
-        <Text style={styles.title}>أدخل الرمز</Text>
-        <Text style={styles.subtitle}>أرسلنا رمزاً إلى</Text>
-        <Text style={styles.phone}>{phone || '+966 5X XXX XXXX'}</Text>
+    <Screen>
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <View style={styles.header}>
+          <Pressable style={styles.back} onPress={() => router.back()} hitSlop={8}>
+            <BackIcon size={20} color={COLORS.text} />
+          </Pressable>
+        </View>
 
-        <Input
-          placeholder="_ _ _ _"
-          keyboardType="number-pad"
-          value={otp}
-          onChangeText={setOtp}
-          maxLength={4}
-          containerStyle={styles.otpInput}
-        />
+        <View style={styles.content}>
+          <View style={styles.stepRow}>
+            <View style={[styles.step, styles.stepDone]} />
+            <View style={[styles.step, styles.stepActive]} />
+            <View style={styles.step} />
+          </View>
 
-        <GoldButton
-          title="تأكيد"
-          onPress={handleVerify}
-          disabled={otp.length < 4}
-        />
+          <Text style={styles.title}>أدخل الرمز</Text>
+          <Text style={styles.subtitle}>أرسلنا رمزاً إلى</Text>
+          <Text style={styles.phone}>{phone || '+966 5X XXX XXXX'}</Text>
 
-        <Text style={styles.resend}>
-          لم يصلك؟ <Text style={styles.resendLink}>إعادة الإرسال</Text>
-        </Text>
-      </View>
-    </View>
+          {/* خانات الرمز */}
+          <Pressable style={styles.boxes} onPress={() => inputRef.current?.focus()}>
+            {Array.from({ length: LENGTH }).map((_, i) => {
+              const char = otp[i];
+              const active = focused && i === otp.length;
+              return (
+                <View
+                  key={i}
+                  style={[styles.box, !!char && styles.boxFilled, active && styles.boxActive]}
+                >
+                  <Text style={styles.boxText}>{char || ''}</Text>
+                </View>
+              );
+            })}
+          </Pressable>
+
+          {/* حقل مخفي يلتقط الإدخال */}
+          <TextInput
+            ref={inputRef}
+            value={otp}
+            onChangeText={(t) => setOtp(t.replace(/[^0-9]/g, '').slice(0, LENGTH))}
+            keyboardType="number-pad"
+            maxLength={LENGTH}
+            style={styles.hidden}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+            autoFocus
+          />
+
+          <GoldButton
+            title="تأكيد"
+            onPress={() => router.push('/(auth)/profile-setup')}
+            disabled={!complete}
+            style={styles.cta}
+          />
+
+          <Pressable style={styles.resendWrap} onPress={() => {}}>
+            <Text style={styles.resend}>
+              لم يصلك الرمز؟ <Text style={styles.resendLink}>إعادة الإرسال</Text>
+            </Text>
+          </Pressable>
+        </View>
+      </KeyboardAvoidingView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.bgPrimary,
-    padding: SPACING.xl,
+  flex: { flex: 1 },
+  header: {
+    paddingHorizontal: SIZES.screenPadding,
+    paddingTop: SPACING.sm,
+    alignItems: 'flex-end',
+  },
+  back: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   content: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    gap: SPACING.md,
+    paddingHorizontal: SIZES.screenPadding,
+  },
+  stepRow: {
+    flexDirection: 'row-reverse',
+    gap: 6,
+    marginBottom: SPACING.xl,
+  },
+  step: {
+    width: 26,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: COLORS.border,
+  },
+  stepDone: {
+    backgroundColor: 'rgba(212,175,55,0.45)',
+  },
+  stepActive: {
+    backgroundColor: COLORS.gold,
+    width: 34,
   },
   title: {
-    fontFamily: FONTS.arabic.bold,
-    fontSize: FONT_SIZES.h1,
-    color: COLORS.textPrimary,
+    fontFamily: FONTS.ar.bold,
+    fontSize: TYPE.display.fontSize,
+    lineHeight: TYPE.display.lineHeight,
+    color: COLORS.text,
   },
   subtitle: {
-    fontFamily: FONTS.arabic.regular,
-    fontSize: FONT_SIZES.body,
-    color: COLORS.textMuted,
+    fontFamily: FONTS.ar.regular,
+    fontSize: TYPE.body.fontSize,
+    color: COLORS.textDim,
   },
   phone: {
-    fontFamily: FONTS.english.semibold,
-    fontSize: FONT_SIZES.h3,
-    color: COLORS.primary,
-    direction: 'ltr',
+    fontFamily: FONTS.num.bold,
+    fontSize: TYPE.h3.fontSize,
+    color: COLORS.goldLight,
+    marginTop: 2,
+    writingDirection: 'ltr',
   },
-  otpInput: {
-    marginVertical: SPACING.md,
+
+  boxes: {
+    flexDirection: 'row',
+    gap: SPACING.md,
+    marginTop: SPACING.xxl,
+    marginBottom: SPACING.xxl,
+  },
+  box: {
+    width: 58,
+    height: 68,
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.surfaceSunken,
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  boxFilled: {
+    borderColor: 'rgba(212,175,55,0.5)',
+    backgroundColor: 'rgba(212,175,55,0.06)',
+  },
+  boxActive: {
+    borderColor: COLORS.gold,
+  },
+  boxText: {
+    fontFamily: FONTS.num.black,
+    fontSize: 28,
+    color: COLORS.goldLight,
+    includeFontPadding: false,
+  },
+  hidden: {
+    position: 'absolute',
+    opacity: 0,
+    height: 1,
+    width: 1,
+  },
+
+  cta: {
+    alignSelf: 'stretch',
+  },
+  resendWrap: {
+    marginTop: SPACING.xl,
   },
   resend: {
-    fontFamily: FONTS.arabic.regular,
-    fontSize: FONT_SIZES.small,
-    color: COLORS.textMuted,
-    marginTop: SPACING.md,
+    fontFamily: FONTS.ar.regular,
+    fontSize: TYPE.small.fontSize,
+    color: COLORS.textDim,
   },
   resendLink: {
-    color: COLORS.primary,
+    fontFamily: FONTS.ar.bold,
+    color: COLORS.gold,
   },
 });

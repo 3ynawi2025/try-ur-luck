@@ -1,241 +1,327 @@
 // ============================================================
-// جرب حظك — Profile Screen
+// جرب حظك — الملف الشخصي
 // ============================================================
 
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { router } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
+import Screen from '../../components/ui/Screen';
 import GlassCard from '../../components/ui/GlassCard';
 import GoldButton from '../../components/ui/GoldButton';
 import Avatar from '../../components/ui/Avatar';
-import { COLORS, FONTS, FONT_SIZES, SPACING } from '../../constants/theme';
+import Chip from '../../components/ui/Chip';
+import { Badge, StatTile, Divider } from '../../components/ui/Bits';
+import {
+  ClockIcon,
+  EditIcon,
+  SettingsIcon,
+  LogoutIcon,
+  ChevronIcon,
+  CrownIcon,
+} from '../../components/icons/GameIcons';
+import {
+  COLORS,
+  FONTS,
+  TYPE,
+  SPACING,
+  RADIUS,
+  SIZES,
+  SHADOWS,
+  formatNumber,
+} from '../../constants/theme';
 
-const MOCK_STATS = {
-  games: 15,
-  wins: 8,
-  winRate: 53,
-};
+const STATS = { games: 15, wins: 8, winRate: 53 };
 
-const MOCK_TRANSACTIONS = [
+const TRANSACTIONS = [
   { id: '1', type: 'win', amount: 500, description: 'فوز في طاولة الرياض', date: 'منذ ساعتين' },
-  { id: '2', type: 'loss', amount: -200, description: 'خسارة في بلاك جاك', date: 'منذ 5 ساعات' },
+  { id: '2', type: 'loss', amount: -200, description: 'خسارة في بلاك جاك', date: 'منذ ٥ ساعات' },
   { id: '3', type: 'refill', amount: 10000, description: 'التجديد الأسبوعي', date: 'الجمعة' },
   { id: '4', type: 'win', amount: 1200, description: 'فوز في طاولة VIP', date: 'الخميس' },
 ];
+
+function MenuRow({
+  icon,
+  label,
+  onPress,
+  danger,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  onPress: () => void;
+  danger?: boolean;
+}) {
+  return (
+    <Pressable onPress={onPress} style={styles.menuRow}>
+      <View style={styles.menuLeft}>
+        {icon}
+        <Text style={[styles.menuLabel, danger && styles.menuLabelDanger]}>{label}</Text>
+      </View>
+      <ChevronIcon size={18} color={COLORS.textFaint} />
+    </Pressable>
+  );
+}
 
 export default function ProfileScreen() {
   const [user] = useState({
     username: '@ahmad',
     displayName: 'أحمد',
     balance: 10250,
-    nextRefill: 'الجمعة 12:00 م',
+    nextRefill: 'الجمعة ١٢:٠٠ ظهراً',
+    rank: 4,
   });
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>ملفي الشخصي</Text>
-      </View>
-
-      <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
-        {/* Profile card */}
-        <GlassCard style={styles.profileCard}>
-          <Avatar name={user.displayName} size={80} showBorder />
-          <Text style={styles.displayName}>{user.displayName}</Text>
+    <Screen>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* ===== الهوية ===== */}
+        <View style={[styles.hero, SHADOWS.e2]}>
+          <LinearGradient
+            colors={['rgba(212,175,55,0.16)', 'rgba(17,26,21,0.6)']}
+            start={{ x: 0.5, y: 0 }}
+            end={{ x: 0.5, y: 1 }}
+            style={StyleSheet.absoluteFill}
+          />
+          <Avatar name={user.displayName} size={SIZES.avatarXl} showBorder />
+          <Text style={styles.name}>{user.displayName}</Text>
           <Text style={styles.username}>{user.username}</Text>
-        </GlassCard>
+          <Badge
+            label={`المركز ${user.rank} هذا الأسبوع`}
+            tone="gold"
+            icon={<CrownIcon size={13} color={COLORS.goldLight} />}
+          />
+        </View>
 
-        {/* Balance */}
-        <GlassCard style={styles.balanceCard}>
-          <Text style={styles.balanceTitle}>الرصيد الحالي</Text>
-          <Text style={styles.balanceAmount}>
-            💰 {user.balance.toLocaleString()} درهم
-          </Text>
-          <Text style={styles.refillInfo}>
-            التجديد: {user.nextRefill}
-          </Text>
-        </GlassCard>
-
-        {/* Statistics */}
-        <GlassCard style={styles.statsCard}>
-          <Text style={styles.sectionTitle}>إحصائياتي</Text>
-          <View style={styles.statsRow}>
-            <View style={styles.stat}>
-              <Text style={styles.statValue}>{MOCK_STATS.games}</Text>
-              <Text style={styles.statLabel}>🎮 مباراة</Text>
-            </View>
-            <View style={styles.stat}>
-              <Text style={styles.statValue}>{MOCK_STATS.wins}</Text>
-              <Text style={styles.statLabel}>🏆 انتصار</Text>
-            </View>
-            <View style={styles.stat}>
-              <Text style={[styles.statValue, { color: COLORS.success }]}>
-                {MOCK_STATS.winRate}%
-              </Text>
-              <Text style={styles.statLabel}>📈 نسبة فوز</Text>
-            </View>
+        {/* ===== الرصيد ===== */}
+        <GlassCard variant="gold" padding={SPACING.xl} style={styles.block}>
+          <Text style={styles.blockLabel}>رصيدك الحالي</Text>
+          <View style={styles.balanceRow}>
+            <Chip amount={5000} size={44} stacked />
+            <Text style={styles.balance}>{formatNumber(user.balance)}</Text>
+          </View>
+          <View style={styles.refillRow}>
+            <ClockIcon size={14} color={COLORS.textDim} />
+            <Text style={styles.refillText}>التجديد القادم: {user.nextRefill}</Text>
           </View>
         </GlassCard>
 
-        {/* Transactions */}
-        <GlassCard style={styles.transactionsCard}>
-          <Text style={styles.sectionTitle}>آخر العمليات</Text>
-          {MOCK_TRANSACTIONS.map((tx) => (
-            <View key={tx.id} style={styles.transaction}>
-              <View style={styles.txLeft}>
-                <Text style={styles.txDescription}>{tx.description}</Text>
-                <Text style={styles.txDate}>{tx.date}</Text>
+        {/* ===== الإحصائيات ===== */}
+        <GlassCard padding={SPACING.xl} style={styles.block}>
+          <Text style={styles.blockTitle}>إحصائياتي</Text>
+          <View style={styles.statsRow}>
+            <StatTile value={STATS.games} label="مباراة" />
+            <View style={styles.vRule} />
+            <StatTile value={STATS.wins} label="انتصار" tone={COLORS.goldLight} />
+            <View style={styles.vRule} />
+            <StatTile value={`${STATS.winRate}%`} label="نسبة الفوز" tone={COLORS.emerald} />
+          </View>
+        </GlassCard>
+
+        {/* ===== العمليات ===== */}
+        <GlassCard padding={SPACING.xl} style={styles.block}>
+          <Text style={styles.blockTitle}>آخر العمليات</Text>
+          {TRANSACTIONS.map((tx, i) => (
+            <View key={tx.id}>
+              {i > 0 && <Divider />}
+              <View style={styles.tx}>
+                <View style={styles.txInfo}>
+                  <Text style={styles.txDesc}>{tx.description}</Text>
+                  <Text style={styles.txDate}>{tx.date}</Text>
+                </View>
+                <Text
+                  style={[
+                    styles.txAmount,
+                    tx.amount > 0 ? styles.txPositive : styles.txNegative,
+                  ]}
+                >
+                  {tx.amount > 0 ? '+' : '−'}
+                  {formatNumber(Math.abs(tx.amount))}
+                </Text>
               </View>
-              <Text
-                style={[
-                  styles.txAmount,
-                  tx.amount > 0 ? styles.txPositive : styles.txNegative,
-                ]}
-              >
-                {tx.amount > 0 ? '+' : ''}{tx.amount.toLocaleString()}
-              </Text>
             </View>
           ))}
         </GlassCard>
 
-        {/* Actions */}
-        <View style={styles.actions}>
-          <GoldButton title="تعديل الملف" variant="outline" onPress={() => {}} />
-          <GoldButton title="الإعدادات" variant="outline" onPress={() => {}} />
-          <GoldButton
-            title="تسجيل الخروج"
-            variant="danger"
-            onPress={() => router.replace('/(auth)')}
+        {/* ===== القائمة ===== */}
+        <GlassCard padding={SPACING.sm} style={styles.block}>
+          <MenuRow
+            icon={<EditIcon size={19} color={COLORS.textDim} />}
+            label="تعديل الملف الشخصي"
+            onPress={() => {}}
           />
-        </View>
+          <Divider />
+          <MenuRow
+            icon={<SettingsIcon size={19} color={COLORS.textDim} />}
+            label="الإعدادات"
+            onPress={() => {}}
+          />
+        </GlassCard>
 
-        <View style={{ height: SPACING.xxl }} />
+        <GoldButton
+          title="تسجيل الخروج"
+          variant="danger"
+          icon={<LogoutIcon size={18} color="#FF8A94" />}
+          onPress={() => router.replace('/(auth)')}
+          style={styles.logout}
+        />
+
+        <Text style={styles.disclaimer}>
+          الدراهم افتراضية بالكامل وليس لها أي قيمة نقدية
+        </Text>
       </ScrollView>
-    </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.bgPrimary,
+  scroll: { flex: 1 },
+  scrollContent: {
+    paddingHorizontal: SIZES.screenPadding,
+    paddingTop: SPACING.md,
+    paddingBottom: SPACING.xxxl,
   },
-  header: {
-    paddingHorizontal: SPACING.xl,
-    paddingTop: SPACING.lg,
-    paddingBottom: SPACING.sm,
-  },
-  title: {
-    fontFamily: FONTS.arabic.bold,
-    fontSize: FONT_SIZES.h1,
-    color: COLORS.textPrimary,
-    textAlign: 'right',
-  },
-  scroll: {
-    flex: 1,
-    paddingHorizontal: SPACING.xl,
-  },
-  profileCard: {
+
+  hero: {
     alignItems: 'center',
     gap: SPACING.sm,
-    marginBottom: SPACING.md,
+    paddingVertical: SPACING.xxl,
+    paddingHorizontal: SPACING.xl,
+    borderRadius: RADIUS.xl,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: COLORS.hairlineGold,
   },
-  displayName: {
-    fontFamily: FONTS.arabic.bold,
-    fontSize: FONT_SIZES.h2,
-    color: COLORS.textPrimary,
+  name: {
+    fontFamily: FONTS.ar.bold,
+    fontSize: TYPE.h1.fontSize,
+    lineHeight: TYPE.h1.lineHeight,
+    color: COLORS.text,
+    marginTop: SPACING.sm,
   },
   username: {
-    fontFamily: FONTS.arabic.regular,
-    fontSize: FONT_SIZES.body,
-    color: COLORS.textMuted,
+    fontFamily: FONTS.num.medium,
+    fontSize: TYPE.small.fontSize,
+    color: COLORS.textDim,
+    marginTop: -6,
+    marginBottom: SPACING.sm,
   },
-  balanceCard: {
-    marginBottom: SPACING.md,
-    gap: 4,
+
+  block: {
+    marginTop: SPACING.lg,
   },
-  balanceTitle: {
-    fontFamily: FONTS.arabic.regular,
-    fontSize: FONT_SIZES.small,
-    color: COLORS.textMuted,
+  blockLabel: {
+    fontFamily: FONTS.ar.medium,
+    fontSize: TYPE.small.fontSize,
+    color: COLORS.textDim,
     textAlign: 'right',
   },
-  balanceAmount: {
-    fontFamily: FONTS.arabic.bold,
-    fontSize: FONT_SIZES.h2,
-    color: COLORS.primary,
+  blockTitle: {
+    fontFamily: FONTS.ar.bold,
+    fontSize: TYPE.h3.fontSize,
+    lineHeight: TYPE.h3.lineHeight,
+    color: COLORS.text,
     textAlign: 'right',
+    marginBottom: SPACING.lg,
   },
-  refillInfo: {
-    fontFamily: FONTS.arabic.regular,
-    fontSize: FONT_SIZES.caption,
-    color: COLORS.textMuted,
-    textAlign: 'right',
+
+  balanceRow: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: SPACING.lg,
+    marginTop: SPACING.sm,
   },
-  statsCard: {
-    marginBottom: SPACING.md,
+  balance: {
+    fontFamily: FONTS.num.black,
+    fontSize: 34,
+    color: COLORS.goldLight,
+    includeFontPadding: false,
   },
-  sectionTitle: {
-    fontFamily: FONTS.arabic.bold,
-    fontSize: FONT_SIZES.body,
-    color: COLORS.textPrimary,
-    marginBottom: SPACING.md,
-    textAlign: 'right',
+  refillRow: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: SPACING.lg,
   },
+  refillText: {
+    fontFamily: FONTS.ar.regular,
+    fontSize: TYPE.caption.fontSize,
+    color: COLORS.textDim,
+  },
+
   statsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-  },
-  stat: {
+    flexDirection: 'row-reverse',
     alignItems: 'center',
-    gap: 2,
   },
-  statValue: {
-    fontFamily: FONTS.english.bold,
-    fontSize: FONT_SIZES.h2,
-    color: COLORS.primary,
+  vRule: {
+    width: StyleSheet.hairlineWidth,
+    height: 34,
+    backgroundColor: COLORS.border,
   },
-  statLabel: {
-    fontFamily: FONTS.arabic.regular,
-    fontSize: FONT_SIZES.caption,
-    color: COLORS.textMuted,
-  },
-  transactionsCard: {
-    marginBottom: SPACING.md,
-  },
-  transaction: {
-    flexDirection: 'row',
+
+  tx: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: SPACING.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    paddingVertical: SPACING.md,
+    gap: SPACING.lg,
   },
-  txLeft: {
+  txInfo: {
     flex: 1,
-    gap: 2,
+    alignItems: 'flex-end',
+    gap: 1,
   },
-  txDescription: {
-    fontFamily: FONTS.arabic.regular,
-    fontSize: FONT_SIZES.small,
-    color: COLORS.textPrimary,
+  txDesc: {
+    fontFamily: FONTS.ar.medium,
+    fontSize: TYPE.small.fontSize,
+    lineHeight: TYPE.small.lineHeight,
+    color: COLORS.text,
   },
   txDate: {
-    fontFamily: FONTS.arabic.light,
-    fontSize: FONT_SIZES.caption,
-    color: COLORS.textMuted,
+    fontFamily: FONTS.ar.regular,
+    fontSize: TYPE.caption.fontSize,
+    color: COLORS.textFaint,
   },
   txAmount: {
-    fontFamily: FONTS.english.bold,
-    fontSize: FONT_SIZES.body,
+    fontFamily: FONTS.num.bold,
+    fontSize: TYPE.body.fontSize,
   },
-  txPositive: {
-    color: COLORS.success,
+  txPositive: { color: COLORS.emerald },
+  txNegative: { color: COLORS.crimson },
+
+  menuRow: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.md,
   },
-  txNegative: {
-    color: COLORS.danger,
-  },
-  actions: {
+  menuLeft: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
     gap: SPACING.md,
+  },
+  menuLabel: {
+    fontFamily: FONTS.ar.medium,
+    fontSize: TYPE.body.fontSize,
+    lineHeight: TYPE.body.lineHeight,
+    color: COLORS.text,
+  },
+  menuLabelDanger: {
+    color: COLORS.crimson,
+  },
+
+  logout: {
+    marginTop: SPACING.xl,
+  },
+  disclaimer: {
+    fontFamily: FONTS.ar.regular,
+    fontSize: TYPE.caption.fontSize,
+    color: COLORS.textFaint,
+    textAlign: 'center',
+    marginTop: SPACING.xl,
   },
 });
