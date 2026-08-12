@@ -1,28 +1,28 @@
 // ============================================================
-// جرب حظك — Playable Texas Hold'em Table
+// جرب حظك — Playable Texas Hold'em Table v2 (Luxury Casino)
 // ============================================================
 
 import React, { useState, useCallback, useEffect } from 'react';
 import { View, Text, StyleSheet, Dimensions, TouchableOpacity } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
 import Avatar from '../../../components/ui/Avatar';
 import Chip from '../../../components/ui/Chip';
 import PlayingCard, { Card } from '../../../components/game/PlayingCard';
-import { COLORS, FONTS, FONT_SIZES, SPACING, RADIUS } from '../../../constants/theme';
-import { TexasHoldemEngine, GameSnapshot, TablePlayer } from '../../../server/game/texasHoldem';
+import { COLORS, FONTS, FONT_SIZES, SPACING, RADIUS, GRADIENTS } from '../../../constants/theme';
+import { TexasHoldemEngine, GameSnapshot } from '../../../server/game/texasHoldem';
 import { Card as GameCard } from '../../../server/game/deck';
 
 const { width, height } = Dimensions.get('window');
 
-const SEAT_POSITIONS = [
-  { top: '62%', left: '42%' },
-  { top: '52%', left: '72%' },
-  { top: '35%', left: '82%' },
-  { top: '18%', left: '68%' },
-  { top: '12%', left: '38%' },
-  { top: '18%', left: '8%' },
-  { top: '35%', left: '0%' },
-  { top: '52%', left: '8%' },
+const SEATS = [
+  { top: '74%', left: '44%' }, // user
+  { top: '62%', left: '76%' },
+  { top: '34%', left: '82%' },
+  { top: '12%', left: '62%' },
+  { top: '12%', left: '20%' },
+  { top: '34%', left: '2%' },
+  { top: '62%', left: '8%' },
 ];
 
 export default function PlayableTableScreen() {
@@ -33,13 +33,11 @@ export default function PlayableTableScreen() {
   const [voiceMuted, setVoiceMuted] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // تهيئة اللعبة
   useEffect(() => {
     engine.addPlayer('me', 'أنت', 5000);
     engine.addPlayer('bot1', 'سلطان', 5000);
     engine.addPlayer('bot2', 'نورة', 5000);
     engine.addPlayer('bot3', 'فهد', 5000);
-
     const result = engine.startHand();
     if (!('error' in result)) {
       setSnapshot(result);
@@ -55,50 +53,49 @@ export default function PlayableTableScreen() {
       setError(null);
       setSnapshot(result);
       setHoleCards(engine.getHoleCards('me'));
-
-      // Bot auto-play
-      setTimeout(() => {
-        autoPlayBots();
-      }, 800);
+      setTimeout(() => autoPlayBots(), 700);
     }
-  }, [engine, snapshot]);
+  }, [engine]);
 
   const autoPlayBots = useCallback(() => {
     const snap = engine.snapshot();
-    const currentPlayer = snap.players.find(p => p.isCurrentTurn);
+    const currentPlayer = snap.players.find((p) => p.isCurrentTurn);
     if (!currentPlayer || currentPlayer.id === 'me') return;
 
-    // Bot logic: fold if weak, call if ok
-    const action: 'fold' | 'check' | 'call' | 'raise' = Math.random() > 0.3 ? 'call' : 'fold';
+    const action: 'fold' | 'check' | 'call' | 'raise' = Math.random() > 0.25 ? 'call' : 'fold';
     const result = engine.performAction(currentPlayer.id, action);
     if (!('error' in result)) {
       setSnapshot(result);
       setHoleCards(engine.getHoleCards('me'));
-
-      // Continue auto-play if still bot's turn
       const newSnap = engine.snapshot();
-      const nextPlayer = newSnap.players.find(p => p.isCurrentTurn);
-      if (nextPlayer && nextPlayer.id !== 'me') {
-        setTimeout(() => autoPlayBots(), 600);
-      }
+      const nextPlayer = newSnap.players.find((p) => p.isCurrentTurn);
+      if (nextPlayer && nextPlayer.id !== 'me') setTimeout(() => autoPlayBots(), 500);
     }
   }, [engine]);
 
-  const currentPlayer = snapshot?.players.find(p => p.isCurrentTurn);
+  const currentPlayer = snapshot?.players.find((p) => p.isCurrentTurn);
   const isMyTurn = currentPlayer?.id === 'me';
   const showActions = isMyTurn && snapshot?.phase !== 'showdown';
 
   return (
     <View style={styles.container}>
-      {/* Felt */}
-      <View style={styles.felt}>
+      {/* Felt background */}
+      <LinearGradient
+        colors={['#0D3B10', '#1B5E20', '#0D3B10'] as const}
+        start={{ x: 0.5, y: 0 }}
+        end={{ x: 0.5, y: 1 }}
+        style={styles.felt}
+      >
         {/* Table oval */}
-        <View style={[styles.tableOval, styles.tableFelt]}>
-          <View style={styles.tableGradient}>
+        <LinearGradient
+          colors={['#2E7D32', '#1B5E20', '#0D3B10'] as const}
+          style={styles.tableOval}
+        >
+          <View style={styles.tableBorder}>
             {/* Community cards */}
             <View style={styles.communityCards}>
               {(snapshot?.communityCards || []).map((card, i) => (
-                <PlayingCard key={i} card={card} width={44} height={62} />
+                <PlayingCard key={i} card={card} width={46} height={64} />
               ))}
               {Array.from({ length: 5 - (snapshot?.communityCards?.length || 0) }).map((_, i) => (
                 <View key={`empty-${i}`} style={styles.emptyCard} />
@@ -108,16 +105,18 @@ export default function PlayableTableScreen() {
             {/* Pot */}
             <View style={styles.pot}>
               <Text style={styles.potLabel}>الرهان</Text>
-              <Text style={styles.potAmount}>{snapshot?.pot?.toLocaleString() || '0'}</Text>
+              <View style={styles.potRow}>
+                <Chip amount={Math.min(snapshot?.pot || 0, 5000)} size={28} />
+                <Text style={styles.potAmount}>{snapshot?.pot?.toLocaleString() || '0'}</Text>
+              </View>
             </View>
           </View>
-        </View>
+        </LinearGradient>
 
         {/* Player seats */}
-        {snapshot?.players.map((player, idx) => {
-          const pos = SEAT_POSITIONS[player.seatIndex % SEAT_POSITIONS.length];
+        {snapshot?.players.map((player) => {
+          const pos = SEATS[player.seatIndex % SEATS.length];
           const isMe = player.id === 'me';
-
           return (
             <View
               key={player.id}
@@ -128,34 +127,31 @@ export default function PlayableTableScreen() {
               ]}
             >
               <View style={[styles.seatContent, player.status === 'folded' && styles.folded]}>
-                <Avatar
-                  name={player.name}
-                  size={36}
-                  showBorder={player.isCurrentTurn}
-                  isActive={player.isCurrentTurn}
-                />
+                <Avatar name={player.name} size={42} showBorder={player.isCurrentTurn} isActive={player.isCurrentTurn} />
                 <Text style={styles.playerName}>{isMe ? 'أنت' : player.name}</Text>
-                <Chip amount={player.balance} size={26} />
+                <Text style={styles.playerBalance}>{player.balance.toLocaleString()}</Text>
                 {isMe && holeCards.length > 0 && (
                   <View style={styles.holeCards}>
                     {holeCards.map((c, i) => (
-                      <PlayingCard key={i} card={c} width={36} height={50} />
+                      <PlayingCard key={i} card={c} width={38} height={53} />
                     ))}
                   </View>
                 )}
                 {player.totalRoundBet > 0 && (
-                  <Text style={styles.betAmount}>{player.totalRoundBet}</Text>
+                  <View style={styles.playerBet}>
+                    <Chip amount={Math.min(player.totalRoundBet, 5000)} size={24} />
+                  </View>
                 )}
               </View>
             </View>
           );
         })}
-      </View>
+      </LinearGradient>
 
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()}>
-          <Text style={styles.backButton}>⬅️</Text>
+          <Text style={styles.headerIcon}>⬅️</Text>
         </TouchableOpacity>
         <View style={styles.headerCenter}>
           <Text style={styles.tableName}>طاولة {id || 'الرياض'}</Text>
@@ -164,11 +160,11 @@ export default function PlayableTableScreen() {
             {snapshot?.phase === 'flop' && 'Flop'}
             {snapshot?.phase === 'turn' && 'Turn'}
             {snapshot?.phase === 'river' && 'River'}
-            {snapshot?.phase === 'showdown' && '🎉 انتهت الجولة'}
+            {snapshot?.phase === 'showdown' && '🎉 Showdown'}
           </Text>
         </View>
         <TouchableOpacity onPress={() => setVoiceMuted(!voiceMuted)}>
-          <Text style={styles.voiceButton}>{voiceMuted ? '🔇' : '🎤'}</Text>
+          <Text style={styles.headerIcon}>{voiceMuted ? '🔇' : '🎤'}</Text>
         </TouchableOpacity>
       </View>
 
@@ -196,7 +192,6 @@ export default function PlayableTableScreen() {
         </View>
       )}
 
-      {/* New hand button */}
       {snapshot?.phase === 'showdown' && (
         <View style={styles.actionBar}>
           <TouchableOpacity
@@ -220,62 +215,116 @@ export default function PlayableTableScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bgPrimary },
-  felt: { flex: 1, paddingTop: 80, paddingBottom: 10, paddingHorizontal: 10 },
+  felt: {
+    flex: 1,
+    paddingTop: 90,
+    paddingBottom: 120,
+    paddingHorizontal: 10,
+  },
   tableOval: {
-    position: 'absolute', top: '18%', left: '8%', right: '8%', bottom: '38%',
-    borderRadius: 200, overflow: 'hidden',
+    position: 'absolute',
+    top: '18%',
+    left: '6%',
+    right: '6%',
+    bottom: '34%',
+    borderRadius: 220,
+    overflow: 'hidden',
+    borderWidth: 4,
+    borderColor: 'rgba(212,175,55,0.4)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+    elevation: 12,
   },
-  tableFelt: {
-    backgroundColor: COLORS.tableGreen,
-    borderWidth: 3, borderColor: COLORS.primaryDark,
+  tableBorder: {
+    flex: 1,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 216,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
   },
-  tableGradient: {
-    flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: 200,
-  },
-  communityCards: { flexDirection: 'row', gap: 4, marginBottom: 4 },
+  communityCards: { flexDirection: 'row', gap: 6 },
   emptyCard: {
-    width: 44, height: 62, borderRadius: RADIUS.card,
-    borderWidth: 1, borderColor: COLORS.border, borderStyle: 'dashed',
+    width: 46,
+    height: 64,
+    borderRadius: RADIUS.sm,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
+    borderStyle: 'dashed',
   },
-  pot: { alignItems: 'center' },
-  potLabel: { fontFamily: FONTS.arabic.regular, fontSize: FONT_SIZES.caption, color: COLORS.textMuted },
-  potAmount: { fontFamily: FONTS.english.bold, fontSize: FONT_SIZES.h3, color: COLORS.primary },
-  playerSeat: { position: 'absolute', transform: [{ translateX: -40 }, { translateY: -60 }] },
+  pot: { alignItems: 'center', gap: 2 },
+  potLabel: { fontFamily: FONTS.arabic.regular, fontSize: FONT_SIZES.caption, color: 'rgba(255,255,255,0.7)' },
+  potRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  potAmount: { fontFamily: FONTS.english.bold, fontSize: FONT_SIZES.h2, color: COLORS.primary },
+  playerSeat: {
+    position: 'absolute',
+    transform: [{ translateX: -42 }, { translateY: -55 }],
+    zIndex: 5,
+  },
   activeSeat: { zIndex: 10 },
   seatContent: {
-    alignItems: 'center', gap: 1,
-    backgroundColor: COLORS.overlay, padding: 5, borderRadius: RADIUS.md, minWidth: 70,
+    alignItems: 'center',
+    gap: 2,
+    backgroundColor: 'rgba(10,15,20,0.75)',
+    padding: 6,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    minWidth: 80,
   },
-  folded: { opacity: 0.4 },
-  playerName: { fontFamily: FONTS.arabic.regular, fontSize: 10, color: COLORS.textPrimary },
-  holeCards: { flexDirection: 'row', gap: 1 },
-  betAmount: { fontFamily: FONTS.english.bold, fontSize: 10, color: COLORS.primaryLight },
+  folded: { opacity: 0.35 },
+  playerName: { fontFamily: FONTS.arabic.bold, fontSize: 11, color: COLORS.textPrimary },
+  playerBalance: { fontFamily: FONTS.english.bold, fontSize: 11, color: COLORS.primary },
+  holeCards: { flexDirection: 'row', gap: 2, marginTop: 2 },
+  playerBet: { position: 'absolute', top: -14, left: '50%', marginLeft: -12 },
   header: {
-    position: 'absolute', top: 45, left: 0, right: 0,
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingHorizontal: SPACING.md,
+    paddingTop: 48,
+    paddingBottom: SPACING.sm,
+    backgroundColor: 'rgba(10,15,20,0.6)',
   },
   headerCenter: { alignItems: 'center' },
-  backButton: { fontSize: 24 },
-  tableName: { fontFamily: FONTS.arabic.bold, fontSize: FONT_SIZES.body, color: COLORS.textPrimary },
+  headerIcon: { fontSize: 24 },
+  tableName: { fontFamily: FONTS.arabic.bold, fontSize: FONT_SIZES.h3, color: COLORS.textPrimary },
   phaseText: { fontFamily: FONTS.arabic.regular, fontSize: FONT_SIZES.caption, color: COLORS.primary },
-  voiceButton: { fontSize: 24 },
   errorToast: {
-    position: 'absolute', top: 100, left: 20, right: 20,
-    backgroundColor: COLORS.danger, padding: SPACING.sm, borderRadius: RADIUS.sm, alignItems: 'center',
+    position: 'absolute',
+    top: 100,
+    left: 20,
+    right: 20,
+    backgroundColor: COLORS.danger,
+    padding: SPACING.sm,
+    borderRadius: RADIUS.sm,
+    alignItems: 'center',
   },
   errorText: { color: COLORS.textPrimary, fontFamily: FONTS.arabic.regular, fontSize: FONT_SIZES.small },
   actionBar: {
-    position: 'absolute', bottom: 0, left: 0, right: 0,
-    backgroundColor: COLORS.bgSurface, paddingHorizontal: SPACING.md,
-    paddingBottom: SPACING.lg, paddingTop: SPACING.md,
-    borderTopWidth: 1, borderTopColor: COLORS.border,
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(10,15,20,0.92)',
+    paddingHorizontal: SPACING.md,
+    paddingBottom: SPACING.lg,
+    paddingTop: SPACING.md,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
   },
   actionButtons: { flexDirection: 'row', gap: SPACING.sm },
-  actionBtn: { flex: 1, height: 48, borderRadius: RADIUS.md, alignItems: 'center', justifyContent: 'center' },
+  actionBtn: { flex: 1, height: 52, borderRadius: RADIUS.md, alignItems: 'center', justifyContent: 'center' },
   foldBtn: { backgroundColor: COLORS.danger },
   callBtn: { backgroundColor: COLORS.info },
   raiseBtn: { backgroundColor: COLORS.primary },
-  newHandBtn: { backgroundColor: COLORS.primary, height: 56, borderRadius: RADIUS.md, alignItems: 'center', justifyContent: 'center' },
+  newHandBtn: { backgroundColor: COLORS.primary, height: 54 },
   actionBtnText: { fontFamily: FONTS.english.bold, fontSize: FONT_SIZES.body, color: COLORS.textPrimary },
 });

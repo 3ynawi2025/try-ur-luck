@@ -1,17 +1,12 @@
 // ============================================================
-// جرب حظك — GoldButton
-// زر ذهبي أساسي مع glow effect
+// جرب حظك — GoldButton v2
+// زر ذهبي فاخر بتدرج ومتوهج
 // ============================================================
 
 import React from 'react';
-import {
-  TouchableOpacity,
-  Text,
-  StyleSheet,
-  ViewStyle,
-  TextStyle,
-} from 'react-native';
-import { COLORS, FONTS, FONT_SIZES, RADIUS, SIZES, SHADOWS } from '../../constants/theme';
+import { TouchableOpacity, Text, StyleSheet, ViewStyle, TextStyle } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { COLORS, FONTS, FONT_SIZES, RADIUS, SIZES } from '../../constants/theme';
 
 interface GoldButtonProps {
   title: string;
@@ -31,7 +26,26 @@ export default function GoldButton({
   textStyle,
 }: GoldButtonProps) {
   const isPrimary = variant === 'primary';
-  const isDanger = variant === 'danger';
+
+  if (isPrimary) {
+    return (
+      <TouchableOpacity
+        onPress={onPress}
+        disabled={disabled}
+        activeOpacity={0.85}
+        style={[styles.wrapper, disabled && styles.disabled, style]}
+      >
+        <LinearGradient
+          colors={['#F4D03F', '#D4AF37', '#B5902A'] as readonly [string, string, string]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={[styles.base, styles.gradientFill]}
+        >
+          <Text style={[styles.text, styles.textDark, textStyle]}>{title}</Text>
+        </LinearGradient>
+      </TouchableOpacity>
+    );
+  }
 
   return (
     <TouchableOpacity
@@ -40,9 +54,8 @@ export default function GoldButton({
       activeOpacity={0.85}
       style={[
         styles.base,
-        isPrimary && styles.primary,
-        !isPrimary && !isDanger && styles.outline,
-        isDanger && styles.danger,
+        styles.outline,
+        variant === 'danger' && styles.dangerOutline,
         disabled && styles.disabled,
         style,
       ]}
@@ -50,10 +63,7 @@ export default function GoldButton({
       <Text
         style={[
           styles.text,
-          isPrimary && styles.textPrimary,
-          !isPrimary && !isDanger && styles.textOutline,
-          isDanger && styles.textPrimary,
-          disabled && styles.textDisabled,
+          variant === 'danger' ? styles.textDanger : styles.textOutline,
           textStyle,
         ]}
       >
@@ -64,6 +74,14 @@ export default function GoldButton({
 }
 
 const styles = StyleSheet.create({
+  wrapper: {
+    borderRadius: RADIUS.lg,
+    shadowColor: '#D4AF37',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.45,
+    shadowRadius: 18,
+    elevation: 10,
+  },
   base: {
     height: SIZES.buttonHeight,
     borderRadius: RADIUS.lg,
@@ -71,33 +89,35 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 24,
   },
-  primary: {
-    backgroundColor: COLORS.primary,
-    ...SHADOWS.gold,
+  gradientFill: {
+    width: '100%',
   },
   outline: {
     backgroundColor: 'transparent',
     borderWidth: 2,
     borderColor: COLORS.primary,
   },
-  danger: {
-    backgroundColor: COLORS.danger,
+  dangerOutline: {
+    borderColor: COLORS.danger,
   },
   disabled: {
-    opacity: 0.5,
+    opacity: 0.45,
   },
   text: {
     fontSize: FONT_SIZES.body,
-    fontFamily: FONTS.arabic.medium,
+    fontFamily: FONTS.arabic.bold,
     textAlign: 'center',
   },
-  textPrimary: {
+  textDark: {
     color: COLORS.textDark,
+    textShadowColor: 'rgba(255,255,255,0.25)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   textOutline: {
     color: COLORS.primary,
   },
-  textDisabled: {
-    color: COLORS.textMuted,
+  textDanger: {
+    color: COLORS.danger,
   },
 });

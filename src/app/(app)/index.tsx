@@ -1,16 +1,9 @@
 // ============================================================
-// جرب حظك — Home Screen (Lobby)
+// جرب حظك — Home Screen v2 (Luxury Lobby)
 // ============================================================
 
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Dimensions,
-} from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import GlassCard from '../../components/ui/GlassCard';
@@ -22,11 +15,10 @@ import { COLORS, FONTS, FONT_SIZES, SPACING, RADIUS, GRADIENTS } from '../../con
 const { width } = Dimensions.get('window');
 const GAME_CARD_WIDTH = (width - SPACING.xl * 2 - SPACING.md) / 2;
 
-// بيانات وهمية
 const MOCK_TABLES = [
-  { id: '1', gameType: 'texas_holdem', name: 'طاولة الرياض', players: 2, maxPlayers: 6, minBuyIn: 500, smallBlind: 10, bigBlind: 20 },
+  { id: '1', gameType: 'texas_holdem', name: 'طاولة الرياض', players: 2, maxPlayers: 6, minBuyIn: 500 },
   { id: '2', gameType: 'blackjack', name: 'طاولة الخليج', players: 3, maxPlayers: 5, minBuyIn: 1000 },
-  { id: '3', gameType: 'texas_holdem', name: 'طاولة VIP', players: 5, maxPlayers: 6, minBuyIn: 5000, smallBlind: 200, bigBlind: 400 },
+  { id: '3', gameType: 'texas_holdem', name: 'طاولة VIP', players: 5, maxPlayers: 6, minBuyIn: 5000 },
 ];
 
 const GAME_TYPES = [
@@ -41,23 +33,26 @@ export default function HomeScreen() {
   return (
     <View style={styles.container}>
       {/* Header */}
-      <View style={styles.header}>
+      <GlassCard style={styles.header}>
         <View style={styles.headerLeft}>
           <Text style={styles.greeting}>أهلاً، {user.display_name} 👋</Text>
           <View style={styles.balanceRow}>
-            <Text style={styles.balanceLabel}>رصيدك:</Text>
+            <Text style={styles.balanceLabel}>رصيدك</Text>
             <Text style={styles.balanceAmount}>{balance.toLocaleString()}</Text>
             <Text style={styles.balanceCurrency}>💰</Text>
           </View>
         </View>
         <TouchableOpacity onPress={() => router.push('/(app)/profile')}>
-          <Avatar name={user.display_name} size={44} showBorder />
+          <Avatar name={user.display_name} size={48} showBorder />
         </TouchableOpacity>
-      </View>
+      </GlassCard>
 
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
         {/* Game Selection */}
-        <Text style={styles.sectionTitle}>اختر لعبتك</Text>
+        <View style={styles.sectionHeader}>
+          <View style={styles.goldLine} />
+          <Text style={styles.sectionTitle}>اختر لعبتك</Text>
+        </View>
         <View style={styles.gameCards}>
           {GAME_TYPES.map((game) => (
             <TouchableOpacity
@@ -66,30 +61,41 @@ export default function HomeScreen() {
               onPress={() => router.push('/(app)/tables')}
             >
               <LinearGradient
-                colors={[COLORS.bgSurface, COLORS.bgSurfaceLight]}
-                style={styles.gameCardInner}
+                colors={['rgba(212,175,55,0.35)', 'rgba(19,46,53,0.95)', 'rgba(10,15,20,0.95)']}
+                start={{ x: 0.5, y: 0 }}
+                end={{ x: 0.5, y: 1 }}
+                style={styles.gameCardGradient}
               >
-                <Text style={styles.gameIcon}>{game.icon}</Text>
-                <Text style={styles.gameName}>{game.name}</Text>
+                <View style={styles.gameCardBorder}>
+                  <Text style={styles.gameIcon}>{game.icon}</Text>
+                  <Text style={styles.gameName}>{game.name}</Text>
+                </View>
               </LinearGradient>
             </TouchableOpacity>
           ))}
         </View>
 
         {/* Available Tables */}
-        <Text style={styles.sectionTitle}>الطاولات المتاحة</Text>
+        <View style={styles.sectionHeader}>
+          <View style={styles.goldLine} />
+          <Text style={styles.sectionTitle}>الطاولات المتاحة</Text>
+        </View>
         <View style={styles.tablesList}>
           {MOCK_TABLES.map((table) => (
             <TouchableOpacity
               key={table.id}
               onPress={() => router.push(`/(app)/table/${table.id}`)}
             >
-              <GlassCard style={styles.tableCard}>
+              <GlassCard glow style={styles.tableCard}>
                 <View style={styles.tableHeader}>
-                  <Text style={styles.tableGame}>
-                    {table.gameType === 'texas_holdem' ? '🃏' : '🎰'}{' '}
-                    {table.gameType === 'texas_holdem' ? 'تكساس هولدم' : 'بلاك جاك'}
-                  </Text>
+                  <View style={styles.tableGameBadge}>
+                    <Text style={styles.tableGameIcon}>
+                      {table.gameType === 'texas_holdem' ? '🃏' : '🎰'}
+                    </Text>
+                    <Text style={styles.tableGameText}>
+                      {table.gameType === 'texas_holdem' ? 'تكساس هولدم' : 'بلاك جاك'}
+                    </Text>
+                  </View>
                   <View style={styles.playerCount}>
                     <Text style={styles.playerCountText}>
                       {table.players}/{table.maxPlayers}
@@ -98,8 +104,11 @@ export default function HomeScreen() {
                 </View>
                 <Text style={styles.tableName}>{table.name}</Text>
                 <View style={styles.tableFooter}>
-                  <Chip amount={table.minBuyIn} size={32} />
-                  <Text style={styles.tableBuyIn}>دخول: {table.minBuyIn.toLocaleString()} درهم</Text>
+                  <Chip amount={table.minBuyIn} size={34} />
+                  <View style={styles.buyInCol}>
+                    <Text style={styles.buyInLabel}>الحد الأدنى للدخول</Text>
+                    <Text style={styles.buyInAmount}>{table.minBuyIn.toLocaleString()} درهم</Text>
+                  </View>
                 </View>
               </GlassCard>
             </TouchableOpacity>
@@ -107,10 +116,10 @@ export default function HomeScreen() {
         </View>
 
         {/* Weekly Tournament */}
-        <GlassCard style={styles.tournamentCard}>
+        <GlassCard glow style={styles.tournamentCard}>
           <View style={styles.tournamentHeader}>
             <Text style={styles.tournamentTitle}>🏆 البطولة الأسبوعية</Text>
-            <Text style={styles.tournamentTimer}>ينتهي خلال 3 أيام</Text>
+            <Text style={styles.tournamentTimer}>تنتهي خلال 3 أيام</Text>
           </View>
           <Text style={styles.tournamentPrize}>💰 الجائزة: 50,000 درهم</Text>
           <GoldButton
@@ -132,12 +141,12 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.bgPrimary,
   },
   header: {
+    marginHorizontal: SPACING.lg,
+    marginTop: SPACING.lg,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: SPACING.xl,
-    paddingTop: SPACING.lg,
-    paddingBottom: SPACING.md,
+    padding: SPACING.md,
   },
   headerLeft: {
     gap: 2,
@@ -150,7 +159,7 @@ const styles = StyleSheet.create({
   balanceRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 6,
   },
   balanceLabel: {
     fontFamily: FONTS.arabic.regular,
@@ -159,23 +168,34 @@ const styles = StyleSheet.create({
   },
   balanceAmount: {
     fontFamily: FONTS.english.bold,
-    fontSize: FONT_SIZES.h3,
+    fontSize: FONT_SIZES.h2,
     color: COLORS.primary,
-    direction: 'ltr',
   },
   balanceCurrency: {
-    fontSize: 16,
+    fontSize: 18,
   },
   scroll: {
     flex: 1,
     paddingHorizontal: SPACING.xl,
+    paddingTop: SPACING.lg,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    marginBottom: SPACING.md,
+    marginTop: SPACING.lg,
+  },
+  goldLine: {
+    width: 4,
+    height: 24,
+    backgroundColor: COLORS.primary,
+    borderRadius: RADIUS.full,
   },
   sectionTitle: {
     fontFamily: FONTS.arabic.bold,
     fontSize: FONT_SIZES.h2,
     color: COLORS.textPrimary,
-    marginTop: SPACING.lg,
-    marginBottom: SPACING.md,
     textAlign: 'right',
   },
   gameCards: {
@@ -184,25 +204,31 @@ const styles = StyleSheet.create({
   },
   gameCard: {
     width: GAME_CARD_WIDTH,
-    height: 120,
+    height: 130,
     borderRadius: RADIUS.md,
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
-  gameCardInner: {
+  gameCardGradient: {
+    flex: 1,
+    padding: 2,
+  },
+  gameCardBorder: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
+    gap: 6,
     borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: RADIUS.md,
+    borderColor: 'rgba(212,175,55,0.15)',
+    borderRadius: RADIUS.md - 2,
   },
   gameIcon: {
-    fontSize: 36,
+    fontSize: 40,
   },
   gameName: {
-    fontFamily: FONTS.arabic.medium,
-    fontSize: FONT_SIZES.small,
+    fontFamily: FONTS.arabic.bold,
+    fontSize: FONT_SIZES.body,
     color: COLORS.textPrimary,
     textAlign: 'center',
   },
@@ -217,19 +243,27 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  tableGame: {
+  tableGameBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  tableGameIcon: {
+    fontSize: 18,
+  },
+  tableGameText: {
     fontFamily: FONTS.arabic.regular,
-    fontSize: FONT_SIZES.body,
-    color: COLORS.textPrimary,
+    fontSize: FONT_SIZES.small,
+    color: COLORS.textMuted,
   },
   playerCount: {
-    backgroundColor: COLORS.bgSurfaceLight,
+    backgroundColor: 'rgba(212,175,55,0.12)',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: RADIUS.full,
   },
   playerCountText: {
-    fontFamily: FONTS.english.semibold,
+    fontFamily: FONTS.english.bold,
     fontSize: FONT_SIZES.caption,
     color: COLORS.primary,
   },
@@ -241,12 +275,21 @@ const styles = StyleSheet.create({
   tableFooter: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: SPACING.sm,
+    gap: SPACING.md,
+    marginTop: SPACING.xs,
   },
-  tableBuyIn: {
+  buyInCol: {
+    gap: 2,
+  },
+  buyInLabel: {
     fontFamily: FONTS.arabic.regular,
-    fontSize: FONT_SIZES.small,
+    fontSize: FONT_SIZES.caption,
     color: COLORS.textMuted,
+  },
+  buyInAmount: {
+    fontFamily: FONTS.english.bold,
+    fontSize: FONT_SIZES.body,
+    color: COLORS.primary,
   },
   tournamentCard: {
     marginTop: SPACING.lg,
@@ -268,7 +311,7 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted,
   },
   tournamentPrize: {
-    fontFamily: FONTS.arabic.regular,
+    fontFamily: FONTS.english.bold,
     fontSize: FONT_SIZES.body,
     color: COLORS.primary,
   },
