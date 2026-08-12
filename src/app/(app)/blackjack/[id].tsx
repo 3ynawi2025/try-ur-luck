@@ -211,7 +211,13 @@ export default function BlackjackScreen() {
         <View style={styles.headerCenter}>
           <Text style={styles.tableTitle}>بلاك جاك</Text>
           <Text style={styles.phaseText}>
-            {snap.phase === 'betting' ? 'ضع رهانك' : snap.phase === 'playing' ? 'الموزع يقف على ١٧' : 'انتهت الجولة'}
+            {snap.phase === 'betting'
+              ? 'ضع رهانك'
+              : snap.phase === 'insurance'
+              ? 'الموزع يُظهر آص — تأمين؟'
+              : snap.phase === 'playing'
+              ? 'الموزع يقف على ١٧'
+              : 'انتهت الجولة'}
           </Text>
         </View>
         <View style={styles.headerSide}>
@@ -253,7 +259,7 @@ export default function BlackjackScreen() {
             />
           ))}
         </View>
-        <ScoreBubble score={snap.dealerRevealed ? dealerScore : '؟'} />
+        {snap.dealerRevealed && <ScoreBubble score={dealerScore} />}
       </FeltTable>
 
       {/* ===== اللاعب ===== */}
@@ -374,7 +380,10 @@ export default function BlackjackScreen() {
         {/* مرحلة التأمين */}
         {snap.phase === 'insurance' && (
           <View style={styles.betArea}>
-            <Text style={styles.turnLabel}>الموزع يظهر آص — هل تريد تأمينًا؟</Text>
+            <Text style={styles.turnLabel}>
+              الموزع يُظهر <Text style={styles.turnScore}>آص A</Text> — بلاك جاك الموزع يدفع ٣:٢.
+              هل تريد تأمينًا على رهانك؟
+            </Text>
             <View style={styles.actions}>
               <ActionButton label="تأمين" colors={['#F7E7A6', '#B8912C'] as const} darkText onPress={() => takeInsurance(true)} />
               <ActionButton label="بلا تأمين" colors={['#5AA0FF', '#1B4EA8'] as const} onPress={() => takeInsurance(false)} />
