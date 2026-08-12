@@ -2,7 +2,7 @@
 // Blackjack engine tests (per blackjack-code-audit.md + checklist)
 // ============================================================
 
-import { BlackjackEngine, BlackjackConfig } from '../blackjack';
+import { BlackjackEngine, BlackjackConfig, DEFAULT_BLACKJACK_CONFIG } from '../blackjack';
 import { Card } from '../deck';
 
 type BlackjackSnapshot = ReturnType<BlackjackEngine['snapshot']>;
@@ -164,6 +164,46 @@ describe('blackjack audit cases', () => {
     const snap = engine.snapshot();
     // 1000 - 100 - 100 + 200 + 200 = 1200 (both win 1:1, NOT 3:2)
     expect(snap.players[0].balance).toBe(1200);
+  });
+
+  it('RSA: a split ace that draws another ace may resplit (resplitAces = true)', () => {
+    // p: A,A → split: hand1 = A+A (resplittable), hand2 = A+9 (closed).
+    // hand1 resplits: A+A → A+2 (12, closed) and A+K (21, closed).
+    // Dealer 10 + 7 = 17. hand2 (20) wins, hand1a (12) loses, hand1b (21) wins.
+    const shoe = [
+      C('A', 'hearts'), C('10', 'spades'), C('A', 'diamonds'), C('7', 'clubs'), // deal
+      C('A', 'spades'), C('9', 'hearts'), // first split
+      C('2', 'clubs'), C('K', 'diamonds'), // resplit
+    ];
+    const engine = setup(shoe);
+    engine.addPlayer('p0', 'أ', 1000);
+    expect(engine.placeBet('p0', 100)).toBeNull();
+    ok(engine.startRound());
+    ok(engine.performAction('p0', 'split')); // hand1 = A+A (playing, RSA), hand2 = A+9 (stood)
+    const mid = engine.snapshot();
+    expect(mid.phase).toBe('playing'); // resplit possible → turn stays
+    ok(engine.performAction('p0', 'split')); // resplit hand1
+    // hand1a = A+2 closed (12), hand1b = A+K closed (21) → dealer plays
+    const snap = engine.snapshot();
+    expect(snap.phase).toBe('complete');
+    // 1000 - 300 (3 bets) + 200 (hand1b 21 wins 1:1) + 200 (hand2 20 vs 17 wins) = 1100
+    expect(snap.players[0].balance).toBe(1100);
+  });
+
+  it('RSA disabled: resplitting aces is rejected', () => {
+    const shoe = [
+      C('A', 'hearts'), C('10', 'spades'), C('A', 'diamonds'), C('7', 'clubs'),
+      C('A', 'spades'), C('9', 'hearts'),
+      C('2', 'clubs'),
+    ];
+    const engine = new BlackjackEngine({ ...DEFAULT_BLACKJACK_CONFIG, shoeOverride: shoe, resplitAces: false });
+    engine.addPlayer('p0', 'أ', 1000);
+    expect(engine.placeBet('p0', 100)).toBeNull();
+    ok(engine.startRound());
+    const afterSplit = engine.performAction('p0', 'split');
+    // hand1 = A+A → closed (no RSA); hand2 = A+9 closed → dealer plays
+    if ('error' in afterSplit) throw new Error(afterSplit.error);
+    expect(afterSplit.phase).toBe('complete');
   });
 
   it('dealer soft 17: stands under S17, draws under H17', () => {

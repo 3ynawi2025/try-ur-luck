@@ -456,6 +456,7 @@ export class BlackjackEngine {
     switch (action) {
       case 'hit': {
         if (hand.status !== 'playing') return err('انتهت هذه اليد', 'HAND_OVER');
+        if (hand.isSplitAces) return err('آص مفصول يحصل على ورقة واحدة فقط', 'SPLIT_ACES_ONE_CARD');
         hand.cards.push(this.draw());
         const score = this.calculateScore(hand.cards).total;
         if (score > 21) {
@@ -535,9 +536,12 @@ export class BlackjackEngine {
         if (this.calculateScore(second.cards).total === 21) second.status = 'stood';
 
         if (isAces) {
-          // Split aces receive exactly one card each and are closed.
-          hand.status = 'stood';
-          second.status = 'stood';
+          // Split aces receive exactly one card each. With RSA, a hand that drew
+          // ANOTHER ace remains splittable (resplit) but may never hit or double.
+          const firstResplittable = this.config.resplitAces && hand.cards[1].rank === 'A';
+          const secondResplittable = this.config.resplitAces && second.cards[1].rank === 'A';
+          hand.status = firstResplittable ? 'playing' : 'stood';
+          second.status = secondResplittable ? 'playing' : 'stood';
         }
 
         player.hands.splice(player.activeHandIndex + 1, 0, second);
