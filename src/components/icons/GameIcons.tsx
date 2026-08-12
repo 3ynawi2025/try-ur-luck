@@ -298,6 +298,15 @@ export const SettingsIcon = ({ size = 24, color = COLORS.textDim }: IconProps) =
   </Svg>
 );
 
+/** زر التعليمات — دائرة بداخلها حرف i (معلومات) */
+export const InfoIcon = ({ size = 24, color = COLORS.textDim }: IconProps) => (
+  <Svg {...base(size)}>
+    <Circle cx={12} cy={12} r={9.2} stroke={color} strokeWidth={1.7} fill="none" />
+    <Circle cx={12} cy={8.4} r={1.7} fill={color} />
+    <Path d="M12 11.6v5" stroke={color} strokeWidth={1.9} strokeLinecap="round" />
+  </Svg>
+);
+
 export const EditIcon = ({ size = 24, color = COLORS.textDim }: IconProps) => (
   <Svg {...base(size)}>
     <G stroke={color} strokeWidth={1.6} strokeLinejoin="round" fill="none">

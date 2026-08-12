@@ -18,8 +18,9 @@ import Avatar from '../../../components/ui/Avatar';
 import Chip from '../../../components/ui/Chip';
 import PlayingCard from '../../../components/game/PlayingCard';
 import FeltTable from '../../../components/game/FeltTable';
+import InstructionsModal from '../../../components/game/InstructionsModal';
 import { Badge } from '../../../components/ui/Bits';
-import { BackIcon, MicIcon, MicOffIcon } from '../../../components/icons/GameIcons';
+import { BackIcon, MicIcon, MicOffIcon, InfoIcon } from '../../../components/icons/GameIcons';
 import {
   COLORS,
   FONTS,
@@ -189,21 +190,20 @@ export default function PokerTableScreen() {
   const [holeCards, setHoleCards] = useState<GameCard[]>([]);
   const [voiceMuted, setVoiceMuted] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [helpOpen, setHelpOpen] = useState(false);
 
   const errorAnim = useRef(new Animated.Value(0)).current;
   const potScale = useRef(new Animated.Value(1)).current;
 
-  // --- تشغيل اليد الأولى ---
+  // --- تشغيل اليد الأولى (بدون بوتات — لعب ضد لاعبين حقيقيين فقط) ---
   useEffect(() => {
     engine.addPlayer('me', 'أنت', 5000);
-    engine.addPlayer('bot1', 'سلطان', 5000);
-    engine.addPlayer('bot2', 'نورة', 5000);
-    engine.addPlayer('bot3', 'فهد', 5000);
     const result = engine.startHand();
     if (!('error' in result)) {
       setSnapshot(result);
       setHoleCards(engine.getHoleCards('me'));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // --- نبضة عند تغيّر مجموع الرهان ---
@@ -225,23 +225,8 @@ export default function PokerTableScreen() {
     ]).start(() => setError(null));
   }, [error]);
 
-  const autoPlayBots = useCallback(() => {
-    const snap = engine.snapshot();
-    const current = snap.players.find((p) => p.isCurrentTurn);
-    if (!current || current.id === 'me') return;
-
-    const action: 'call' | 'fold' = Math.random() > 0.25 ? 'call' : 'fold';
-    const result = engine.performAction(current.id, action);
-    if (!('error' in result)) {
-      setSnapshot(result);
-      setHoleCards(engine.getHoleCards('me'));
-      const next = engine.snapshot().players.find((p) => p.isCurrentTurn);
-      if (next && next.id !== 'me') setTimeout(autoPlayBots, 620);
-    }
-  }, [engine]);
-
   const handleAction = useCallback(
-    (action: 'fold' | 'check' | 'call' | 'raise', amount?: number) => {
+    (action: 'fold' | 'check' | 'call' | 'raise' | 'all_in' | 'bet', amount?: number) => {
       const result = engine.performAction('me', action, amount);
       if ('error' in result) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
@@ -250,9 +235,8 @@ export default function PokerTableScreen() {
       }
       setSnapshot(result);
       setHoleCards(engine.getHoleCards('me'));
-      setTimeout(autoPlayBots, 700);
     },
-    [engine, autoPlayBots]
+    [engine]
   );
 
   const startNewHand = () => {
@@ -288,17 +272,28 @@ export default function PokerTableScreen() {
           </Text>
         </View>
 
-        <Pressable
-          style={[styles.iconBtn, !voiceMuted && styles.iconBtnLive]}
-          onPress={() => setVoiceMuted((v) => !v)}
-          hitSlop={8}
-        >
-          {voiceMuted ? (
-            <MicOffIcon size={20} color={COLORS.textDim} />
-          ) : (
-            <MicIcon size={20} color={COLORS.emerald} />
-          )}
-        </Pressable>
+        <View style={styles.headerSide}>
+          <Pressable
+            style={[styles.iconBtn, !voiceMuted && styles.iconBtnLive]}
+            onPress={() => setVoiceMuted((v) => !v)}
+            hitSlop={8}
+          >
+            {voiceMuted ? (
+              <MicOffIcon size={20} color={COLORS.textDim} />
+            ) : (
+              <MicIcon size={20} color={COLORS.emerald} />
+            )}
+          </Pressable>
+
+          <Pressable
+            style={styles.iconBtn}
+            onPress={() => setHelpOpen(true)}
+            hitSlop={8}
+            accessibilityLabel="تعليمات"
+          >
+            <InfoIcon size={20} color={COLORS.textDim} />
+          </Pressable>
+        </View>
       </View>
 
       {/* ===== الطاولة ===== */}
@@ -422,7 +417,13 @@ export default function PokerTableScreen() {
               sub={formatNumber(Math.max((snapshot?.currentBet || 0) * 2, 80))}
               colors={['#2FD98A', '#0B7345'] as const}
               flex={1.15}
-              onPress={() => handleAction('raise', minRaiseTo)}
+              onPress={() => {
+                // توجيه صحيح حسب حالة الرهان + كل الرصيد عندما لا يكفي المبلغ.
+                const stack = (me?.balance ?? 0) + (me?.currentBet ?? 0);
+                const desired = minRaiseTo;
+                if (desired >= stack) handleAction('all_in');
+                else handleAction((snapshot?.currentBet || 0) > 0 ? 'raise' : 'bet', desired);
+              }}
             />
           </View>
         )}
@@ -459,6 +460,13 @@ export default function PokerTableScreen() {
           </View>
         )}
       </View>
+
+      {/* ===== نافذة التعليمات ===== */}
+      <InstructionsModal
+        game="texas_holdem"
+        visible={helpOpen}
+        onClose={() => setHelpOpen(false)}
+      />
     </View>
   );
 }
@@ -474,6 +482,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.lg,
     paddingBottom: SPACING.md,
     zIndex: 30,
+  },
+  headerSide: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: SPACING.sm,
   },
   iconBtn: {
     width: 38,

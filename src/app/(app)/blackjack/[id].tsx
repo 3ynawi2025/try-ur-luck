@@ -12,7 +12,8 @@ import Avatar from '../../../components/ui/Avatar';
 import Chip from '../../../components/ui/Chip';
 import PlayingCard, { Card as PCard } from '../../../components/game/PlayingCard';
 import FeltTable from '../../../components/game/FeltTable';
-import { BackIcon, MicIcon, MicOffIcon } from '../../../components/icons/GameIcons';
+import InstructionsModal from '../../../components/game/InstructionsModal';
+import { BackIcon, MicIcon, MicOffIcon, InfoIcon } from '../../../components/icons/GameIcons';
 import {
   COLORS,
   FONTS,
@@ -136,6 +137,7 @@ export default function BlackjackScreen() {
   useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
   const [voiceMuted, setVoiceMuted] = useState(true);
+  const [helpOpen, setHelpOpen] = useState(false);
 
   const me = PLAYERS[0];
 
@@ -152,17 +154,28 @@ export default function BlackjackScreen() {
           <Text style={styles.tableTitle}>بلاك جاك</Text>
           <Text style={styles.phaseText}>الموزع يقف على ١٧</Text>
         </View>
-        <Pressable
-          style={[styles.iconBtn, !voiceMuted && styles.iconBtnLive]}
-          onPress={() => setVoiceMuted((v) => !v)}
-          hitSlop={8}
-        >
-          {voiceMuted ? (
-            <MicOffIcon size={20} color={COLORS.textDim} />
-          ) : (
-            <MicIcon size={20} color={COLORS.emerald} />
-          )}
-        </Pressable>
+        <View style={styles.headerSide}>
+          <Pressable
+            style={[styles.iconBtn, !voiceMuted && styles.iconBtnLive]}
+            onPress={() => setVoiceMuted((v) => !v)}
+            hitSlop={8}
+          >
+            {voiceMuted ? (
+              <MicOffIcon size={20} color={COLORS.textDim} />
+            ) : (
+              <MicIcon size={20} color={COLORS.emerald} />
+            )}
+          </Pressable>
+
+          <Pressable
+            style={styles.iconBtn}
+            onPress={() => setHelpOpen(true)}
+            hitSlop={8}
+            accessibilityLabel="تعليمات"
+          >
+            <InfoIcon size={20} color={COLORS.textDim} />
+          </Pressable>
+        </View>
       </View>
 
       {/* ===== منطقة الموزع ===== */}
@@ -264,6 +277,13 @@ export default function BlackjackScreen() {
           />
         </View>
       </View>
+
+      {/* ===== نافذة التعليمات ===== */}
+      <InstructionsModal
+        game="blackjack"
+        visible={helpOpen}
+        onClose={() => setHelpOpen(false)}
+      />
     </View>
   );
 }
@@ -277,6 +297,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: SPACING.lg,
     paddingBottom: SPACING.md,
+  },
+  headerSide: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: SPACING.sm,
   },
   iconBtn: {
     width: 38,
