@@ -44,10 +44,10 @@ export const GRADIENTS = {
 
 export const FONTS = {
   arabic: {
-    bold: 'Cocon-Bold',
-    regular: 'Dubai-Regular',
-    medium: 'Dubai-Medium',
-    light: 'Dubai-Light',
+    bold: 'Cairo-Bold',
+    regular: 'Cairo-Regular',
+    medium: 'Cairo-Medium',
+    light: 'Cairo-Light',
   },
   english: {
     bold: 'Inter-Bold',
