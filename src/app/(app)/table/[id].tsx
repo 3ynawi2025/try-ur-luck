@@ -438,9 +438,11 @@ export default function PokerTableScreen() {
             {!snapshot && (
               <View style={styles.waitingHint}>
                 <Text style={styles.waitingHintText}>
-                  تكساس هولدم لعبة بين اللاعبين — لكن يمكنك اللعب وحدك ضد الموزع في بلاك جاك
+                  تكساس هولدم لعبة بين اللاعبين — لكن يمكنك اللعب وحدك ضد الموزع في:
                 </Text>
-                <GoldButton title="العب مع الموزع — بلاك جاك" onPress={() => router.push('/(app)/blackjack/1')} />
+                <GoldButton title="بلاك جاك" onPress={() => router.push('/(app)/blackjack/1')} />
+                <GoldButton title="ثلاث أوراق بوكر" onPress={() => router.push('/(app)/three-card/1')} />
+                <GoldButton title="البوكر الروسي" onPress={() => router.push('/(app)/russian/1')} />
               </View>
             )}
           </View>

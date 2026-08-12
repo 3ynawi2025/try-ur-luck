@@ -28,7 +28,7 @@ import {
   formatNumber,
 } from '../../constants/theme';
 
-type GameFilter = 'all' | 'texas_holdem' | 'blackjack';
+type GameFilter = 'all' | 'texas_holdem' | 'blackjack' | 'three_card' | 'russian';
 
 const MOCK_TABLES = [
   { id: '1', gameType: 'texas_holdem', name: 'طاولة الرياض', players: 2, maxPlayers: 6, minBuyIn: 500, smallBlind: 10, bigBlind: 20, seated: ['سلطان', 'نورة'] },
@@ -37,12 +37,23 @@ const MOCK_TABLES = [
   { id: '4', gameType: 'texas_holdem', name: 'طاولة مبتدئين', players: 1, maxPlayers: 6, minBuyIn: 500, smallBlind: 10, bigBlind: 20, seated: ['عمر'] },
   { id: '5', gameType: 'blackjack', name: 'طاولة المحترفين', players: 4, maxPlayers: 5, minBuyIn: 2500, seated: ['ليان', 'طلال', 'دانة', 'يوسف'] },
   { id: '6', gameType: 'texas_holdem', name: 'طاولة خاصة', players: 2, maxPlayers: 6, minBuyIn: 1500, smallBlind: 50, bigBlind: 100, isPrivate: true, seated: ['غير معروف', 'ضيف'] },
+  { id: '7', gameType: 'three_card', name: 'طاولة ثلاث أوراق', players: 1, maxPlayers: 5, minBuyIn: 500, seated: ['أنت'] },
+  { id: '8', gameType: 'russian', name: 'طاولة البوكر الروسي', players: 1, maxPlayers: 5, minBuyIn: 500, seated: ['أنت'] },
 ];
+
+const GAME_NAMES: Record<string, string> = {
+  texas_holdem: 'تكساس هولدم',
+  blackjack: 'بلاك جاك',
+  three_card: 'ثلاث أوراق بوكر',
+  russian: 'بوكر روسي',
+};
 
 const FILTERS: { key: GameFilter; label: string }[] = [
   { key: 'all', label: 'الكل' },
   { key: 'texas_holdem', label: 'تكساس هولدم' },
   { key: 'blackjack', label: 'بلاك جاك' },
+  { key: 'three_card', label: 'ثلاث أوراق' },
+  { key: 'russian', label: 'بوكر روسي' },
 ];
 
 /** صيغ الجمع العربية: مفرد / مثنى / جمع قلة / جمع كثرة */
@@ -88,10 +99,17 @@ function TableRow({ table }: { table: (typeof MOCK_TABLES)[number] }) {
 
   const isFull = table.players >= table.maxPlayers;
 
+  const openTable = () => {
+    if (table.gameType === 'blackjack') router.push(`/(app)/blackjack/${table.id}`);
+    else if (table.gameType === 'three_card') router.push(`/(app)/three-card/${table.id}`);
+    else if (table.gameType === 'russian') router.push(`/(app)/russian/${table.id}`);
+    else router.push(`/(app)/table/${table.id}`);
+  };
+
   return (
     <Animated.View style={{ transform: [{ scale }] }}>
       <Pressable
-        onPress={() => router.push(`/(app)/table/${table.id}`)}
+        onPress={openTable}
         onPressIn={() => to(0.98)}
         onPressOut={() => to(1)}
       >
@@ -105,7 +123,7 @@ function TableRow({ table }: { table: (typeof MOCK_TABLES)[number] }) {
               </View>
               <View style={styles.metaLine}>
                 <Text style={styles.gameLabel}>
-                  {table.gameType === 'texas_holdem' ? 'تكساس هولدم' : 'بلاك جاك'}
+                  {GAME_NAMES[table.gameType] ?? table.gameType}
                 </Text>
                 {!!table.smallBlind && (
                   <>

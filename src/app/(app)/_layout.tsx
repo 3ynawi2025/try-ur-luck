@@ -31,6 +31,14 @@ export default function AppLayout() {
         name="blackjack/[id]"
         options={{ href: null, tabBarStyle: { display: 'none' } }}
       />
+      <Tabs.Screen
+        name="three-card/[id]"
+        options={{ href: null, tabBarStyle: { display: 'none' } }}
+      />
+      <Tabs.Screen
+        name="russian/[id]"
+        options={{ href: null, tabBarStyle: { display: 'none' } }}
+      />
     </Tabs>
   );
 }
