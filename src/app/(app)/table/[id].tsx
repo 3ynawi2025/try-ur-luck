@@ -267,8 +267,8 @@ export default function PokerTableScreen() {
   const isMyTurn = !!me?.isCurrentTurn;
   const isShowdown = snapshot?.phase === 'showdown';
   const showActions = isMyTurn && !isShowdown;
-  const toCall = Math.max(0, snapshot?.legalActions?.toCall ?? ((snapshot?.currentBet || 0) - (me?.currentBet || 0)));
-  const minRaiseTo = Math.max(snapshot?.legalActions?.minRaiseTo ?? 0, (snapshot?.currentBet || 0) * 2, 80);
+  const toCall = Math.max(0, (snapshot?.currentBet || 0) - (me?.totalRoundBet || 0));
+  const minRaiseTo = Math.max((snapshot?.currentBet || 0) * 2, 80);
   const community = snapshot?.communityCards || [];
 
   return (
@@ -419,7 +419,7 @@ export default function PokerTableScreen() {
             />
             <ActionButton
               label="مضاعفة"
-              sub={formatNumber(minRaiseTo)}
+              sub={formatNumber(Math.max((snapshot?.currentBet || 0) * 2, 80))}
               colors={['#2FD98A', '#0B7345'] as const}
               flex={1.15}
               onPress={() => handleAction('raise', minRaiseTo)}
