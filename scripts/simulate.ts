@@ -7,8 +7,8 @@
 // ============================================================
 
 import { TexasHoldemEngine } from '../src/server/game/texasHoldem';
-import { BlackjackEngine } from '../src/server/game/blackjack';
-import { evaluateThreeCards, shouldPlayThree, resolveThreeCardRound, RECOMMENDED_THREE_CARD_CONFIG, ThreeCardCategory } from '../src/server/game/threeCardPoker';
+import { BlackjackEngine, DEFAULT_BLACKJACK_CONFIG } from '../src/server/game/blackjack';
+import { evaluateThreeCards, shouldPlayThree, resolveThreeCardRound, RECOMMENDED_THREE_CARD_CONFIG } from '../src/server/game/threeCardPoker';
 import { bestRussian5, russianQualifies } from '../src/server/game/russianPoker';
 import { seededRng, createDeck, shuffleDeck } from '../src/server/game/deck';
 
@@ -57,7 +57,7 @@ function holdemConservation(): void {
 }
 
 // ------------------------------------------------------------
-// 2. Blackjack house edge (10^7 hands, basic strategy)
+// 2. Blackjack house edge (10^7 hands through the REAL engine)
 // ------------------------------------------------------------
 const CARD_VALS: Record<string, number> = { '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, '10': 10, 'J': 10, 'Q': 10, 'K': 10, 'A': 11 };
 
@@ -72,159 +72,105 @@ function scoreOf(hand: { rank: string }[]): { total: number; soft: boolean } {
   return { total, soft: aces > 0 };
 }
 
-function basicAction(cards: { rank: string }[], upcard: { rank: string }, canDouble: boolean): 'hit' | 'stand' | 'double' | 'split' | 'surrender' {
+function basicAction(cards: { rank: string }[], upcard: { rank: string }, canDouble: boolean): 'hit' | 'stand' | 'double' | 'split' {
   const up = Math.min(CARD_VALS[upcard.rank], 10);
   const { total, soft } = scoreOf(cards);
   const pair = cards.length === 2 && cards[0].rank === cards[1].rank;
   const first = cards[0].rank;
-
   if (pair && canDouble) {
-    if (first === 'A') return 'split';
-    if (first === '8') return 'split';
+    if (first === 'A' || first === '8') return 'split';
     if (first === '9' && up !== 7 && up <= 9) return 'split';
     if (first === '7' && up <= 7) return 'split';
     if (first === '6' && up <= 6) return 'split';
     if (first === '5' && up >= 2 && up <= 9) return 'double';
-    if (first === '4' && up >= 5 && up <= 6) return 'split';
+    if (first === '4' && up >= 4 && up <= 6) return 'split';
     if (first === '3' && up <= 7) return 'split';
     if (first === '2' && up <= 7) return 'split';
   }
-
   if (soft) {
-    const low = total - 11; // non-ace part
-    if (total >= 19) return 'stand';
-    if (total === 18) {
-      if (canDouble && up >= 3 && up <= 6) return 'double';
-      if (up >= 9) return 'hit';
-      return 'stand';
-    }
-    if (total === 17) {
-      if (canDouble && up >= 3 && up <= 6) return 'double';
-      return 'hit';
-    }
-    if (total === 16 || total === 15) {
-      if (canDouble && up >= 4 && up <= 6) return 'double';
-      return 'hit';
-    }
-    if (total === 14 || total === 13) {
-      if (canDouble && up >= 5 && up <= 6) return 'double';
-      return 'hit';
-    }
+    if (total >= 20) return 'stand';
+    if (total === 19) { if (canDouble && up === 6) return 'double'; return 'stand'; }
+    if (total === 18) { if (canDouble && up >= 2 && up <= 6) return 'double'; if (up >= 9) return 'hit'; return 'stand'; }
+    if (total === 17) { if (canDouble && up >= 3 && up <= 6) return 'double'; return 'hit'; }
+    if (total === 16 || total === 15) { if (canDouble && up >= 4 && up <= 6) return 'double'; return 'hit'; }
+    if (total === 14 || total === 13) { if (canDouble && up >= 5 && up <= 6) return 'double'; return 'hit'; }
     return 'hit';
   }
-
   if (total <= 8) return 'hit';
   if (total === 9) return canDouble && up >= 3 && up <= 6 ? 'double' : 'hit';
   if (total === 10) return canDouble && up >= 2 && up <= 9 ? 'double' : 'hit';
   if (total === 11) return canDouble && up >= 2 && up <= 10 ? 'double' : 'hit';
   if (total === 12) return up >= 4 && up <= 6 ? 'stand' : 'hit';
   if (total >= 13 && total <= 16) return up >= 2 && up <= 6 ? 'stand' : 'hit';
+  if (total === 16 && up === 10 && cards.length >= 3) return 'stand'; // 3+ card 16 stands vs 10
   return 'stand';
 }
 
 function blackjackEdge(): void {
-  // Fast shoe simulator using the same rules as BlackjackEngine (S17, DOA, DAS, no surrender, no Charlie, 3:2).
   const N = 10_000_000;
-  const decks = 6;
-  let shoe: { rank: string; suit: string }[] = [];
-  let pos = 0;
-  const cut = 52 * decks - 52;
-
-  const draw = () => shoe[pos++];
-  const ensureShoe = () => {
-    if (pos >= cut || shoe.length === 0) {
-      shoe = shuffleDeck(Array.from({ length: decks }, () => createDeck()).flat(), seededRng(12345 + pos));
-      pos = 0;
-    }
-  };
+  // Baseline per checklist #81: 6D · S17 · DOA · DAS · no surrender · 3:2 · no Charlie · no RSA.
+  const engine = new BlackjackEngine({
+    ...DEFAULT_BLACKJACK_CONFIG,
+    rng: seededRng(4242),
+    maxSplits: 10,
+    fiveCardCharlie: false,
+    lateSurrender: false,
+    resplitAces: false,
+  });
+  engine.addPlayer('bot', 'بوت', 1_000_000_000);
 
   let totalWagered = 0;
-  let totalNet = 0;
-  let insuranceCount = 0;
-  let insuranceNet = 0;
-
   for (let i = 0; i < N; i++) {
-    ensureShoe();
-    const bet = 100;
-    totalWagered += bet;
+    if (engine.placeBet('bot', 100)) throw new Error('bet failed');
+    let snap = engine.startRound();
+    if ('error' in snap) throw new Error(snap.error);
+    totalWagered += 100;
 
-    // Deal round-robin: player, dealer up, player, dealer hole.
-    const p1 = draw();
-    const dUp = draw();
-    const p2 = draw();
-    const dHole = draw();
-    const player: { rank: string; suit: string }[] = [p1, p2];
-    const dealer: { rank: string; suit: string }[] = [dUp, dHole];
-
-    const upVal = Math.min(CARD_VALS[dUp.rank], 10);
-    const dealerPeek = upVal >= 10 ? scoreOf(dealer).total === 21 : upVal === 11 && scoreOf(dealer).total === 21;
-
-    const pScore = scoreOf(player);
-    const pNat = player.length === 2 && pScore.total === 21;
-    const dNat = dealer.length === 2 && scoreOf(dealer).total === 21;
-
-    if (pNat && dNat) {
-      // push — no money changes
-      continue;
-    }
-    if (dNat) {
-      // dealer natural: player loses original bet
-      totalNet -= bet;
-      continue;
-    }
-    if (pNat) {
-      totalNet += Math.floor(bet * 1.5);
-      continue;
+    if (snap.phase === 'insurance') {
+      snap = engine.finishInsurance();
+      if ('error' in snap) throw new Error(snap.error);
     }
 
-    // Player plays (single hand, no splits in this bot for edge parity with spec #81: DAS on but
-    // the basic-strategy bot DOES split — track the primary hand + splits correctly).
-    // For simplicity and exactness, simulate the primary hand + splits via the engine-free loop.
-    const hands: { cards: { rank: string; suit: string }[]; bet: number }[] = [{ cards: [...player], bet }];
-    let handIdx = 0;
-    while (handIdx < hands.length) {
-      const hand = hands[handIdx];
-      let acted = false;
-      while (!acted) {
-        const hs = scoreOf(hand.cards);
-        if (hs.total > 21) { acted = true; break; }
-        const action = basicAction(hand.cards, dUp, hand.cards.length === 2);
-        if (action === 'stand') { acted = true; break; }
-        if (action === 'hit') { hand.cards.push(draw()); if (scoreOf(hand.cards).total >= 21) acted = true; continue; }
-        if (action === 'double') { hand.bet *= 2; hand.cards.push(draw()); acted = true; break; }
-        if (action === 'split') {
-          totalWagered += bet;
-          const [a, b] = hand.cards;
-          hand.cards = [a, draw()];
-          hands.splice(handIdx + 1, 0, { cards: [b, draw()], bet });
-          // continue with the first hand (loop again)
-          continue;
-        }
-        acted = true;
-      }
-      handIdx++;
+    while (snap.phase === 'playing') {
+      const player = snap.players[0];
+      const hand = player.hands[player.activeHandIndex];
+      const action = basicAction(hand.cards, snap.dealerCards[0], hand.cards.length === 2);
+      snap = engine.performAction('bot', action);
+      if ('error' in snap) throw new Error(snap.error);
     }
-
-    // Dealer (S17)
-    let dScore = scoreOf(dealer);
-    while (dScore.total < 17 || (dScore.total === 17 && dScore.soft && false)) {
-      dealer.push(draw());
-      dScore = scoreOf(dealer);
-    }
-    const dealerTotal = dScore.total;
-    const dealerBust = dealerTotal > 21;
-
-    for (const hand of hands) {
-      const hs = scoreOf(hand.cards);
-      if (hs.total > 21) { totalNet -= hand.bet; continue; }
-      if (dealerBust || hs.total > dealerTotal) { totalNet += hand.bet; continue; }
-      if (hs.total === dealerTotal) continue; // push
-      totalNet -= hand.bet;
-    }
+    if (i % 2_000_000 === 0) console.log(`  blackjack: ${i} hands ${ms()}`);
   }
 
-  const edge = (totalNet / totalWagered) * 100;
-  console.log(`✓ Blackjack: ${N} hands, wagered=${totalWagered}, net=${totalNet}, house edge = ${edge.toFixed(4)}% (target 0.41% ± 0.05) ${ms()}`);
+  const bal = engine.snapshot().players[0].balance;
+  const net = bal - 1_000_000_000;
+  const edge = (net / totalWagered) * 100;
+  console.log(`✓ Blackjack (engine, 6D/S17/DAS baseline): ${N} hands, house edge = ${edge.toFixed(4)}% (target 0.41% ± 0.05) ${ms()}`);
+
+  // Informational: the PRODUCTION default (Charlie + RSA + LS) — deliberately player-positive.
+  const N2 = 2_000_000;
+  const engine2 = new BlackjackEngine({ ...DEFAULT_BLACKJACK_CONFIG, rng: seededRng(777), maxSplits: 10 });
+  engine2.addPlayer('bot2', 'بوت', 1_000_000_000);
+  let wagered2 = 0;
+  for (let i = 0; i < N2; i++) {
+    if (engine2.placeBet('bot2', 100)) throw new Error('bet failed');
+    let snap2 = engine2.startRound();
+    if ('error' in snap2) throw new Error(snap2.error);
+    wagered2 += 100;
+    if (snap2.phase === 'insurance') {
+      const r = engine2.finishInsurance();
+      if ('error' in r) throw new Error(r.error);
+      snap2 = r;
+    }
+    while (snap2.phase === 'playing') {
+      const player = snap2.players[0];
+      const hand = player.hands[player.activeHandIndex];
+      const r = engine2.performAction('bot2', basicAction(hand.cards, snap2.dealerCards[0], hand.cards.length === 2));
+      if ('error' in r) throw new Error(r.error);
+      snap2 = r;
+    }
+  }
+  const net2 = engine2.snapshot().players[0].balance - 1_000_000_000;
+  console.log(`   production default (Charlie+RSA+LS): ${N2} hands, player edge = ${(-net2 / wagered2 * 100).toFixed(4)}% (expected ≈ +1.2% by design) ${ms()}`);
 }
 
 // ------------------------------------------------------------

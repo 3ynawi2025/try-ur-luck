@@ -12,7 +12,7 @@ import {
   ThreeCardCategory,
   RECOMMENDED_THREE_CARD_CONFIG,
 } from '../threeCardPoker';
-import { Card, createDeck, getRankValue, seededRng } from '../deck';
+import { Card, createDeck, seededRng } from '../deck';
 
 const C = (rank: Card['rank'], suit: Card['suit']): Card => ({ rank, suit });
 

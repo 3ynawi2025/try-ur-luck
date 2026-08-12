@@ -2,8 +2,10 @@
 // Blackjack engine tests (per blackjack-code-audit.md + checklist)
 // ============================================================
 
-import { BlackjackEngine, BlackjackConfig, BlackjackSnapshot } from '../blackjack';
+import { BlackjackEngine, BlackjackConfig } from '../blackjack';
 import { Card } from '../deck';
+
+type BlackjackSnapshot = ReturnType<BlackjackEngine['snapshot']>;
 
 const C = (rank: Card['rank'], suit: Card['suit']): Card => ({ rank, suit });
 
@@ -301,11 +303,6 @@ describe('blackjack audit cases', () => {
 describe('blackjack side bets', () => {
   it('Perfect Pairs table D: perfect pair pays 25:1', () => {
     // p: A♠ A♠ (perfect). dealer 9 up, 8 hole.
-    const { engine, start } = setupWithPlayer(
-      [C('A', 'spades'), C('9', 'spades'), C('A', 'spades'), C('8', 'clubs')],
-      1000, 100, {},
-      1
-    );
     // Use side bet: modify via placeBet sideBets
     const engine2 = setup([C('A', 'spades'), C('9', 'spades'), C('A', 'spades'), C('8', 'clubs')]);
     engine2.addPlayer('p0', 'أ', 1000);

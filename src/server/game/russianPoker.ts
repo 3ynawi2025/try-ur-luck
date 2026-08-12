@@ -312,7 +312,7 @@ export interface RussianSettlement {
   buyDealerCardFee: number;
   secondCombinationMultiple: number;
   totalMultiple: number;
-  lines: Array<{ labelKey: string; amount: number; multiple?: number }>;
+  lines: { labelKey: string; amount: number; multiple?: number }[];
   netChange: number;
 }
 
@@ -583,7 +583,7 @@ export class RussianPokerEngine {
     this.balance += anteReturn + betReturn + insuranceReturn;
     const netChange = anteReturn + betReturn + insuranceReturn;
 
-    const lines: Array<{ labelKey: string; amount: number; multiple?: number }> = [];
+    const lines: { labelKey: string; amount: number; multiple?: number }[] = [];
     if (this.outcome === 'FOLDED') lines.push({ labelKey: 'ante_lost', amount: -this.ante });
     if (anteReturn > 0) lines.push({ labelKey: 'ante', amount: anteReturn - this.ante, multiple: 1 });
     if (betReturn > 0 && this.outcome === 'PLAYER_WINS') lines.push({ labelKey: 'bet', amount: betReturn - this.bet, multiple: pair.totalMultiple });
