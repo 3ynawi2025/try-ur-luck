@@ -5,19 +5,27 @@
 
 import { Stack } from 'expo-router';
 import { useFonts } from 'expo-font';
-import { Cairo_400Regular, Cairo_500Medium, Cairo_700Bold } from '@expo-google-fonts/cairo';
-import { Inter_400Regular, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
+import {
+  Orbitron_400Regular,
+  Orbitron_500Medium,
+  Orbitron_700Bold,
+} from '@expo-google-fonts/orbitron';
+import {
+  JetBrainsMono_400Regular,
+  JetBrainsMono_600SemiBold,
+  JetBrainsMono_700Bold,
+} from '@expo-google-fonts/jetbrains-mono';
 import { View, Text } from 'react-native';
 import { COLORS } from '../constants/theme';
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
-    'Cairo-Regular': Cairo_400Regular,
-    'Cairo-Medium': Cairo_500Medium,
-    'Cairo-Bold': Cairo_700Bold,
-    'Inter-Regular': Inter_400Regular,
-    'Inter-SemiBold': Inter_600SemiBold,
-    'Inter-Bold': Inter_700Bold,
+    'Orbitron-Regular': Orbitron_400Regular,
+    'Orbitron-Medium': Orbitron_500Medium,
+    'Orbitron-Bold': Orbitron_700Bold,
+    'JetBrainsMono-Regular': JetBrainsMono_400Regular,
+    'JetBrainsMono-SemiBold': JetBrainsMono_600SemiBold,
+    'JetBrainsMono-Bold': JetBrainsMono_700Bold,
   });
 
   if (!fontsLoaded) {

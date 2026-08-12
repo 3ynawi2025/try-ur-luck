@@ -81,7 +81,7 @@ export default function PlayableTableScreen() {
     <View style={styles.container}>
       {/* Background */}
       <LinearGradient
-        colors={['#0A0A1A', '#1A0A2E', '#0A0A1A'] as const}
+        colors={['#0F172A', '#1F1829', '#0F172A'] as const}
         start={{ x: 0.5, y: 0 }}
         end={{ x: 0.5, y: 1 }}
         style={styles.bg}
@@ -91,7 +91,7 @@ export default function PlayableTableScreen() {
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()}>
           <View style={styles.iconBtn}>
-            <Text style={styles.headerIcon}>⬅️</Text>
+            <Text style={styles.headerIcon}>رجوع</Text>
           </View>
         </TouchableOpacity>
         <View style={styles.headerCenter}>
@@ -101,12 +101,12 @@ export default function PlayableTableScreen() {
             {snapshot?.phase === 'flop' && 'Flop'}
             {snapshot?.phase === 'turn' && 'Turn'}
             {snapshot?.phase === 'river' && 'River'}
-            {snapshot?.phase === 'showdown' && '🎉 Showdown'}
+            {snapshot?.phase === 'showdown' && 'Showdown'}
           </Text>
         </View>
         <TouchableOpacity onPress={() => setVoiceMuted(!voiceMuted)}>
           <View style={styles.iconBtn}>
-            <Text style={styles.headerIcon}>{voiceMuted ? '🔇' : '🎤'}</Text>
+            <Text style={styles.headerIcon}>{voiceMuted ? 'صامت' : 'صوت'}</Text>
           </View>
         </TouchableOpacity>
       </View>
@@ -114,7 +114,7 @@ export default function PlayableTableScreen() {
       {/* Table */}
       <View style={styles.tableArea}>
         <LinearGradient
-          colors={['#1A1A3E', '#0F0F2A', '#050510'] as const}
+          colors={['#1F1829', '#0F172A', '#0A0F1A'] as const}
           style={styles.tableOval}
         >
           <View style={styles.tableInnerBorder}>
@@ -211,7 +211,7 @@ export default function PlayableTableScreen() {
               }
             }}
           >
-            <Text style={styles.actionBtnText}>🔄 جولة جديدة</Text>
+            <Text style={styles.actionBtnText}>جولة جديدة</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -233,7 +233,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.md,
     paddingTop: 48,
     paddingBottom: SPACING.sm,
-    backgroundColor: 'rgba(10,10,26,0.6)',
+    backgroundColor: 'rgba(15,23,42,0.6)',
     zIndex: 20,
   },
   iconBtn: {
@@ -266,13 +266,13 @@ const styles = StyleSheet.create({
     borderRadius: 220,
     overflow: 'hidden',
     borderWidth: 3,
-    borderColor: 'rgba(0, 212, 255, 0.5)',
+    borderColor: 'rgba(220, 38, 38, 0.5)',
     ...SHADOWS.neon,
   },
   tableInnerBorder: {
     flex: 1,
     borderWidth: 1,
-    borderColor: 'rgba(0, 212, 255, 0.15)',
+    borderColor: 'rgba(37, 99, 235, 0.15)',
     borderRadius: 216,
     alignItems: 'center',
     justifyContent: 'center',
@@ -284,17 +284,17 @@ const styles = StyleSheet.create({
     height: 62,
     borderRadius: RADIUS.sm,
     borderWidth: 1,
-    borderColor: 'rgba(0, 212, 255, 0.2)',
+    borderColor: 'rgba(37, 99, 235, 0.2)',
     borderStyle: 'dashed',
   },
   pot: {
     alignItems: 'center',
-    backgroundColor: 'rgba(10,10,26,0.7)',
+    backgroundColor: 'rgba(15,23,42,0.7)',
     paddingHorizontal: 16,
     paddingVertical: 6,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: 'rgba(0, 212, 255, 0.3)',
+    borderColor: 'rgba(37, 99, 235, 0.3)',
   },
   potLabel: { fontFamily: FONTS.arabic.regular, fontSize: FONT_SIZES.caption, color: COLORS.textMuted },
   potRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
@@ -308,7 +308,7 @@ const styles = StyleSheet.create({
   seatContent: {
     alignItems: 'center',
     gap: 2,
-    backgroundColor: 'rgba(10,10,26,0.85)',
+    backgroundColor: 'rgba(15,23,42,0.85)',
     padding: 6,
     borderRadius: RADIUS.md,
     borderWidth: 1,
@@ -336,7 +336,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: 'rgba(10,10,26,0.95)',
+    backgroundColor: 'rgba(15,23,42,0.95)',
     paddingHorizontal: SPACING.md,
     paddingBottom: SPACING.lg,
     paddingTop: SPACING.md,

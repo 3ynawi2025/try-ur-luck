@@ -108,7 +108,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(0,212,255,0.3)',
+    borderColor: 'rgba(220,38,38,0.3)',
   },
   fallbackText: {
     textAlign: 'center',

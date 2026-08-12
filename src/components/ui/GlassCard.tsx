@@ -1,5 +1,5 @@
 // ============================================================
-// جرب حظك — GlassCard v3 (Neon Edition)
+// جرب حظك — GlassCard v4 (Cyberpunk UI)
 // ============================================================
 
 import React from 'react';
@@ -22,10 +22,10 @@ export default function GlassCard({ children, style, glow = false }: GlassCardPr
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: 'rgba(26,10,46,0.6)',
+    backgroundColor: 'rgba(31,24,41,0.6)',
     borderRadius: RADIUS.md,
     borderWidth: 1,
-    borderColor: 'rgba(0,212,255,0.15)',
+    borderColor: COLORS.border,
     padding: 16,
   },
   glow: {

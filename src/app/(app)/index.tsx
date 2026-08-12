@@ -61,7 +61,7 @@ export default function HomeScreen() {
               onPress={() => router.push('/(app)/tables')}
             >
               <LinearGradient
-                colors={['rgba(0,212,255,0.35)', 'rgba(26,10,46,0.95)', 'rgba(10,10,26,0.95)']}
+                colors={['rgba(220,38,38,0.35)', 'rgba(31,24,41,0.95)', 'rgba(15,23,42,0.95)']}
                 start={{ x: 0.5, y: 0 }}
                 end={{ x: 0.5, y: 1 }}
                 style={styles.gameCardGradient}
@@ -214,7 +214,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     borderWidth: 1,
-    borderColor: 'rgba(0,212,255,0.15)',
+    borderColor: 'rgba(220,38,38,0.15)',
     borderRadius: RADIUS.md - 2,
   },
   gameName: {
@@ -245,7 +245,7 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted,
   },
   playerCount: {
-    backgroundColor: 'rgba(0,212,255,0.12)',
+    backgroundColor: 'rgba(220,38,38,0.12)',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: RADIUS.full,

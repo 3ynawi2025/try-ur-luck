@@ -1,6 +1,6 @@
 // ============================================================
-// جرب حظك — GoldButton v3 (Neon Edition)
-// زر نيون بتدرج أزرق/بنفسجي + variants
+// جرب حظك — GoldButton v4 (Cyberpunk UI)
+// زر نيون أحمر/أزرق
 // ============================================================
 
 import React from 'react';
@@ -41,7 +41,7 @@ export default function GoldButton({
         </View>
       ) : (
         <LinearGradient
-          colors={disabled ? ['#333', '#222'] : ['#00D4FF', '#7B2CBF']}
+          colors={disabled ? ['#333', '#222'] : [COLORS.primary, COLORS.primaryDark]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={styles.gradient}
@@ -57,7 +57,7 @@ const styles = StyleSheet.create({
   wrapper: {
     borderRadius: RADIUS.md,
     overflow: 'hidden',
-    shadowColor: COLORS.neonBlue,
+    shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.4,
     shadowRadius: 12,
@@ -81,14 +81,14 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   outlineInner: {
-    backgroundColor: 'rgba(0,212,255,0.08)',
+    backgroundColor: 'rgba(37,99,235,0.08)',
     borderWidth: 1,
-    borderColor: 'rgba(0,212,255,0.4)',
+    borderColor: 'rgba(37,99,235,0.4)',
   },
   dangerInner: {
-    backgroundColor: 'rgba(255,0,85,0.1)',
+    backgroundColor: 'rgba(220,38,38,0.1)',
     borderWidth: 1,
-    borderColor: 'rgba(255,0,85,0.4)',
+    borderColor: 'rgba(220,38,38,0.4)',
   },
   text: {
     fontFamily: FONTS.arabic.bold,
@@ -102,6 +102,6 @@ const styles = StyleSheet.create({
     color: COLORS.neonBlue,
   },
   dangerText: {
-    color: COLORS.neonPink,
+    color: COLORS.neonRed,
   },
 });

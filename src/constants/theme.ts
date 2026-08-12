@@ -1,64 +1,69 @@
 // ============================================================
 // جرب حظك — Theme Constants
-// Based on UI_DESIGN.md palette & typography
+// Based on UI/UX Pro Max — Cyberpunk UI design system
 // ============================================================
 
 export const COLORS = {
   // خلفيات
-  bgPrimary: '#0A0A1A',
-  bgSurface: '#1A0A2E',
-  bgSurfaceLight: '#2A1040',
-
-  // ألوان ذهبية
-  primary: '#00D4FF',
-  primaryLight: '#7B2CBF',
-  primaryDark: '#00B4D8',
+  bgPrimary: '#0F172A',
+  bgSurface: '#1F1829',
+  bgSurfaceLight: '#2A2340',
 
   // نيون
-  neonBlue: '#00D4FF',
-  neonPurple: '#7B2CBF',
-  neonPink: '#FF0055',
-  neonCyan: '#00F5FF',
+  primary: '#DC2626',
+  primaryLight: '#EF4444',
+  primaryDark: '#991B1B',
+
+  secondary: '#2563EB',
+  secondaryLight: '#3B82F6',
+
+  accent: '#22C55E',
+  accentLight: '#4ADE80',
+
+  neonBlue: '#2563EB',
+  neonRed: '#DC2626',
+  neonGreen: '#22C55E',
+  neonCyan: '#00D4FF',
 
   // الطاولة
-  tableGreen: '#0F0F2A',
-  tableGreenLight: '#1A1A3E',
-  tableGreenDark: '#050510',
+  tableGreen: '#0F172A',
+  tableGreenLight: '#1F1829',
+  tableGreenDark: '#0A0F1A',
 
   // إجراءات
-  danger: '#FF0055',
-  success: '#00F5FF',
-  info: '#7B2CBF',
+  danger: '#DC2626',
+  success: '#22C55E',
+  info: '#2563EB',
 
   // نصوص
   textPrimary: '#FFFFFF',
-  textMuted: '#B0BEC5',
-  textDark: '#0A0A1A',
+  textMuted: '#94A3B8',
+  textDark: '#0F172A',
 
   // حدود
-  border: 'rgba(0, 212, 255, 0.3)',
+  border: 'rgba(255, 255, 255, 0.08)',
 
   // شفافيات
-  overlay: 'rgba(10, 10, 26, 0.9)',
+  overlay: 'rgba(15, 23, 42, 0.9)',
 } as const;
 
 export const GRADIENTS = {
-  gold: ['#00D4FF', '#7B2CBF', '#00B4D8'] as readonly string[],
-  surface: ['#1A0A2E', '#0A0A1A'] as readonly string[],
-  table: ['#1A1A3E', '#0F0F2A', '#050510'] as readonly string[],
+  gold: ['#DC2626', '#991B1B', '#DC2626'] as readonly string[],
+  surface: ['#1F1829', '#0F172A'] as readonly string[],
+  table: ['#1F1829', '#0F172A', '#0A0F1A'] as readonly string[],
 };
 
 export const FONTS = {
   arabic: {
-    bold: 'Cairo-Bold',
-    regular: 'Cairo-Regular',
-    medium: 'Cairo-Medium',
-    light: 'Cairo-Light',
+    bold: 'Orbitron-Bold',
+    regular: 'Orbitron-Regular',
+    medium: 'Orbitron-Medium',
+    light: 'Orbitron-Light',
   },
   english: {
-    bold: 'Inter-Bold',
-    semibold: 'Inter-SemiBold',
-    regular: 'Inter-Regular',
+    bold: 'JetBrainsMono-Bold',
+    semibold: 'JetBrainsMono-SemiBold',
+    regular: 'JetBrainsMono-Regular',
   },
 } as const;
 
@@ -105,21 +110,21 @@ export const SIZES = {
 
 export const SHADOWS = {
   gold: {
-    shadowColor: '#00D4FF',
+    shadowColor: '#DC2626',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.5,
     shadowRadius: 20,
     elevation: 8,
   },
   card: {
-    shadowColor: '#00D4FF',
+    shadowColor: '#2563EB',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 6,
   },
   neon: {
-    shadowColor: '#00D4FF',
+    shadowColor: '#DC2626',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.8,
     shadowRadius: 12,
