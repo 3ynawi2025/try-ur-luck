@@ -32,8 +32,9 @@ import {
   formatNumber,
   formatCompact,
 } from '../../../constants/theme';
-import { TexasHoldemEngine, GameSnapshot } from '../../../server/game/texasHoldem';
+import { GameSnapshot } from '../../../server/game/texasHoldem';
 import { Card as GameCard } from '../../../server/game/deck';
+import { useGameSocket } from '../../../hooks/useGameSocket';
 
 /**
  * مواقع المقاعد على حافة البيضاوي (٠ = أنت، أسفل الوسط).
@@ -183,10 +184,12 @@ function Seat({
 export default function PokerTableScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
+  const { isConnected, joinTable, performAction, on } = useGameSocket();
 
-  const [engine] = useState(
-    () => new TexasHoldemEngine({ maxPlayers: 6, smallBlind: 20, bigBlind: 40, minBuyIn: 500 })
-  );
+  // هوية هذه الجلسة — لاعب حقيقي عبر السيرفر
+  const [myId] = useState(() => `p-${Math.random().toString(36).slice(2, 9)}`);
+  const tableId = `table-${id ?? '1'}`;
+
   const [snapshot, setSnapshot] = useState<GameSnapshot | null>(null);
   const [holeCards, setHoleCards] = useState<GameCard[]>([]);
   const [voiceMuted, setVoiceMuted] = useState(true);
@@ -196,16 +199,23 @@ export default function PokerTableScreen() {
   const errorAnim = useRef(new Animated.Value(0)).current;
   const potScale = useRef(new Animated.Value(1)).current;
 
-  // --- تشغيل اليد الأولى (بدون بوتات — لعب ضد لاعبين حقيقيين فقط) ---
+  // --- الانضمام للطاولة ---
   useEffect(() => {
-    engine.addPlayer('me', 'أنت', 5000);
-    const result = engine.startHand();
-    if (!('error' in result)) {
-      setSnapshot(result);
-      setHoleCards(engine.getHoleCards('me'));
-    }
+    joinTable(tableId, myId, 'أنت');
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [tableId, myId]);
+
+  // --- الاستماع لحالة الطاولة من السيرفر ---
+  useEffect(() => {
+    const offState = on<GameSnapshot>('table:state', (s) => setSnapshot(s));
+    const offHoles = on<{ cards: GameCard[] }>('game:holeCards', (d) => setHoleCards(d.cards ?? []));
+    const offError = on<{ message: string }>('error', (d) => setError(d.message));
+    return () => {
+      offState();
+      offHoles();
+      offError();
+    };
+  }, [on]);
 
   // --- نبضة عند تغيّر مجموع الرهان ---
   useEffect(() => {
@@ -228,27 +238,16 @@ export default function PokerTableScreen() {
 
   const handleAction = useCallback(
     (action: 'fold' | 'check' | 'call' | 'raise' | 'all_in' | 'bet', amount?: number) => {
-      const result = engine.performAction('me', action, amount);
-      if ('error' in result) {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
-        setError(result.error);
-        return;
-      }
-      setSnapshot(result);
-      setHoleCards(engine.getHoleCards('me'));
+      performAction(tableId, myId, action, amount);
     },
-    [engine]
+    [performAction, tableId, myId]
   );
 
   const startNewHand = () => {
-    const r = engine.startHand();
-    if (!('error' in r)) {
-      setSnapshot(r);
-      setHoleCards(engine.getHoleCards('me'));
-    }
+    setError('تبدأ الجولة التالية تلقائيًا خلال ثوانٍ');
   };
 
-  const me = snapshot?.players.find((p) => p.id === 'me');
+  const me = snapshot?.players.find((p) => p.id === myId);
   const isMyTurn = !!me?.isCurrentTurn;
   const isShowdown = snapshot?.phase === 'showdown';
   const showActions = isMyTurn && !isShowdown;
@@ -341,7 +340,7 @@ export default function PokerTableScreen() {
             >
               <Seat
                 player={p}
-                isMe={p.id === 'me'}
+                isMe={p.id === myId}
                 topHalf={parseFloat(pos.top) < 50}
               />
             </View>
@@ -435,7 +434,7 @@ export default function PokerTableScreen() {
             <Text style={styles.waitingText}>
               بانتظار {snapshot?.players.find((p) => p.isCurrentTurn)?.name || 'اللاعبين'}…
             </Text>
-            {!snapshot && (
+            {(!snapshot || (snapshot?.players ?? []).length < 2) && (
               <View style={styles.waitingHint}>
                 <Text style={styles.waitingHintText}>
                   تكساس هولدم لعبة بين اللاعبين — لكن يمكنك اللعب وحدك ضد الموزع في:

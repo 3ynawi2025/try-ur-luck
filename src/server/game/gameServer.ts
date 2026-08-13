@@ -99,7 +99,7 @@ export function setupGameHandlers(io: Server) {
       (data: {
         tableId: string;
         playerId: string;
-        action: 'fold' | 'check' | 'call' | 'raise' | 'all_in';
+        action: 'fold' | 'check' | 'call' | 'raise' | 'all_in' | 'bet';
         amount?: number;
       }) => {
         const { tableId, playerId, action, amount } = data;
