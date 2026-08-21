@@ -13,8 +13,10 @@ import Svg, { G, Circle, Path, Ellipse, Rect, Text as SvgText } from 'react-nati
 import GoldButton from '../../../components/ui/GoldButton';
 import InstructionsModal from '../../../components/game/InstructionsModal';
 import GameHeader from '../../../components/game/GameHeader';
+import WinFX from '../../../components/game/WinFX';
 import { CrownIcon } from '../../../components/icons/GameIcons';
 import { useErrorToast } from '../../../hooks/useErrorToast';
+import { useCountUp } from '../../../hooks/useCountUp';
 import {
   RouletteSnapshot,
   RouletteBetType,
@@ -283,6 +285,18 @@ export default function RouletteScreen() {
   const isBETTING = snap.phase === 'BETTING';
   const res = snap.result;
 
+  // ===== لحظة الفوز السينمائية =====
+  const roWin =
+    res && res.netWin > 0 && snap.phase === 'SETTLED'
+      ? {
+          key: `ro-${snap.roundNumber}`,
+          magnitude: (res.netWin >= 1000 ? 3 : 2) as 1 | 2 | 3,
+        }
+      : null;
+
+  // عدّاد رصيد متدحرج
+  const balanceDisplay = useCountUp(Math.round(snap.balance));
+
   // صفوف الأرقام: 12 صفًا × 3 أعمدة (1-36)
   const rows = Array.from({ length: 12 }, (_, r) => [r * 3 + 1, r * 3 + 2, r * 3 + 3]);
 
@@ -304,7 +318,7 @@ export default function RouletteScreen() {
         {/* الرصيد */}
         <View style={[styles.glassPill, styles.balancePill]}>
           <Text style={styles.pillLabel}>الرصيد</Text>
-          <Text style={styles.pillValue}>{formatCompact(snap.balance)}</Text>
+          <Text style={styles.pillValue}>{formatCompact(balanceDisplay)}</Text>
         </View>
         {/* السجل */}
         <View style={[styles.glassPill, styles.historyPill]}>
@@ -468,6 +482,9 @@ export default function RouletteScreen() {
           )}
         </View>
       </View>
+
+      {/* لحظة الفوز */}
+      <WinFX trigger={roWin} />
 
       {/* ===== رسالة الخطأ الموحدة ===== */}
       {errorNode}

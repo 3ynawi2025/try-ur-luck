@@ -4,7 +4,7 @@
 // الشاشة مبنية على الغلاف المشترك SoloGameScreen.
 // ============================================================
 
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -16,8 +16,10 @@ import FeltTable from '../../../components/game/FeltTable';
 import ActionButton from '../../../components/game/ActionButton';
 import SoloGameScreen from '../../../components/game/SoloGameScreen';
 import InstructionsModal from '../../../components/game/InstructionsModal';
+import WinFX from '../../../components/game/WinFX';
 import { useSoloGame } from '../../../hooks/useSoloGame';
 import { useErrorToast } from '../../../hooks/useErrorToast';
+import { useCountUp } from '../../../hooks/useCountUp';
 import { BlackjackSnapshot, BlackjackHand } from '../../../server/game/blackjack';
 import { Card, getRankValue } from '../../../server/game/deck';
 import {
@@ -135,6 +137,23 @@ export default function BlackjackScreen() {
 
   const handCount = me?.hands.length ?? 1;
 
+  // ===== لحظة الفوز السينمائية =====
+  const bjWin = useMemo(() => {
+    if (snap.phase !== 'complete' || !snap.results?.length) return null;
+    const wins = snap.results.filter(
+      (r) => r.result === 'win' || r.result === 'blackjack' || r.result === 'charlie'
+    );
+    if (wins.length === 0) return null;
+    const isNatural = snap.results.some((r) => r.result === 'blackjack');
+    return {
+      key: `bj-${snap.roundNumber}`,
+      magnitude: (isNatural ? 3 : 2) as 1 | 2 | 3,
+    };
+  }, [snap.phase, snap.roundNumber, snap.results]);
+
+  // عدّاد رصيد متدحرج
+  const balanceDisplay = useCountUp(Math.round(me?.balance ?? 0));
+
   const phaseText =
     snap.phase === 'betting'
       ? 'ضع رهانك'
@@ -230,6 +249,9 @@ export default function BlackjackScreen() {
       errorNode={errorNode}
       footer={footer}
     >
+      {/* لحظة الفوز */}
+      <WinFX trigger={bjWin} />
+
       <Text style={styles.phaseText}>{phaseText}</Text>
 
       {/* ===== منطقة الموزع ===== */}
@@ -262,7 +284,7 @@ export default function BlackjackScreen() {
               <Avatar name="أنت" size={36} showBorder isActive />
               <View style={styles.spotMeta}>
                 <Text style={styles.spotName}>أنت</Text>
-                <Text style={styles.spotBalance}>{formatCompact(me?.balance ?? 0)}</Text>
+                <Text style={styles.spotBalance}>{formatCompact(balanceDisplay)}</Text>
               </View>
             </View>
 

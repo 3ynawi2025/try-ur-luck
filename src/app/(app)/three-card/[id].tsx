@@ -17,6 +17,7 @@ import FeltTable from '../../../components/game/FeltTable';
 import InstructionsModal from '../../../components/game/InstructionsModal';
 import GameHeader from '../../../components/game/GameHeader';
 import ActionButton from '../../../components/game/ActionButton';
+import WinFX from '../../../components/game/WinFX';
 import { useErrorToast } from '../../../hooks/useErrorToast';
 import { ThreeCardSnapshot, ThreeCardCategory } from '../../../server/game/threeCardPoker';
 import { Card } from '../../../server/game/deck';
@@ -99,9 +100,18 @@ export default function ThreeCardScreen() {
   const net = round ? round.totalNet + round.returnedStakes - placed : 0;
   const isSettled = snap.phase === 'SETTLED' || snap.phase === 'REVEALING';
 
+  // ===== لحظة الفوز السينمائية =====
+  const tcWin =
+    isSettled && round && (round.outcome === 'PLAYER_WINS' || round.outcome === 'DEALER_NOT_QUALIFIED')
+      ? { key: `tc-${snap.roundId}`, magnitude: (round.totalNet >= 500 ? 3 : 2) as 1 | 2 | 3 }
+      : null;
+
   return (
     <View style={styles.container}>
       <LinearGradient colors={[COLORS.bgSoft, COLORS.bg, COLORS.surfaceSunken]} style={StyleSheet.absoluteFill} />
+
+      {/* لحظة الفوز */}
+      <WinFX trigger={tcWin} />
 
       {/* ===== الترويسة الموحدة ===== */}
       <View style={{ paddingTop: insets.top + SPACING.xs }}>

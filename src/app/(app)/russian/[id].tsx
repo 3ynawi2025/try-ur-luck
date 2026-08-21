@@ -17,6 +17,7 @@ import FeltTable from '../../../components/game/FeltTable';
 import InstructionsModal from '../../../components/game/InstructionsModal';
 import GameHeader from '../../../components/game/GameHeader';
 import ActionButton from '../../../components/game/ActionButton';
+import WinFX from '../../../components/game/WinFX';
 import { useErrorToast } from '../../../hooks/useErrorToast';
 import { RussianSnapshot, RussianCategory } from '../../../server/game/russianPoker';
 import { Card } from '../../../server/game/deck';
@@ -127,9 +128,18 @@ export default function RussianScreen() {
   const isSettled = snap.phase === 'SETTLE' || snap.phase === 'COMPLETE';
   const revealDealerCards = snap.dealerCards !== null;
 
+  // ===== لحظة الفوز السينمائية =====
+  const ruWin =
+    isSettled && s && (s.outcome === 'PLAYER_WINS' || s.outcome === 'DEALER_NO_QUALIFY')
+      ? { key: `ru-${snap.handId}`, magnitude: (s.totalMultiple >= 10 ? 3 : 2) as 1 | 2 | 3 }
+      : null;
+
   return (
     <View style={styles.container}>
       <LinearGradient colors={[COLORS.bgSoft, COLORS.bg, COLORS.surfaceSunken]} style={StyleSheet.absoluteFill} />
+
+      {/* لحظة الفوز */}
+      <WinFX trigger={ruWin} />
 
       {/* ===== الترويسة الموحدة ===== */}
       <View style={{ paddingTop: insets.top + SPACING.xs }}>

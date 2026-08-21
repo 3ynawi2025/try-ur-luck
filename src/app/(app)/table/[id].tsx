@@ -19,6 +19,7 @@ import Avatar from '../../../components/ui/Avatar';
 import Chip from '../../../components/ui/Chip';
 import PlayingCard from '../../../components/game/PlayingCard';
 import FlyCard from '../../../components/game/FlyCard';
+import WinFX from '../../../components/game/WinFX';
 import FeltTable from '../../../components/game/FeltTable';
 import InstructionsModal from '../../../components/game/InstructionsModal';
 import { Badge } from '../../../components/ui/Bits';
@@ -39,41 +40,10 @@ import { GameSnapshot } from '../../../server/game/texasHoldem';
 import { Card as GameCard } from '../../../server/game/deck';
 import { useGameSocket } from '../../../hooks/useGameSocket';
 import { useAgoraVoice } from '../../../hooks/useAgoraVoice';
+import { useCountUp } from '../../../hooks/useCountUp';
 import { useFriendsStore } from '../../../stores/friendsStore';
 import { useAuthStore } from '../../../stores/authStore';
 import { AGORA_APP_ID } from '../../../lib/config';
-
-/** عدّاد يتدحرج نحو الهدف (لمجموع الرهان) — يحترم reduced-motion */
-function useCountUp(target: number, duration = 550): number {
-  const [display, setDisplay] = useState(target);
-  const anim = useRef(new Animated.Value(target)).current;
-  const prev = useRef(target);
-  const reduced = useReducedMotion();
-
-  useEffect(() => {
-    if (reduced) {
-      setDisplay(target);
-      prev.current = target;
-      return;
-    }
-    if (target === prev.current) return;
-    anim.stopAnimation();
-    anim.setValue(prev.current);
-    const id = anim.addListener(({ value }) => setDisplay(Math.round(value)));
-    Animated.timing(anim, {
-      toValue: target,
-      duration,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: false,
-    }).start(() => {
-      prev.current = target;
-      anim.removeListener(id);
-    });
-    return () => anim.removeListener(id);
-  }, [target, duration, reduced, anim]);
-
-  return display;
-}
 
 /**
  * مواقع المقاعد على حافة البيضاوي (٠ = أنت، أسفل الوسط).
@@ -150,6 +120,38 @@ function ActionButton({
 // ------------------------------------------------------------
 // مقعد لاعب
 // ------------------------------------------------------------
+/** رفع الورقة بالضغط المطول: ترتفع وتميل نحو المركز بإحساس ورقي */
+function LiftCard({ children }: { children: React.ReactNode }) {
+  const lift = useRef(new Animated.Value(0)).current;
+  const reduced = useReducedMotion();
+  const to = (v: number) => {
+    if (reduced) return;
+    Animated.spring(lift, {
+      toValue: v,
+      useNativeDriver: true,
+      damping: 18,
+      stiffness: 220,
+      mass: 0.7,
+    }).start();
+  };
+
+  return (
+    <Pressable onPressIn={() => to(1)} onPressOut={() => to(0)}>
+      <Animated.View
+        style={{
+          transform: [
+            { translateY: lift.interpolate({ inputRange: [0, 1], outputRange: [0, -16] }) },
+            { rotate: lift.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '-4deg'] }) },
+            { scale: lift.interpolate({ inputRange: [0, 1], outputRange: [1, 1.04] }) },
+          ],
+        }}
+      >
+        {children}
+      </Animated.View>
+    </Pressable>
+  );
+}
+
 function Seat({
   player,
   isMe,
@@ -398,9 +400,18 @@ export default function PokerTableScreen() {
   const potDisplay = useCountUp(snapshot?.pot || 0);
   const handKey = `h${snapshot?.handNumber ?? 0}`;
 
+  // ===== لحظة الفوز السينمائية (عند فوزي بالكشف) =====
+  const heWin =
+    isShowdown && winnerIds.has(myId)
+      ? { key: `he-${snapshot?.handNumber ?? 0}`, magnitude: 3 as const }
+      : null;
+
   return (
     <View style={styles.container}>
       <LinearGradient colors={[COLORS.bgSoft, COLORS.bg, COLORS.surfaceSunken]} style={StyleSheet.absoluteFill} />
+
+      {/* لحظة الفوز */}
+      <WinFX trigger={heWin} />
 
       {/* ===== الترويسة ===== */}
       <View style={[styles.header, { paddingTop: insets.top + SPACING.sm }]}>
@@ -590,7 +601,9 @@ export default function PokerTableScreen() {
                   flip
                   flipKey={`${handKey}-${isShowdown ? 'show' : 'hide'}`}
                 >
-                  <PlayingCard card={c} width={62} height={88} />
+                  <LiftCard>
+                    <PlayingCard card={c} width={62} height={88} />
+                  </LiftCard>
                 </FlyCard>
               </View>
             ))}
