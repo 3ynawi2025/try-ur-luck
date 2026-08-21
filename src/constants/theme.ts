@@ -1,97 +1,109 @@
 // ============================================================
-// جرب حظك — Design System "Velvet & Gold"
-// كازينو حي: أوبسيديان + جوخ زمردي + ذهب معدني
+// جرب حظك — Design System «Dark Luxe»
+// فخامة من التقيّد لا الإسراف:
+// خلفيات ليلية عميقة (3 طبقات) + شامبين واحد مقيّد (~5% من السطح)
+// + حدود شعرية + ظلان فقط. مراجع: Ferrari (أكسنت مقيّد) وBugatti (تقشّف).
 // ============================================================
 
 export const COLORS = {
-  // --- الخلفيات (أوبسيديان بميلان أخضر خفيف) ---
-  bg: '#060A08',
-  bgSoft: '#0B120E',
-  surface: '#111A15',
-  surfaceRaised: '#18241D',
-  surfaceSunken: '#080D0A',
+  // --- الخلفيات (ليلي عميق متدرج) ---
+  bg: '#0A0D12',
+  bgSoft: '#10151E',
+  surface: '#151B26',
+  surfaceRaised: '#1B2230',
+  surfaceSunken: '#070A0F',
+  surfaceHighest: '#232C3C',
+  surfaceLow: '#0E131B',
 
-  // --- الذهب ---
-  gold: '#D4AF37',
-  goldLight: '#F7E7A6',
-  goldDeep: '#8C6D1F',
-  goldGlow: 'rgba(212,175,55,0.35)',
-  onGold: '#1A1206',
+  // --- الشامبين (الذهب الوحيد — يُستخدم بندرة) ---
+  gold: '#C9A961',
+  goldLight: '#E3C98A',
+  goldDeep: '#8C6D2F',
+  goldGlow: 'rgba(201,169,97,0.22)',
+  onGold: '#14100A',
+  onSecondaryFixed: '#14100A',
 
-  // --- الجوخ (سطح الطاولة) ---
-  felt: '#0C5B41',
-  feltLight: '#127954',
-  feltDark: '#053125',
-  feltEdge: '#04211A',
+  // --- الجوخ (سطح الطاولة — زمردي ليلي عميق) ---
+  felt: '#0A3D2E',
+  feltLight: '#0E4635',
+  feltDark: '#02150F',
+  feltEdge: '#010D09',
 
-  // --- الحافة الجلدية ---
-  rail: '#2A1A11',
-  railLight: '#432A19',
-  railDark: '#160D07',
+  // --- الحافة الخشبية (ماهوغاني داكن) ---
+  rail: '#2A1E12',
+  railLight: '#3A2A19',
+  railDark: '#171007',
 
-  // --- الأكسنت ---
-  emerald: '#1FBF75',
-  crimson: '#E23D4D',
-  azure: '#3F8CFF',
-  violet: '#8B5CF6',
-  amber: '#F5A524',
+  // --- الأكسنت (هادئ) ---
+  emerald: '#8FCBB4', // primary (ميرمية زمردية)
+  emeraldContainer: '#0A3D2E',
+  crimson: '#E8A9A0', // tertiary / error
+  crimsonContainer: '#5C0F16',
+  azure: '#6E9DFF',
+  violet: '#9A7BFF',
+  amber: '#C9A961',
 
   // --- دلالات ---
-  success: '#1FBF75',
-  danger: '#E23D4D',
-  info: '#3F8CFF',
-  warning: '#F5A524',
+  success: '#8FCBB4',
+  danger: '#E8A9A0',
+  info: '#6E9DFF',
+  warning: '#C9A961',
 
-  // --- النصوص ---
-  text: '#F6F2E8',
-  textDim: '#A9A395',
-  textFaint: '#6C675C',
-  textOnDark: '#F6F2E8',
+  // --- النصوص (عاجي هادئ) ---
+  text: '#F2EFE9',
+  textDim: '#B5B7B2',
+  textFaint: '#7C807A',
+  textOnDark: '#F2EFE9',
 
-  // --- الحدود ---
-  border: 'rgba(255,255,255,0.07)',
-  borderStrong: 'rgba(255,255,255,0.13)',
-  hairlineGold: 'rgba(212,175,55,0.22)',
+  // --- الحدود (شعرية) ---
+  border: 'rgba(242,239,233,0.08)',
+  borderStrong: 'rgba(242,239,233,0.14)',
+  hairlineGold: 'rgba(201,169,97,0.28)',
+  goldRim: 'rgba(201,169,97,0.35)',
+  outline: 'rgba(124,128,122,0.5)',
 
-  // --- طبقات ---
-  scrim: 'rgba(4,8,6,0.72)',
-  overlay: 'rgba(6,10,8,0.92)',
+  // --- طبقات (زجاجية) ---
+  scrim: 'rgba(4,6,10,0.72)',
+  overlay: 'rgba(4,6,10,0.92)',
+  glass: 'rgba(21,27,38,0.55)',
 
   // --- توافق خلفي (لا تستخدمها في كود جديد) ---
-  bgPrimary: '#060A08',
-  bgSurface: '#111A15',
-  bgSurfaceLight: '#18241D',
-  primary: '#D4AF37',
-  primaryLight: '#F7E7A6',
-  primaryDark: '#8C6D1F',
-  secondary: '#3F8CFF',
-  accent: '#1FBF75',
-  textPrimary: '#F6F2E8',
-  textMuted: '#A9A395',
-  textDark: '#1A1206',
-  tableGreen: '#0C5B41',
+  bgPrimary: '#0A0D12',
+  bgSurface: '#151B26',
+  bgSurfaceLight: '#1B2230',
+  primary: '#C9A961',
+  primaryLight: '#E3C98A',
+  primaryDark: '#8C6D2F',
+  secondary: '#8FCBB4',
+  accent: '#8FCBB4',
+  textPrimary: '#F2EFE9',
+  textMuted: '#B5B7B2',
+  textDark: '#010D09',
+  tableGreen: '#0A3D2E',
 } as const;
 
 export const GRADIENTS = {
-  /** ذهب معدني حقيقي — 4 محطات تعطي انعكاس */
-  goldMetal: ['#F7E7A6', '#DCBB55', '#A97F22', '#E3C877'] as const,
-  goldSoft: ['rgba(247,231,166,0.22)', 'rgba(169,127,34,0.10)'] as const,
-  /** خلفية الشاشة */
-  screen: ['#0A120E', '#060A08', '#040706'] as const,
+  /** شامبين معدني — 4 محطات تعطي انعكاسًا حقيقيًا */
+  goldMetal: ['#E3C98A', '#C9A961', '#8C6D2F', '#C9A961'] as const,
+  goldSoft: ['rgba(201,169,97,0.12)', 'rgba(201,169,97,0.02)'] as const,
+  /** خلفية الشاشة (ليلي عميق) */
+  screen: ['#10151E', '#0A0D12', '#070A0F'] as const,
   /** جوخ الطاولة (من المركز للخارج) */
-  felt: ['#127954', '#0C5B41', '#053125'] as const,
-  /** حافة الطاولة الجلدية */
-  rail: ['#4A2F1C', '#2A1A11', '#160D07'] as const,
-  /** سطح البطاقات */
-  surface: ['rgba(255,255,255,0.055)', 'rgba(255,255,255,0.015)'] as const,
-  surfaceGold: ['rgba(212,175,55,0.14)', 'rgba(212,175,55,0.02)'] as const,
+  felt: ['#0E4635', '#0A3D2E', '#02150F'] as const,
+  /** حافة الطاولة الخشبية */
+  rail: ['#3A2A19', '#2A1E12', '#171007'] as const,
+  /** سطح البطاقات (زجاجي) */
+  surface: ['rgba(242,239,233,0.05)', 'rgba(242,239,233,0.012)'] as const,
+  surfaceGold: ['rgba(201,169,97,0.10)', 'rgba(201,169,97,0.015)'] as const,
   /** أزرار الأكشن */
-  danger: ['#F05262', '#B22334'] as const,
-  success: ['#2FD98A', '#0E8B52'] as const,
-  info: ['#5AA0FF', '#1F5FD0'] as const,
-  /** وجه البطاقة */
-  cardFace: ['#FFFDF6', '#EDE6D4'] as const,
-  cardBack: ['#8E1F2E', '#5A1220'] as const,
+  danger: ['#7A1F2B', '#5C0F16'] as const,
+  success: ['#8FCBB4', '#0A3D2E'] as const,
+  info: ['#6E9DFF', '#2C4E9E'] as const,
+  /** وجه البطاقة (عاجي كتاني) */
+  cardFace: ['#FBFAF6', '#EFEAE0'] as const,
+  cardBack: ['#1B2230', '#151B26'] as const,
+  /** زر فخم بإطار شعري (مركز فحمي داكن) */
+  goldRim: ['#151B26', '#0A0D12'] as const,
 } as const;
 
 export const FONTS = {
@@ -110,6 +122,12 @@ export const FONTS = {
     bold: 'Inter-Bold',
     black: 'Inter-Black',
   },
+  /** عناوين العرض — Cairo بوزن ثقيل (أُزيل Playfair من النظام) */
+  display: {
+    medium: 'Cairo-Medium',
+    semibold: 'Cairo-SemiBold',
+    bold: 'Cairo-Bold',
+  },
 
   // --- توافق خلفي ---
   arabic: {
@@ -125,26 +143,26 @@ export const FONTS = {
   },
 } as const;
 
-/** مقياس طباعي متناسق (1.25) */
+/** مقياس طباعي متناسق (مكبّر للهوية الفاخرة) */
 export const TYPE = {
-  display: { fontSize: 34, lineHeight: 46 },
-  h1: { fontSize: 26, lineHeight: 38 },
-  h2: { fontSize: 21, lineHeight: 32 },
-  h3: { fontSize: 17, lineHeight: 27 },
-  body: { fontSize: 15, lineHeight: 25 },
-  small: { fontSize: 13, lineHeight: 21 },
-  caption: { fontSize: 11, lineHeight: 17 },
-  micro: { fontSize: 10, lineHeight: 14 },
+  display: { fontSize: 40, lineHeight: 54 },
+  h1: { fontSize: 30, lineHeight: 42 },
+  h2: { fontSize: 24, lineHeight: 34 },
+  h3: { fontSize: 19, lineHeight: 29 },
+  body: { fontSize: 16, lineHeight: 26 },
+  small: { fontSize: 14, lineHeight: 22 },
+  caption: { fontSize: 12, lineHeight: 18 },
+  micro: { fontSize: 11, lineHeight: 15 },
 } as const;
 
 export const FONT_SIZES = {
-  hero: 34,
-  h1: 26,
-  h2: 21,
-  h3: 17,
-  body: 15,
-  small: 13,
-  caption: 11,
+  hero: 40,
+  h1: 30,
+  h2: 24,
+  h3: 19,
+  body: 16,
+  small: 14,
+  caption: 12,
 } as const;
 
 /** مسافات بمقياس 4pt */
@@ -158,13 +176,14 @@ export const SPACING = {
   xxxl: 48,
 } as const;
 
+/** انحناءات موحدة: 4/8/12/20/28 */
 export const RADIUS = {
-  xs: 6,
-  sm: 10,
-  md: 14,
+  xs: 4,
+  sm: 8,
+  md: 12,
   lg: 20,
   xl: 28,
-  card: 8,
+  card: 12,
   full: 999,
 } as const;
 
@@ -178,20 +197,20 @@ export const SIZES = {
   buttonHeightSm: 42,
   inputHeight: 54,
   chipDiameter: 40,
-  cardWidth: 60,
-  cardHeight: 84,
-  cardInHandWidth: 48,
-  cardInHandHeight: 67,
+  cardWidth: 64,
+  cardHeight: 90,
+  cardInHandWidth: 50,
+  cardInHandHeight: 70,
   tabBarHeight: 68,
   screenPadding: 20,
 } as const;
 
-/** ظلال متدرجة — الارتفاع يحدد العمق */
+/** ظلان أساسيان فقط + توهج شامبين للعناصر الأساسية (الفخامة من التقيّد) */
 export const SHADOWS = {
   e1: {
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.35,
+    shadowOpacity: 0.3,
     shadowRadius: 6,
     elevation: 3,
   },
@@ -209,53 +228,66 @@ export const SHADOWS = {
     shadowRadius: 28,
     elevation: 16,
   },
-  /** توهج ذهبي — للعناصر الأساسية */
+  /** توهج شامبين — للعناصر الأساسية فقط */
   gold: {
-    shadowColor: '#D4AF37',
+    shadowColor: '#C9A961',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.45,
+    shadowOpacity: 0.35,
     shadowRadius: 16,
     elevation: 10,
   },
   goldSoft: {
-    shadowColor: '#D4AF37',
+    shadowColor: '#C9A961',
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.25,
+    shadowOpacity: 0.18,
     shadowRadius: 10,
     elevation: 5,
+  },
+  /** زر بإطار معدني */
+  goldRim: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.45,
+    shadowRadius: 12,
+    elevation: 6,
   },
   felt: {
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 18 },
-    shadowOpacity: 0.7,
+    shadowOpacity: 0.65,
     shadowRadius: 32,
     elevation: 20,
   },
-  // توافق خلفي
+  /** ظل بطاقة: إسقاط حاد واحد */
   card: {
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.45,
-    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
     elevation: 8,
   },
   neon: {
-    shadowColor: '#D4AF37',
+    shadowColor: '#C9A961',
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.4,
+    shadowOpacity: 0.3,
     shadowRadius: 18,
     elevation: 12,
   },
 };
 
+/** موشن: سريع للتفاعلات المتكررة، ناعم للانتقالات، متتابع للتوزيع */
 export const ANIMATION = {
   fast: 140,
   normal: 240,
   medium: 380,
   slow: 620,
-  /** منحنى نابض للأزرار */
-  spring: { damping: 15, stiffness: 220, mass: 0.6 },
-  springSoft: { damping: 18, stiffness: 140, mass: 0.9 },
+  /** تتابع توزيع الأوراق/عناصر القوائم */
+  deal: 120,
+  /** دخول العناصر عند فتح الشاشة */
+  enter: 200,
+  /** منحنى نابض للأزرار (خفيف) */
+  spring: { damping: 16, stiffness: 190, mass: 0.8 },
+  springSoft: { damping: 20, stiffness: 120, mass: 1 },
 } as const;
 
 // ============================================================
@@ -269,11 +301,13 @@ export const REFILL_HOUR = 12;
 
 /** تنسيق الأرقام بفواصل لاتينية (أوضح داخل الطاولة) */
 export function formatNumber(n: number): string {
+  if (!Number.isFinite(n)) return '0';
   return n.toLocaleString('en-US');
 }
 
 /** اختصار المبالغ الكبيرة: 12500 -> 12.5K */
 export function formatCompact(n: number): string {
+  if (!Number.isFinite(n)) return '0';
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n % 1_000_000 === 0 ? 0 : 1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(n % 1_000 === 0 ? 0 : 1)}K`;
   return String(n);

@@ -2,14 +2,17 @@
 // جرب حظك — لوحة الصدارة
 // ============================================================
 
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, Animated } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Screen from '../../components/ui/Screen';
 import GlassCard from '../../components/ui/GlassCard';
+import GoldButton from '../../components/ui/GoldButton';
 import Avatar from '../../components/ui/Avatar';
 import { Badge } from '../../components/ui/Bits';
-import { CrownIcon, ClockIcon, MedalIcon, TrendIcon } from '../../components/icons/GameIcons';
+import { CrownIcon, MedalIcon, TrendIcon } from '../../components/icons/GameIcons';
+import { useAuthStore } from '../../stores/authStore';
+import { apiFetch } from '../../lib/api';
 import {
   COLORS,
   FONTS,
@@ -21,28 +24,53 @@ import {
   formatNumber,
 } from '../../constants/theme';
 
-const PLAYERS = [
-  { rank: 1, username: '@sultan', displayName: 'سلطان', wins: 24, games: 35, chips: 128400 },
-  { rank: 2, username: '@noora', displayName: 'نورة', wins: 21, games: 32, chips: 96150 },
-  { rank: 3, username: '@fahad', displayName: 'فهد', wins: 19, games: 30, chips: 81200 },
-  { rank: 4, username: '@ahmad', displayName: 'أحمد', wins: 15, games: 28, chips: 52300, isMe: true },
-  { rank: 5, username: '@lama', displayName: 'لمى', wins: 14, games: 26, chips: 47800 },
-  { rank: 6, username: '@khalid', displayName: 'خالد', wins: 12, games: 24, chips: 39900 },
-  { rank: 7, username: '@reem', displayName: 'ريم', wins: 11, games: 22, chips: 34100 },
+type LeaderPlayer = {
+  rank: number;
+  username: string;
+  displayName: string;
+  chips: number;
+  tier?: string;
+  isMe?: boolean;
+};
+
+const MOCK_PLAYERS: LeaderPlayer[] = [
+  { rank: 1, username: '@sultan', displayName: 'سلطان', chips: 128400 },
+  { rank: 2, username: '@noora', displayName: 'نورة', chips: 96150 },
+  { rank: 3, username: '@fahad', displayName: 'فهد', chips: 81200 },
+  { rank: 4, username: '@ahmad', displayName: 'أحمد', chips: 52300, isMe: true },
+  { rank: 5, username: '@lama', displayName: 'لمى', chips: 47800 },
+  { rank: 6, username: '@khalid', displayName: 'خالد', chips: 39900 },
+  { rank: 7, username: '@reem', displayName: 'ريم', chips: 34100 },
 ];
 
 const PODIUM_TINT: Record<number, [string, string]> = {
-  1: ['rgba(212,175,55,0.30)', 'rgba(212,175,55,0.02)'],
+  1: ['rgba(233,195,73,0.30)', 'rgba(233,195,73,0.02)'],
   2: ['rgba(185,192,202,0.24)', 'rgba(185,192,202,0.02)'],
   3: ['rgba(196,128,74,0.24)', 'rgba(196,128,74,0.02)'],
+};
+
+const TIER_NAMES: Record<string, string> = {
+  bronze: 'برونزية',
+  silver: 'فضية',
+  gold: 'ذهبية',
+  platinum: 'بلاتينية',
+  black: 'البطاقة السوداء',
+};
+
+const TIER_NEXT_XP: Record<string, number> = {
+  bronze: 1000,
+  silver: 2500,
+  gold: 5000,
+  platinum: 10000,
+  black: 1,
 };
 
 // ------------------------------------------------------------
 // منصة التتويج — الثلاثة الأوائل
 // ------------------------------------------------------------
-function Podium() {
+function Podium({ players }: { players: LeaderPlayer[] }) {
   // الترتيب البصري: الثاني، الأول، الثالث
-  const order = [PLAYERS[1], PLAYERS[0], PLAYERS[2]];
+  const order = [players[1], players[0], players[2]];
   const heights = [86, 116, 68];
 
   return (
@@ -85,9 +113,7 @@ function Podium() {
 }
 
 // ------------------------------------------------------------
-function Row({ p }: { p: (typeof PLAYERS)[number] }) {
-  const rate = Math.round((p.wins / p.games) * 100);
-
+function Row({ p }: { p: LeaderPlayer }) {
   return (
     <GlassCard
       variant={p.isMe ? 'gold' : 'default'}
@@ -110,25 +136,140 @@ function Row({ p }: { p: (typeof PLAYERS)[number] }) {
 
       <View style={styles.rowStats}>
         <Text style={styles.rowChips}>{formatNumber(p.chips)}</Text>
-        <View style={styles.rowRate}>
-          <TrendIcon size={13} color={COLORS.emerald} />
-          <Text style={styles.rowRateText}>{rate}%</Text>
-        </View>
+        {!!p.tier && (
+          <View style={styles.rowRate}>
+            <TrendIcon size={13} color={COLORS.emerald} />
+            <Text style={styles.rowRateText}>{p.tier}</Text>
+          </View>
+        )}
       </View>
     </GlassCard>
   );
 }
 
+// ------------------------------------------------------------
+// بطاقة حالة VIP — بطاقة سوداء بلمعة ذهبية + شريط تقدّم لامع
+// ------------------------------------------------------------
+function VipStatusCard({ xp, tier }: { xp: number; tier: string }) {
+  const shimmer = useRef(new Animated.Value(0)).current;
+  const nextXp = TIER_NEXT_XP[tier] ?? 5000;
+  const progress = Math.max(0.02, Math.min(1, xp / nextXp));
+  const tierLabel = TIER_NAMES[tier] ?? 'ذهبية';
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.timing(shimmer, {
+        toValue: 1,
+        duration: 2200,
+        useNativeDriver: true,
+      })
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [shimmer]);
+
+  const translateX = shimmer.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-320, 320],
+  });
+
+  return (
+    <View style={styles.vipCard}>
+      <LinearGradient
+        colors={['rgba(233,195,73,0.18)', 'rgba(23,31,51,0.96)', 'rgba(6,14,32,0.98)']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={StyleSheet.absoluteFill}
+      />
+      <LinearGradient
+        colors={['rgba(255,224,136,0.5)', 'rgba(255,224,136,0)']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+        style={StyleSheet.absoluteFill}
+      />
+      <View style={styles.vipTop}>
+        <View style={styles.vipBadge}>
+          <CrownIcon size={16} color={COLORS.goldLight} />
+          <Text style={styles.vipBadgeText}>VIP</Text>
+        </View>
+        <Text style={styles.vipTier}>درجة {tierLabel}</Text>
+      </View>
+
+      <Text style={styles.vipLabel}>تقدّمك نحو المستوى التالي</Text>
+      <View style={styles.progressTrack}>
+        <View style={[styles.progressFill, { width: `${Math.round(progress * 100)}%` }]} />
+        {/* لمعة سائلة ذهبية */}
+        <Animated.View
+          pointerEvents="none"
+          style={[styles.shimmer, { transform: [{ translateX }] }]}
+        >
+          <LinearGradient
+            colors={['rgba(233,195,73,0)', 'rgba(233,195,73,0.55)', 'rgba(233,195,73,0)']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={StyleSheet.absoluteFill}
+          />
+        </Animated.View>
+      </View>
+      <View style={styles.vipMetaRow}>
+        <Text style={styles.vipMeta}>{formatNumber(xp)} / {formatNumber(nextXp)} XP</Text>
+        <Text style={styles.vipMetaGold}>+{formatNumber(Math.max(0, nextXp - xp))} للمستوى التالي</Text>
+      </View>
+    </View>
+  );
+}
+
 export default function LeaderboardScreen() {
+  const profile = useAuthStore((s) => s.profile);
+  const [players, setPlayers] = useState<LeaderPlayer[]>(MOCK_PLAYERS);
+  const [vip, setVip] = useState({ user_xp: 1250, current_tier: 'gold' });
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      // لوحة المتصدرين
+      try {
+        const data = await apiFetch<any[]>('/api/leaderboard');
+        if (!cancelled && Array.isArray(data) && data.length > 0) {
+          setPlayers(
+            data.map((row, i) => ({
+              rank: i + 1,
+              username: row.username ? `@${row.username}` : '',
+              displayName: row.display_name ?? 'لاعب',
+              chips: Number(row.user_xp ?? 0),
+              tier: row.current_tier,
+              isMe: profile?.id ? row.id === profile.id : false,
+            }))
+          );
+        }
+      } catch {
+        /* تبقى الافتراضية */
+      }
+
+      // حالة VIP للمستخدم الحالي (مصادقة بالتوكن — لا معرّف من العميل)
+      if (profile?.id) {
+        try {
+          const data = await apiFetch<{ user_xp?: number; current_tier?: string }>('/api/vip-status');
+          if (!cancelled && data) {
+            setVip({ user_xp: Number(data.user_xp ?? 0), current_tier: data.current_tier ?? 'gold' });
+          }
+        } catch {
+          /* تبقى الافتراضية */
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [profile?.id]);
+
   return (
     <Screen>
       <View style={styles.header}>
-        <Text style={styles.title}>البطولة الأسبوعية</Text>
+        <Text style={styles.title}>نادي المكافآت</Text>
         <View style={styles.headerMeta}>
-          <ClockIcon size={14} color={COLORS.textDim} />
-          <Text style={styles.headerMetaText}>تنتهي خلال ٣ أيام</Text>
-          <View style={styles.metaDot} />
-          <Text style={styles.headerMetaText}>٢٤٠ لاعباً</Text>
+          <CrownIcon size={14} color={COLORS.gold} />
+          <Text style={styles.headerMetaText}>برنامج VIP الحصري</Text>
         </View>
       </View>
 
@@ -137,10 +278,19 @@ export default function LeaderboardScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <Podium />
+        <VipStatusCard xp={vip.user_xp} tier={vip.current_tier} />
+
+        <View style={styles.claimCard}>
+          <GoldButton title="استلام المكافأة الأسبوعية" onPress={() => {}} size="sm" />
+          <Text style={styles.claimHint}>تُجدد كل جمعة الساعة 12 ظهرًا</Text>
+        </View>
+
+        <Text style={styles.sectionTitle}>ترتيب الأبطال</Text>
+
+        <Podium players={players.slice(0, 3)} />
 
         <View style={styles.list}>
-          {PLAYERS.slice(3).map((p) => (
+          {players.slice(3).map((p) => (
             <Row key={p.rank} p={p} />
           ))}
         </View>
@@ -296,5 +446,106 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.num.semibold,
     fontSize: TYPE.caption.fontSize,
     color: COLORS.emerald,
+  },
+
+  // بطاقة VIP
+  vipCard: {
+    borderRadius: RADIUS.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(233,195,73,0.4)',
+    padding: SPACING.lg,
+    overflow: 'hidden',
+    gap: SPACING.md,
+    ...SHADOWS.goldSoft,
+  },
+  vipTop: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  vipBadge: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.xs,
+    borderRadius: RADIUS.full,
+    backgroundColor: 'rgba(233,195,73,0.16)',
+    borderWidth: 1,
+    borderColor: 'rgba(233,195,73,0.5)',
+  },
+  vipBadgeText: {
+    fontFamily: FONTS.num.black,
+    fontSize: TYPE.caption.fontSize,
+    color: COLORS.goldLight,
+    letterSpacing: 1,
+  },
+  vipTier: {
+    fontFamily: 'Cairo-Bold',
+    fontSize: TYPE.body.fontSize,
+    color: COLORS.goldLight,
+  },
+  vipLabel: {
+    fontFamily: FONTS.ar.medium,
+    fontSize: TYPE.caption.fontSize,
+    color: COLORS.textDim,
+  },
+  progressTrack: {
+    position: 'relative',
+    height: 10,
+    borderRadius: RADIUS.full,
+    backgroundColor: 'rgba(218,226,253,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(233,195,73,0.25)',
+    overflow: 'hidden',
+  },
+  progressFill: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: '25%',
+    backgroundColor: COLORS.gold,
+    borderRadius: RADIUS.full,
+  },
+  shimmer: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    width: 90,
+  },
+  vipMetaRow: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  vipMeta: {
+    fontFamily: FONTS.num.semibold,
+    fontSize: TYPE.caption.fontSize,
+    color: COLORS.textDim,
+  },
+  vipMetaGold: {
+    fontFamily: FONTS.ar.semibold,
+    fontSize: TYPE.caption.fontSize,
+    color: COLORS.goldLight,
+  },
+
+  // بطاقة الاستلام
+  claimCard: {
+    marginTop: SPACING.lg,
+    gap: SPACING.sm,
+    alignItems: 'flex-end',
+  },
+  claimHint: {
+    fontFamily: FONTS.ar.regular,
+    fontSize: TYPE.caption.fontSize,
+    color: COLORS.textFaint,
+  },
+  sectionTitle: {
+    fontFamily: 'Cairo-Bold',
+    fontSize: TYPE.h2.fontSize,
+    color: COLORS.text,
+    marginTop: SPACING.xl,
   },
 });
