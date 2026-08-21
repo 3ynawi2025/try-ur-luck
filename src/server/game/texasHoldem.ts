@@ -219,7 +219,7 @@ export function awardPots(
 
 export class TexasHoldemEngine {
   private config: TableConfig;
-  private rng: Rng;
+  private rng?: Rng; // undefined = CSPRNG افتراضي
   private deck: Card[] = [];
   private burns: Card[] = [];
   private players: TablePlayer[] = [];
@@ -251,7 +251,8 @@ export class TexasHoldemEngine {
 
   constructor(config: TableConfig) {
     this.config = config;
-    this.rng = config.rng ?? Math.random;
+    // لا Math.random في الإنتاج: عند غياب RNG المحقون تستخدم shuffleDeck الـCSPRNG
+    this.rng = config.rng;
   }
 
   // ===== Player Management =====
@@ -388,6 +389,8 @@ export class TexasHoldemEngine {
     this.winners = [];
     this.lastAction = undefined;
     this.history = [];
+    this.anteDeadMoney = 0;
+    this.antePosterSeat = -1;
 
     const eligible = this.eligibleSeats().filter((s) => (this.bySeat(s)?.balance ?? 0) > 0);
     const eligibleIds = new Set(eligible.map((s) => this.bySeat(s)!.id));
@@ -454,7 +457,9 @@ export class TexasHoldemEngine {
         const blindFirst = Math.min(this.config.bigBlind, bb.balance);
         const remaining = bb.balance - blindFirst;
         const antePaid = Math.min(this.config.ante, remaining);
-        this.commit(bb, blindFirst + antePaid);
+        this.commit(bb, blindFirst); // الـBB وحده يُحتسب كرهان شارع
+        this.commitAnte(bb, antePaid); // الـante مال ميت في الوعاء فقط
+        this.antePosterSeat = bb.seatIndex;
       } else {
         const paid = Math.min(this.config.bigBlind, bb.balance);
         this.commit(bb, paid);
@@ -507,6 +512,9 @@ export class TexasHoldemEngine {
   }
 
   private previousSbSeat = -1;
+  /** مال ميت من الـBBA — يُضاف للوعاء الرئيسي ولا يُرد أبدًا (لا uncalled-excess). */
+  private anteDeadMoney = 0;
+  private antePosterSeat = -1;
 
   private commit(p: TablePlayer, amount: number): void {
     if (amount < 0) throw new Error(`NEGATIVE_COMMIT: ${p.id} ${amount}`);
@@ -514,6 +522,17 @@ export class TexasHoldemEngine {
     p.balance -= actual;
     p.committedThisStreet += actual;
     p.committedThisHand += actual;
+  }
+
+  /**
+   * الـAnte مال ميت يدخل الوعاء مباشرة (ليس ضمن مساهمة اللاعب الشخصية)
+   * فلا يُحتسب ضمن "رهان الشارع" ولا يزيد مبلغ المطابقة ولا يُرد عبر uncalledExcess.
+   */
+  private commitAnte(p: TablePlayer, amount: number): void {
+    if (amount < 0) throw new Error(`NEGATIVE_ANTE: ${p.id} ${amount}`);
+    const actual = Math.min(amount, p.balance);
+    p.balance -= actual;
+    this.anteDeadMoney += actual;
   }
 
   // ===== Actions =====
@@ -560,7 +579,7 @@ export class TexasHoldemEngine {
       case 'bet': {
         if (this.currentBet !== 0) return { error: 'استخدم زيادة', code: 'MUST_RAISE' };
         const minOpen = structure === 'fixed-limit' ? this.config.bigBlind : this.config.bigBlind;
-        if (amount === undefined || amount <= 0) return { error: 'حدد مبلغ الرهان', code: 'INVALID_AMOUNT' };
+        if (amount === undefined || !Number.isInteger(amount) || amount <= 0) return { error: 'حدد مبلغ الرهان', code: 'INVALID_AMOUNT' };
         const maxLegal = player.committedThisStreet + player.balance;
         if (amount > maxLegal) return { error: 'رصيد غير كاف', code: 'INSUFFICIENT_STACK' };
         const isAllInBet = amount === maxLegal;
@@ -587,7 +606,7 @@ export class TexasHoldemEngine {
 
       case 'raise': {
         if (this.currentBet === 0) return { error: 'استخدم رهان', code: 'MUST_BET' };
-        if (amount === undefined) return { error: 'حدد مبلغ الزيادة', code: 'INVALID_AMOUNT' };
+        if (amount === undefined || !Number.isInteger(amount)) return { error: 'حدد مبلغ الزيادة', code: 'INVALID_AMOUNT' };
         // A raise must exceed the current bet (raise-TO semantics). Below it is a call.
         if (amount <= this.currentBet) return { error: 'مبلغ الزيادة أقل من الرهان الحالي', code: 'RAISE_BELOW_CURRENT_BET' };
         const maxLegal = player.committedThisStreet + player.balance;
@@ -727,14 +746,20 @@ export class TexasHoldemEngine {
   }
 
   private totalChipsInPots(): number {
-    return this.players.reduce((sum, p) => sum + p.committedThisHand, 0);
+    return this.players.reduce((sum, p) => sum + p.committedThisHand, 0) + this.anteDeadMoney;
   }
 
   // ===== Turn advancement =====
 
   private advanceAfterAction(): void {
-    // Fold-out: exactly one non-folded player remains.
+    // No one left in the hand (everyone folded/sitting_out/disconnected).
     const nonFolded = this.players.filter((p) => p.status !== 'folded' && p.status !== 'sitting_out');
+    if (nonFolded.length === 0) {
+      this.cancelHandAndRefund();
+      return;
+    }
+
+    // Fold-out: exactly one non-folded player remains.
     if (nonFolded.length === 1) {
       this.awardToLastPlayer(nonFolded[0]);
       return;
@@ -845,8 +870,52 @@ export class TexasHoldemEngine {
   }
 
   private finishWithoutAction(): void {
-    // No one can act (e.g. both blinds all-in).
+    // No one can act (e.g. both blinds all-in) — unless everyone left mid-hand.
+    const nonFolded = this.players.filter((p) => p.status !== 'folded' && p.status !== 'sitting_out');
+    if (nonFolded.length === 0) {
+      this.cancelHandAndRefund();
+      return;
+    }
     this.runOut();
+  }
+
+  /**
+   * Cancel the hand and return every committed chip to its owner.
+   * Used when all players leave mid-hand (disconnect) so the engine
+   * never tries to build a pot from zero eligible players.
+   */
+  private cancelHandAndRefund(): void {
+    for (const p of this.players) {
+      p.balance += p.committedThisHand;
+      p.committedThisHand = 0;
+      p.committedThisStreet = 0;
+      p.holeCards = [];
+      p.status = 'active';
+      p.hasActedThisStreet = false;
+      p.canRaise = true;
+      p.isCurrentTurn = false;
+    }
+    // إعادة الـante لصاحبه عند إلغاء اليد
+    if (this.antePosterSeat >= 0 && this.anteDeadMoney > 0) {
+      const poster = this.bySeat(this.antePosterSeat);
+      if (poster) poster.balance += this.anteDeadMoney;
+    }
+    this.anteDeadMoney = 0;
+    this.antePosterSeat = -1;
+    this.communityCards = [];
+    this.burns = [];
+    this.deck = [];
+    this.phase = 'waiting';
+    this.winners = [];
+    this.lastPots = [];
+    this.lastPotTotal = 0;
+    this.currentBet = 0;
+    this.lastFullRaise = this.config.bigBlind;
+    this.pendingShortIncrement = 0;
+    this.aggressorSeat = -1;
+    this.activeSeat = null;
+    this.lastAction = undefined;
+    this.history.push({ event: 'hand_cancelled' });
   }
 
   // ===== Pots & awards =====
@@ -861,6 +930,7 @@ export class TexasHoldemEngine {
       p.committedThisHand = 0;
       p.committedThisStreet = 0;
     }
+    this.anteDeadMoney = 0; // الوعاء (شامل الـante) انتقل لرصيد الفائز
     this.phase = 'showdown';
     this.winners = [{ playerId: winner.id, name: winner.name, amount: total, handName: 'الجميع انسحب', revealedCards: [], seatIndex: winner.seatIndex }];
     this.lastPots = [{ amount: total, eligibleSeats: [winner.seatIndex] }];
@@ -890,7 +960,7 @@ export class TexasHoldemEngine {
   }
 
   private buildPots(): PotInfo[] {
-    return computePots(
+    const pots = computePots(
       this.players
         .filter((p) => p.status !== 'sitting_out')
         .map((p) => ({
@@ -899,20 +969,25 @@ export class TexasHoldemEngine {
           inHand: p.status === 'active' || p.status === 'all_in',
         }))
     );
+    // مال ميت (BBA): يُضاف للوعاء الرئيسي وينافس عليه كل من لا يزال في اليد
+    if (this.anteDeadMoney > 0 && pots.length > 0) {
+      pots[0].amount += this.anteDeadMoney;
+    }
+    return pots;
   }
 
   private doShowdown(): void {
     const refund = this.uncalledExcess();
     this.history.push({ event: 'uncalled_return', amount: refund });
 
-    // Pre-award conservation check: Σ pots must equal Σ committed chips.
+    // Pre-award conservation check: Σ pots must equal Σ committed chips + dead money.
     const committedTotal = this.players.reduce((s, p) => s + p.committedThisHand, 0);
     const pots = this.buildPots();
     const potsTotal = pots.reduce((s, p) => s + p.amount, 0);
-    if (potsTotal !== committedTotal) {
+    if (potsTotal !== committedTotal + this.anteDeadMoney) {
       const detail = this.players.map((p) => ({ id: p.id, seat: p.seatIndex, status: p.status, committed: p.committedThisHand }));
       throw new Error(
-        `POT_BUILD_MISMATCH: pots=${potsTotal} committed=${committedTotal} players=${JSON.stringify(detail)}`
+        `POT_BUILD_MISMATCH: pots=${potsTotal} committed=${committedTotal} ante=${this.anteDeadMoney} players=${JSON.stringify(detail)}`
       );
     }
     const results = new Map<number, HandResult>();
@@ -945,6 +1020,7 @@ export class TexasHoldemEngine {
       p.committedThisHand = 0;
       p.committedThisStreet = 0;
     }
+    this.anteDeadMoney = 0; // وُزّع مع الوعاء
     this.phase = 'showdown';
     this.winners = winnerList;
     this.lastPots = pots;
@@ -956,7 +1032,8 @@ export class TexasHoldemEngine {
   // ===== Invariants =====
 
   private assertChipConservation(): void {
-    const totalBefore = this.players.reduce((s, p) => s + p.balance + p.committedThisHand, 0);
+    const totalBefore =
+      this.players.reduce((s, p) => s + p.balance + p.committedThisHand, 0) + this.anteDeadMoney;
     // Record baseline on first call of a hand
     if (this.handBaseline === null) {
       this.handBaseline = totalBefore;

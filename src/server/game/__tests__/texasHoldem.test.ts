@@ -889,3 +889,53 @@ describe('TexasHoldemEngine — timeout', () => {
     }
   });
 });
+
+// ============================================================
+// BBA ante + amount validation (hardening)
+// ============================================================
+
+describe('holdem BBA ante (hardening)', () => {
+  it('ante is dead money: not street chips, pot correct, round completes', () => {
+    const engine = new TexasHoldemEngine({
+      maxPlayers: 2,
+      smallBlind: 10,
+      bigBlind: 20,
+      minBuyIn: 1,
+      ante: 20,
+      rng: seededRng(7),
+    });
+    engine.addPlayer('p0', 'لاعب0', 10000);
+    engine.addPlayer('p1', 'لاعب1', 10000);
+    assertOk(engine.startHand());
+
+    let snap = engine.snapshot();
+    expect(snap.currentBet).toBe(20);
+    expect(snap.pot).toBe(50); // 10 SB + 20 BB + 20 ante (مال ميت)
+    const bb = snap.players.find((p) => p.currentBet === 20 && p.totalRoundBet === 20);
+    expect(bb).toBeDefined(); // BB: blind 20 فقط في الشارع/المساهمة — الـante خارجها
+    // الوعاء الرئيسي = 20 متطابق + 20 ante ينافس عليه الجميع، والزيادة وحدها للـBB
+    expect(snap.sidePots).toEqual([
+      { amount: 40, eligibleSeats: [0, 1] },
+      { amount: 10, eligibleSeats: [1] },
+    ]);
+
+    // العب حتى اكتمال الشارع وفق الترتيب الفعلي للأدوار
+    let guard = 0;
+    while (engine.snapshot().phase === 'preflop' && guard++ < 10) {
+      const s = engine.snapshot();
+      const actor = s.players.find((p) => p.isCurrentTurn);
+      expect(actor).toBeDefined();
+      const legals = s.legalActions ?? { check: false, call: false };
+      if (legals.check) assertOk(engine.performAction(actor!.id, 'check'));
+      else assertOk(engine.performAction(actor!.id, 'call'));
+    }
+    expect(engine.snapshot().phase).toBe('flop');
+  });
+
+  it('rejects NaN raise amounts', () => {
+    const engine = setupEngine(2);
+    assertOk(engine.startHand());
+    const actor = engine.snapshot().players.find((p) => p.isCurrentTurn)!;
+    assertErr(act(engine, actor.id, 'raise', NaN), 'INVALID_AMOUNT');
+  });
+});

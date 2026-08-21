@@ -2,7 +2,7 @@
 // جرب حظك — الطاولات
 // ============================================================
 
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, Animated } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -27,8 +27,9 @@ import {
   SIZES,
   formatNumber,
 } from '../../constants/theme';
+import { apiFetch } from '../../lib/api';
 
-type GameFilter = 'all' | 'texas_holdem' | 'blackjack' | 'three_card' | 'russian';
+type GameFilter = 'all' | 'texas_holdem' | 'blackjack' | 'three_card' | 'russian' | 'roulette';
 
 const MOCK_TABLES = [
   { id: '1', gameType: 'texas_holdem', name: 'طاولة الرياض', players: 2, maxPlayers: 6, minBuyIn: 500, smallBlind: 10, bigBlind: 20, seated: ['سلطان', 'نورة'] },
@@ -39,6 +40,7 @@ const MOCK_TABLES = [
   { id: '6', gameType: 'texas_holdem', name: 'طاولة خاصة', players: 2, maxPlayers: 6, minBuyIn: 1500, smallBlind: 50, bigBlind: 100, isPrivate: true, seated: ['غير معروف', 'ضيف'] },
   { id: '7', gameType: 'three_card', name: 'طاولة ثلاث أوراق', players: 1, maxPlayers: 5, minBuyIn: 500, seated: ['أنت'] },
   { id: '8', gameType: 'russian', name: 'طاولة البوكر الروسي', players: 1, maxPlayers: 5, minBuyIn: 500, seated: ['أنت'] },
+  { id: '9', gameType: 'roulette', name: 'طاولة الروليت', players: 1, maxPlayers: 5, minBuyIn: 100, seated: ['أنت'] },
 ];
 
 const GAME_NAMES: Record<string, string> = {
@@ -46,6 +48,7 @@ const GAME_NAMES: Record<string, string> = {
   blackjack: 'بلاك جاك',
   three_card: 'ثلاث أوراق بوكر',
   russian: 'بوكر روسي',
+  roulette: 'روليت',
 };
 
 const FILTERS: { key: GameFilter; label: string }[] = [
@@ -54,6 +57,7 @@ const FILTERS: { key: GameFilter; label: string }[] = [
   { key: 'blackjack', label: 'بلاك جاك' },
   { key: 'three_card', label: 'ثلاث أوراق' },
   { key: 'russian', label: 'بوكر روسي' },
+  { key: 'roulette', label: 'روليت' },
 ];
 
 /** صيغ الجمع العربية: مفرد / مثنى / جمع قلة / جمع كثرة */
@@ -103,6 +107,7 @@ function TableRow({ table }: { table: (typeof MOCK_TABLES)[number] }) {
     if (table.gameType === 'blackjack') router.push(`/(app)/blackjack/${table.id}`);
     else if (table.gameType === 'three_card') router.push(`/(app)/three-card/${table.id}`);
     else if (table.gameType === 'russian') router.push(`/(app)/russian/${table.id}`);
+    else if (table.gameType === 'roulette') router.push(`/(app)/roulette/${table.id}`);
     else router.push(`/(app)/table/${table.id}`);
   };
 
@@ -176,9 +181,42 @@ function TableRow({ table }: { table: (typeof MOCK_TABLES)[number] }) {
 
 export default function TablesScreen() {
   const [filter, setFilter] = useState<GameFilter>('all');
+  const [serverTables, setServerTables] = useState<typeof MOCK_TABLES>(MOCK_TABLES);
+
+  // جلب الطاولات الحقيقية من السيرفر، مع الاحتفاظ بالبيانات الافتراضية كاحتياط
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await apiFetch<any[]>('/api/tables');
+        if (cancelled || !Array.isArray(data)) return;
+        if (data.length === 0) return; // قاعدة فارغة → أبقِ الافتراضية
+
+        const mapped = data.map((t: any) => ({
+          id: String(t.id ?? ''),
+          gameType: (t.game_type === 'three_card' ? 'three_card' : t.game_type) ?? 'texas_holdem',
+          name: t.name ?? 'طاولة',
+          players: t.table_players?.length ?? 0,
+          maxPlayers: t.max_players ?? 6,
+          minBuyIn: t.min_buy_in ?? 500,
+          smallBlind: t.small_blind,
+          bigBlind: t.big_blind,
+          isPrivate: !!t.is_private,
+          vip: t.name?.toLowerCase().includes('vip'),
+          seated: (t.table_players ?? []).map((p: any) => p.display_name ?? 'لاعب'),
+        }));
+        setServerTables(mapped);
+      } catch {
+        /* تبقى الافتراضية */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const tables =
-    filter === 'all' ? MOCK_TABLES : MOCK_TABLES.filter((t) => t.gameType === filter);
+    filter === 'all' ? serverTables : serverTables.filter((t) => t.gameType === filter);
 
   return (
     <Screen>
@@ -213,7 +251,7 @@ export default function TablesScreen() {
       <View style={styles.footer}>
         {/* تدرّج يفصل الزر عن القائمة المتحركة خلفه */}
         <LinearGradient
-          colors={['rgba(6,10,8,0)', 'rgba(6,10,8,0.96)']}
+          colors={['rgba(10,13,18,0)', 'rgba(10,13,18,0.96)']}
           style={styles.footerScrim}
           pointerEvents="none"
         />
@@ -262,7 +300,7 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
   },
   filterActive: {
-    backgroundColor: 'rgba(212,175,55,0.16)',
+    backgroundColor: 'rgba(201,169,97,0.12)',
     borderColor: COLORS.gold,
   },
   filterText: {

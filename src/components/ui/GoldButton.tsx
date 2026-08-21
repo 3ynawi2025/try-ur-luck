@@ -1,6 +1,8 @@
 // ============================================================
 // جرب حظك — GoldButton
-// زر ذهبي معدني: تدرّج 4 محطات + لمعة علوية + ارتداد عند الضغط
+// زر فاخر بنظام Dark Luxe:
+// primary = الشامبين الوحيد (للـCTA الرئيسي فقط)
+// outline/ghost = فحمي بحواف شعرية ونص عاجي (الاستخدام اليومي)
 // ============================================================
 
 import React, { useRef } from 'react';
@@ -26,6 +28,7 @@ import {
   SPACING,
   GRADIENTS,
   SHADOWS,
+  ANIMATION,
 } from '../../constants/theme';
 
 type Variant = 'primary' | 'outline' | 'danger' | 'ghost';
@@ -61,8 +64,9 @@ export default function GoldButton({
     Animated.spring(scale, {
       toValue: to,
       useNativeDriver: true,
-      speed: 40,
-      bounciness: 6,
+      damping: ANIMATION.spring.damping,
+      stiffness: ANIMATION.spring.stiffness,
+      mass: ANIMATION.spring.mass,
     }).start();
 
   const handlePress = () => {
@@ -81,7 +85,7 @@ export default function GoldButton({
       {loading ? (
         <ActivityIndicator
           size="small"
-          color={isPrimary ? COLORS.onGold : COLORS.gold}
+          color={isPrimary ? COLORS.onGold : COLORS.text}
         />
       ) : (
         <>
@@ -108,12 +112,12 @@ export default function GoldButton({
     <Animated.View style={[{ transform: [{ scale }] }, style]}>
       <Pressable
         onPress={handlePress}
-        onPressIn={() => press(0.965)}
+        onPressIn={() => press(0.96)}
         onPressOut={() => press(1)}
         disabled={inactive}
         style={[
           styles.wrapper,
-          isPrimary && !inactive && SHADOWS.gold,
+          isPrimary && !inactive && SHADOWS.goldSoft,
           !isPrimary && SHADOWS.e1,
           inactive && styles.wrapperDisabled,
         ]}
@@ -130,9 +134,9 @@ export default function GoldButton({
             locations={[0, 0.42, 0.78, 1]}
             style={[styles.body, { height }]}
           >
-            {/* لمعة زجاجية على النصف العلوي */}
+            {/* لمعة زجاجية خافتة على النصف العلوي */}
             <LinearGradient
-              colors={['rgba(255,255,255,0.42)', 'rgba(255,255,255,0)']}
+              colors={['rgba(255,255,255,0.28)', 'rgba(255,255,255,0)']}
               style={styles.gloss}
               pointerEvents="none"
             />
@@ -175,17 +179,17 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    height: '48%',
+    height: '42%',
   },
   outline: {
-    backgroundColor: 'rgba(212,175,55,0.07)',
+    backgroundColor: 'rgba(201,169,97,0.05)',
     borderWidth: 1,
-    borderColor: 'rgba(212,175,55,0.42)',
+    borderColor: COLORS.hairlineGold,
   },
   danger: {
-    backgroundColor: 'rgba(226,61,77,0.10)',
+    backgroundColor: 'rgba(232,169,160,0.08)',
     borderWidth: 1,
-    borderColor: 'rgba(226,61,77,0.40)',
+    borderColor: 'rgba(232,169,160,0.35)',
   },
   ghost: {
     backgroundColor: 'rgba(255,255,255,0.04)',
@@ -210,7 +214,7 @@ const styles = StyleSheet.create({
     lineHeight: TYPE.small.lineHeight,
   },
   textOutline: { color: COLORS.goldLight },
-  textDanger: { color: '#FF8A94' },
+  textDanger: { color: COLORS.crimson },
   textGhost: { color: COLORS.text },
   textDisabled: { color: COLORS.textFaint },
 });

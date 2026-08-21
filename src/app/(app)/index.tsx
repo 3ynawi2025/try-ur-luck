@@ -1,6 +1,7 @@
 // ============================================================
-// جرب حظك — الصالة الرئيسية (Midnight Royale)
-// ترويسة بالهوية الذهبية + عروض + شبكة ألعاب «The Floor»
+// جرب حظك — الصالة الرئيسية (Dark Luxe)
+// بطل هادئ: اسم ضخم + تسمية لاتينية متباعدة + بطاقات ألعاب فخمة
+// دخول متتابع ناعم يحترم reduced-motion
 // ============================================================
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -11,14 +12,18 @@ import {
   ScrollView,
   Pressable,
   Animated,
+  Easing,
 } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
 import Screen from '../../components/ui/Screen';
 import GoldButton from '../../components/ui/GoldButton';
 import Avatar from '../../components/ui/Avatar';
 import { useAuthStore } from '../../stores/authStore';
 import { apiFetch } from '../../lib/api';
+import { useReducedMotion } from '../../constants/motion';
+import { ChevronIcon } from '../../components/icons/GameIcons';
 import {
   COLORS,
   FONTS,
@@ -26,60 +31,139 @@ import {
   SPACING,
   RADIUS,
   SHADOWS,
+  GRADIENTS,
   formatCompact,
+  ANIMATION,
 } from '../../constants/theme';
 
 // ===== ألعاب «The Floor» =====
 const FLOOR_GAMES = [
-  { key: 'blackjack', title: 'بلاك جاك', subtitle: 'الحد الأدنى 50', route: '/(app)/blackjack/1', wide: false },
-  { key: 'roulette', title: 'الروليت', subtitle: 'الحد الأدنى 10', route: '/(app)/roulette/1', wide: false },
-  { key: 'three_card', title: 'ثلاث أوراق بوكر', subtitle: 'للمحترفين', route: '/(app)/three-card/1', wide: true },
-  { key: 'holdem', title: 'تكساس هولدم', subtitle: 'ضد لاعبين حقيقيين', route: '/(app)/table/1', wide: false },
-  { key: 'russian', title: 'البوكر الروسي', subtitle: 'تركيبة ثانية', route: '/(app)/russian/1', wide: false },
-  { key: 'vip', title: 'طاولة VIP', subtitle: 'شراء 5,000', route: '/(app)/table/3', wide: true, vip: true },
+  { key: 'blackjack', en: 'BLACKJACK', title: 'بلاك جاك', subtitle: 'الحد الأدنى 50', route: '/(app)/blackjack/1', tone: 'felt' as const },
+  { key: 'roulette', en: 'ROULETTE', title: 'الروليت', subtitle: 'الحد الأدنى 10', route: '/(app)/roulette/1', tone: 'coal' as const },
+  { key: 'three_card', en: '3-CARD POKER', title: 'ثلاث أوراق بوكر', subtitle: 'للمحترفين', route: '/(app)/three-card/1', tone: 'felt' as const },
+  { key: 'holdem', en: 'TEXAS HOLD’EM', title: 'تكساس هولدم', subtitle: 'ضد لاعبين حقيقيين', route: '/(app)/table/1', tone: 'coal' as const },
+  { key: 'russian', en: 'RUSSIAN POKER', title: 'البوكر الروسي', subtitle: 'تركيبة ثانية', route: '/(app)/russian/1', tone: 'wine' as const },
 ];
+
+const VIP_CARD = {
+  key: 'vip',
+  en: 'PRIVATE LOUNGE',
+  title: 'طاولة VIP',
+  subtitle: 'شراء 5,000 — تجربة خاصة',
+  route: '/(app)/table/3',
+};
 
 const OFFERS = [
   {
     key: 'daily',
     tag: 'مكافآت يومية',
-    tagColor: COLORS.goldLight,
     title: 'استلم مكافأتك اليومية',
     desc: 'حتى 5,000 شريحة مجانية كل يوم',
     cta: 'استلم الآن',
     ctaStyle: 'solid' as const,
-    gradient: ['rgba(233,195,73,0.12)', 'rgba(233,195,73,0)'] as const,
+    tint: 'rgba(201,169,97,0.10)' as const,
   },
   {
     key: 'watch',
     tag: 'شاهد واربح',
-    tagColor: COLORS.emerald,
     title: 'شاهد فيديو واكسب',
     desc: '+1,000 شريحة فورًا',
     cta: 'شاهد الآن',
     ctaStyle: 'outline' as const,
-    gradient: ['rgba(149,211,186,0.10)', 'rgba(149,211,186,0)'] as const,
+    tint: 'rgba(143,203,180,0.08)' as const,
   },
 ];
 
-function Tappable({
-  children,
+const GAME_TONES: Record<string, readonly [string, string]> = {
+  felt: ['#0E4635', '#02150F'],
+  coal: ['#1B2230', '#0A0D12'],
+  wine: ['#3A1218', '#120608'],
+};
+
+/** بطاقة لعبة قابلة للضغط مع دخول متتابع */
+function GameCard({
+  en,
+  title,
+  subtitle,
+  tone,
+  wide,
   onPress,
-  style,
+  index,
 }: {
-  children: React.ReactNode;
+  en: string;
+  title: string;
+  subtitle: string;
+  tone: keyof typeof GAME_TONES | 'vip';
+  wide?: boolean;
   onPress: () => void;
-  style?: any;
+  index: number;
 }) {
   const scale = useRef(new Animated.Value(1)).current;
+  const enter = useRef(new Animated.Value(0)).current;
+  const reduced = useReducedMotion();
+
+  useEffect(() => {
+    if (reduced) {
+      enter.setValue(1);
+      return;
+    }
+    Animated.timing(enter, {
+      toValue: 1,
+      duration: ANIMATION.normal + 160,
+      delay: index * ANIMATION.deal,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [reduced, index]);
+
+  const colors =
+    tone === 'vip'
+      ? (['#3A2A19', '#171007'] as const)
+      : (GAME_TONES[tone] ?? GAME_TONES.coal);
+
   return (
-    <Animated.View style={[{ transform: [{ scale }] }, style]}>
+    <Animated.View
+      style={[
+        wide ? styles.gameWide : styles.gameCell,
+        {
+          opacity: enter,
+          transform: [
+            { translateY: enter.interpolate({ inputRange: [0, 1], outputRange: [22, 0] }) },
+            { scale },
+          ],
+        },
+      ]}
+    >
       <Pressable
         onPress={onPress}
-        onPressIn={() => Animated.spring(scale, { toValue: 0.97, useNativeDriver: true, speed: 45, bounciness: 5 }).start()}
-        onPressOut={() => Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 45, bounciness: 5 }).start()}
+        onPressIn={() =>
+          Animated.spring(scale, { toValue: 0.97, useNativeDriver: true, speed: 45, bounciness: 5 }).start()
+        }
+        onPressOut={() =>
+          Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 45, bounciness: 5 }).start()
+        }
+        style={styles.gameCard}
       >
-        {children}
+        <LinearGradient colors={colors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
+        {/* لمعة علوية خافتة */}
+        <LinearGradient
+          colors={['rgba(255,255,255,0.10)', 'rgba(255,255,255,0)']}
+          style={styles.gameGloss}
+          pointerEvents="none"
+        />
+        {/* زخرفة دائرية هادئة */}
+        <View style={[styles.gameOrnament, tone === 'vip' && styles.gameOrnamentVip]} pointerEvents="none">
+          <Text style={styles.gameOrnamentText}>{title.slice(0, 1)}</Text>
+        </View>
+        {/* التسمية */}
+        <View style={styles.gameLabel}>
+          <Text style={styles.gameEn}>{en}</Text>
+          <Text style={[styles.gameTitle, tone === 'vip' && styles.gameTitleVip]}>{title}</Text>
+          <Text style={styles.gameSub}>{subtitle}</Text>
+        </View>
+        <View style={styles.gameArrow} pointerEvents="none">
+          <ChevronIcon size={14} color={COLORS.textFaint} />
+        </View>
       </Pressable>
     </Animated.View>
   );
@@ -88,6 +172,21 @@ function Tappable({
 export default function LobbyScreen() {
   const profile = useAuthStore((s) => s.profile);
   const [tokens, setTokens] = useState(10000);
+  const reduced = useReducedMotion();
+  const heroIn = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (reduced) {
+      heroIn.setValue(1);
+      return;
+    }
+    Animated.timing(heroIn, {
+      toValue: 1,
+      duration: 420,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [reduced]);
 
   // جلب الرصيد الحقيقي عند فتح الصالة وعند كل عودة من لعبة — مصادقة بالتوكن
   useFocusEffect(
@@ -114,16 +213,18 @@ export default function LobbyScreen() {
       {/* ===== الترويسة ===== */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Avatar name="أنت" size={40} showBorder />
+          <Avatar name={profile?.displayName ?? 'أنت'} size={40} showBorder />
           <View>
-            <Text style={styles.brand}>Midnight Royale</Text>
-            <Text style={styles.brandSub}>جرب حظك — كازينو اجتماعي</Text>
+            <Text style={styles.brandEn}>MIDNIGHT ROYALE</Text>
+            <Text style={styles.brandSub}>كازينو جرب حظك الاجتماعي</Text>
           </View>
         </View>
         <Pressable style={styles.tokensPill} onPress={() => router.push('/(app)/profile')} hitSlop={8}>
-          <Text style={styles.tokensPlus}>+</Text>
-          <Text style={styles.tokensText}>رقائق</Text>
-          <Text style={styles.tokensValue}>{formatCompact(tokens)}</Text>
+          <BlurView intensity={22} tint="dark" style={StyleSheet.absoluteFill} />
+          <View style={styles.tokensInner}>
+            <Text style={styles.tokensLabel}>الرصيد</Text>
+            <Text style={styles.tokensValue}>{formatCompact(tokens)}</Text>
+          </View>
         </Pressable>
       </View>
 
@@ -131,6 +232,20 @@ export default function LobbyScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}
       >
+        {/* ===== البطل ===== */}
+        <Animated.View
+          style={{
+            opacity: heroIn,
+            transform: [{ translateY: heroIn.interpolate({ inputRange: [0, 1], outputRange: [14, 0] }) }],
+          }}
+        >
+          <Text style={styles.heroEyebrow}>المجلس الاجتماعي للورق — بصوت مباشر</Text>
+          <Text style={styles.heroTitle}>جرب حظك</Text>
+          <Text style={styles.heroSub}>
+            طاولات حقيقية، أوراق حقيقية، ودراهم افتراضية بالكامل
+          </Text>
+        </Animated.View>
+
         {/* ===== العروض الحصرية ===== */}
         <Text style={styles.sectionTitle}>عروض حصرية</Text>
         <ScrollView
@@ -138,12 +253,12 @@ export default function LobbyScreen() {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.offersRow}
         >
-          {OFFERS.map((o) => (
+          {OFFERS.map((o, i) => (
             <View key={o.key} style={styles.offerCard}>
-              <LinearGradient colors={o.gradient} style={StyleSheet.absoluteFill} />
-              <LinearGradient colors={['rgba(45,52,73,0.55)', 'rgba(19,27,46,0.75)']} style={StyleSheet.absoluteFill} />
+              <LinearGradient colors={[o.tint, 'rgba(10,13,18,0)']} style={StyleSheet.absoluteFill} />
+              <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFill} />
               <View style={styles.offerTop}>
-                <Text style={[styles.offerTag, { color: o.tagColor }]}>{o.tag}</Text>
+                <Text style={styles.offerTag}>{o.tag}</Text>
               </View>
               <Text style={styles.offerTitle}>{o.title}</Text>
               <Text style={styles.offerDesc}>{o.desc}</Text>
@@ -161,46 +276,32 @@ export default function LobbyScreen() {
         {/* ===== أرضية الألعاب ===== */}
         <Text style={styles.sectionTitle}>أرضية الألعاب</Text>
         <View style={styles.floorGrid}>
-          {FLOOR_GAMES.map((g) => (
-            <Tappable
+          {FLOOR_GAMES.map((g, i) => (
+            <GameCard
               key={g.key}
+              en={g.en}
+              title={g.title}
+              subtitle={g.subtitle}
+              tone={g.tone}
+              index={i}
               onPress={() => router.push(g.route as never)}
-              style={g.wide ? styles.floorWide : styles.floorCell}
-            >
-              <LinearGradient
-                colors={g.vip ? ['#543c24', '#261b0f'] : ['#0b513d', '#002117']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.floorCard}
-              >
-                {/* لمعة علوية */}
-                <LinearGradient
-                  colors={['rgba(255,255,255,0.12)', 'rgba(255,255,255,0)']}
-                  style={styles.floorGloss}
-                  pointerEvents="none"
-                />
-                {/* نقش دائري */}
-                <View style={styles.floorOrnament} pointerEvents="none">
-                  <Text style={styles.floorOrnamentText}>{g.title.slice(0, 1)}</Text>
-                </View>
-                <View style={styles.floorLabel}>
-                  <Text style={[styles.floorTitle, g.vip && { color: COLORS.goldLight }]}>
-                    {g.title}
-                  </Text>
-                  <Text style={styles.floorSub}>{g.subtitle}</Text>
-                </View>
-              </LinearGradient>
-            </Tappable>
+            />
           ))}
+          <GameCard
+            en={VIP_CARD.en}
+            title={VIP_CARD.title}
+            subtitle={VIP_CARD.subtitle}
+            tone="vip"
+            wide
+            index={FLOOR_GAMES.length}
+            onPress={() => router.push(VIP_CARD.route as never)}
+          />
         </View>
 
-        {/* ===== مساحة إعلان ===== */}
-        <View style={styles.adBanner}>
-          <LinearGradient
-            colors={['rgba(45,52,73,0.6)', 'rgba(19,27,46,0.4)']}
-            style={StyleSheet.absoluteFill}
-          />
-          <Text style={styles.adText}>مساحة فعاليات حصرية — قريبًا</Text>
+        {/* ===== مساحة فعاليات ===== */}
+        <View style={styles.eventsBanner}>
+          <BlurView intensity={18} tint="dark" style={StyleSheet.absoluteFill} />
+          <Text style={styles.eventsText}>فعاليات حصرية — قريبًا</Text>
         </View>
       </ScrollView>
     </Screen>
@@ -209,57 +310,57 @@ export default function LobbyScreen() {
 
 const styles = StyleSheet.create({
   screen: { backgroundColor: COLORS.bg },
+
+  // ===== الترويسة =====
   header: {
     flexDirection: 'row-reverse',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.md,
-    backgroundColor: COLORS.surfaceHighest,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(233,195,73,0.2)',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: COLORS.border,
   },
   headerLeft: {
     flexDirection: 'row-reverse',
     alignItems: 'center',
     gap: SPACING.md,
   },
-  brand: {
-    fontFamily: 'Cairo-Black',
-    fontSize: TYPE.h3.fontSize,
-    color: COLORS.goldLight,
-    letterSpacing: 0.3,
+  brandEn: {
+    fontFamily: FONTS.num.bold,
+    fontSize: TYPE.micro.fontSize,
+    color: COLORS.textDim,
+    letterSpacing: 2.4,
   },
   brandSub: {
     fontFamily: FONTS.ar.regular,
     fontSize: TYPE.caption.fontSize,
     color: COLORS.textFaint,
+    marginTop: 1,
   },
   tokensPill: {
+    minWidth: 108,
+    borderRadius: RADIUS.full,
+    borderWidth: 1,
+    borderColor: COLORS.hairlineGold,
+    overflow: 'hidden',
+  },
+  tokensInner: {
     flexDirection: 'row-reverse',
     alignItems: 'center',
     gap: SPACING.xs,
     paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.xs + 2,
-    borderRadius: RADIUS.full,
-    backgroundColor: 'rgba(175,141,17,0.18)',
-    borderWidth: 1,
-    borderColor: 'rgba(233,195,73,0.4)',
+    paddingVertical: SPACING.xs + 3,
   },
-  tokensPlus: {
-    fontFamily: FONTS.num.bold,
-    fontSize: TYPE.body.fontSize,
-    color: COLORS.goldLight,
-  },
-  tokensText: {
+  tokensLabel: {
     fontFamily: FONTS.ar.medium,
     fontSize: TYPE.caption.fontSize,
-    color: COLORS.goldLight,
+    color: COLORS.textDim,
   },
   tokensValue: {
     fontFamily: FONTS.num.bold,
     fontSize: TYPE.small.fontSize,
-    color: COLORS.text,
+    color: COLORS.goldLight,
   },
 
   content: {
@@ -268,27 +369,52 @@ const styles = StyleSheet.create({
     paddingBottom: SPACING.xxxl,
     gap: SPACING.xl,
   },
+
+  // ===== البطل =====
+  heroEyebrow: {
+    fontFamily: FONTS.num.semibold,
+    fontSize: TYPE.micro.fontSize,
+    color: COLORS.goldLight,
+    letterSpacing: 1.6,
+    marginBottom: SPACING.sm,
+  },
+  heroTitle: {
+    fontFamily: FONTS.ar.black,
+    fontSize: TYPE.display.fontSize,
+    lineHeight: TYPE.display.lineHeight,
+    color: COLORS.text,
+    includeFontPadding: false,
+  },
+  heroSub: {
+    fontFamily: FONTS.ar.regular,
+    fontSize: TYPE.small.fontSize,
+    color: COLORS.textDim,
+    marginTop: SPACING.xs,
+  },
+
   sectionTitle: {
-    fontFamily: 'Cairo-Bold',
-    fontSize: TYPE.h2.fontSize,
+    fontFamily: FONTS.ar.bold,
+    fontSize: TYPE.h3.fontSize,
     color: COLORS.text,
   },
 
+  // ===== العروض =====
   offersRow: {
     gap: SPACING.sm,
     paddingBottom: SPACING.xs,
   },
   offerCard: {
     width: 280,
-    minHeight: 150,
+    minHeight: 158,
     borderRadius: RADIUS.lg,
     borderWidth: 1,
-    borderColor: 'rgba(233,195,73,0.3)',
+    borderColor: COLORS.border,
     padding: SPACING.lg,
     overflow: 'hidden',
     justifyContent: 'space-between',
     gap: SPACING.sm,
-    ...SHADOWS.e2,
+    backgroundColor: 'rgba(16,21,30,0.4)',
+    ...SHADOWS.e1,
   },
   offerTop: {
     flexDirection: 'row-reverse',
@@ -299,6 +425,7 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.ar.semibold,
     fontSize: TYPE.micro.fontSize,
     letterSpacing: 1,
+    color: COLORS.goldLight,
   },
   offerTitle: {
     fontFamily: FONTS.ar.bold,
@@ -309,7 +436,6 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.ar.regular,
     fontSize: TYPE.small.fontSize,
     color: COLORS.textDim,
-    opacity: 0.85,
   },
   offerOutlineBtn: {
     alignSelf: 'flex-start',
@@ -317,7 +443,7 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.sm,
     borderRadius: RADIUS.sm,
     borderWidth: 1,
-    borderColor: 'rgba(149,211,186,0.5)',
+    borderColor: 'rgba(143,203,180,0.4)',
   },
   offerOutlineText: {
     fontFamily: FONTS.ar.semibold,
@@ -325,73 +451,101 @@ const styles = StyleSheet.create({
     color: COLORS.emerald,
   },
 
+  // ===== أرضية الألعاب =====
   floorGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: SPACING.sm,
   },
-  floorCell: {
+  gameCell: {
     width: '48.5%',
     aspectRatio: 3 / 4,
   },
-  floorWide: {
+  gameWide: {
     width: '100%',
-    height: 150,
+    height: 140,
   },
-  floorCard: {
+  gameCard: {
     flex: 1,
     borderRadius: RADIUS.lg,
     borderWidth: 1,
-    borderColor: 'rgba(233,195,73,0.2)',
+    borderColor: COLORS.border,
     overflow: 'hidden',
-    ...SHADOWS.card,
+    ...SHADOWS.e1,
   },
-  floorGloss: {
+  gameGloss: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     height: '45%',
   },
-  floorOrnament: {
+  gameOrnament: {
     position: 'absolute',
     top: SPACING.lg,
     alignSelf: 'center',
-    width: 84,
-    height: 84,
-    borderRadius: 42,
-    borderWidth: 1.5,
-    borderColor: 'rgba(233,195,73,0.35)',
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    borderWidth: 1,
+    borderColor: COLORS.border,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(0,0,0,0.22)',
+    backgroundColor: 'rgba(0,0,0,0.24)',
   },
-  floorOrnamentText: {
-    fontFamily: 'Cairo-Black',
-    fontSize: 34,
-    color: 'rgba(233,195,73,0.55)',
+  gameOrnamentVip: {
+    borderColor: COLORS.hairlineGold,
   },
-  floorLabel: {
+  gameOrnamentText: {
+    fontFamily: FONTS.ar.black,
+    fontSize: 30,
+    color: 'rgba(242,239,233,0.35)',
+  },
+  gameLabel: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
     padding: SPACING.md,
-    backgroundColor: 'rgba(0,0,0,0.45)',
+    backgroundColor: 'rgba(0,0,0,0.5)',
   },
-  floorTitle: {
-    fontFamily: 'Cairo-Bold',
+  gameEn: {
+    fontFamily: FONTS.num.bold,
+    fontSize: 9,
+    color: COLORS.textFaint,
+    letterSpacing: 2,
+  },
+  gameTitle: {
+    fontFamily: FONTS.ar.bold,
     fontSize: TYPE.body.fontSize,
+    color: COLORS.text,
+    marginTop: 2,
+  },
+  gameTitleVip: {
     color: COLORS.goldLight,
   },
-  floorSub: {
+  gameSub: {
     fontFamily: FONTS.ar.regular,
     fontSize: TYPE.caption.fontSize,
     color: COLORS.textFaint,
     marginTop: 2,
   },
+  gameArrow: {
+    position: 'absolute',
+    top: SPACING.md,
+    right: SPACING.md,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.3)',
+  },
 
-  adBanner: {
+  // ===== فعاليات =====
+  eventsBanner: {
     height: 84,
     borderRadius: RADIUS.md,
     borderWidth: 1,
@@ -399,8 +553,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
+    backgroundColor: 'rgba(16,21,30,0.4)',
   },
-  adText: {
+  eventsText: {
     fontFamily: FONTS.ar.medium,
     fontSize: TYPE.caption.fontSize,
     color: COLORS.textFaint,

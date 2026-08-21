@@ -21,7 +21,7 @@ import FeltTable from '../../../components/game/FeltTable';
 import InstructionsModal from '../../../components/game/InstructionsModal';
 import { Badge } from '../../../components/ui/Bits';
 import GoldButton from '../../../components/ui/GoldButton';
-import { BackIcon, MicIcon, MicOffIcon, InfoIcon } from '../../../components/icons/GameIcons';
+import { BackIcon, MicIcon, MicOffIcon, InfoIcon, UserPlusIcon, UserCheckIcon } from '../../../components/icons/GameIcons';
 import {
   COLORS,
   FONTS,
@@ -35,6 +35,10 @@ import {
 import { GameSnapshot } from '../../../server/game/texasHoldem';
 import { Card as GameCard } from '../../../server/game/deck';
 import { useGameSocket } from '../../../hooks/useGameSocket';
+import { useAgoraVoice } from '../../../hooks/useAgoraVoice';
+import { useFriendsStore } from '../../../stores/friendsStore';
+import { useAuthStore } from '../../../stores/authStore';
+import { AGORA_APP_ID } from '../../../lib/config';
 
 /**
  * مواقع المقاعد على حافة البيضاوي (٠ = أنت، أسفل الوسط).
@@ -93,19 +97,14 @@ function ActionButton({
         onPressOut={() => to(1)}
       >
         <LinearGradient
-          colors={colors}
+          colors={['#1B2230', '#0A0D12']}
           start={{ x: 0, y: 0 }}
           end={{ x: 0, y: 1 }}
-          style={[styles.actionBtn, SHADOWS.e2]}
+          style={[styles.actionBtn, SHADOWS.e2, { borderWidth: 1.5, borderColor: colors[0] }, darkText && SHADOWS.goldSoft]}
         >
-          <LinearGradient
-            colors={['rgba(255,255,255,0.28)', 'rgba(255,255,255,0)']}
-            style={styles.actionGloss}
-            pointerEvents="none"
-          />
-          <Text style={[styles.actionLabel, darkText && styles.actionLabelDark]}>{label}</Text>
+          <Text style={[styles.actionLabel, { color: colors[0] }]}>{label}</Text>
           {!!sub && (
-            <Text style={[styles.actionSub, darkText && styles.actionSubDark]}>{sub}</Text>
+            <Text style={[styles.actionSub, { color: colors[0] }]}>{sub}</Text>
           )}
         </LinearGradient>
       </Pressable>
@@ -128,6 +127,9 @@ function Seat({
 }) {
   const folded = player.status === 'folded';
   const allIn = player.status === 'all_in';
+
+  const isFriend = useFriendsStore((s) => s.isFriend(player.id));
+  const addFriend = useFriendsStore((s) => s.addFriendDirectly);
 
   const bet = player.totalRoundBet > 0 && (
     <View style={[styles.seatBet, topHalf ? styles.seatBetBelow : styles.seatBetAbove]}>
@@ -167,6 +169,29 @@ function Seat({
         )}
       </View>
 
+      {!isMe && (
+        <Pressable
+          style={[styles.addFriendBtn, isFriend && styles.addFriendBtnDone]}
+          onPress={() => {
+            if (isFriend) return;
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+            addFriend({
+              id: player.id,
+              username: player.id,
+              displayName: player.name,
+              status: 'in_game',
+            });
+          }}
+          hitSlop={6}
+        >
+          {isFriend ? (
+            <UserCheckIcon size={12} color={COLORS.emerald} />
+          ) : (
+            <UserPlusIcon size={12} color={COLORS.goldLight} />
+          )}
+        </Pressable>
+      )}
+
       {(folded || allIn) && (
         <View style={[styles.seatTag, allIn && styles.seatTagAllIn]}>
           <Text style={[styles.seatTagText, allIn && styles.seatTagTextAllIn]}>
@@ -184,38 +209,64 @@ function Seat({
 export default function PokerTableScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
-  const { isConnected, joinTable, performAction, on } = useGameSocket();
+  const { isConnected, joinTable, leaveTable, performAction, on } = useGameSocket();
+  const { isMuted, joinChannel, toggleMute, destroy } = useAgoraVoice();
 
-  // هوية هذه الجلسة — لاعب حقيقي عبر السيرفر
-  const [myId] = useState(() => `p-${Math.random().toString(36).slice(2, 9)}`);
+  // هوية هذه الجلسة — من الحساب الحقيقي (الخادم يتحقق من التوكن ويهمل أي معرّف آخر)
+  const profile = useAuthStore((s) => s.profile);
+  const myId = profile?.id ?? 'guest';
+  const myName = profile?.displayName ?? 'أنت';
   const tableId = `table-${id ?? '1'}`;
 
   const [snapshot, setSnapshot] = useState<GameSnapshot | null>(null);
   const [holeCards, setHoleCards] = useState<GameCard[]>([]);
-  const [voiceMuted, setVoiceMuted] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
 
   const errorAnim = useRef(new Animated.Value(0)).current;
+  const noticeAnim = useRef(new Animated.Value(0)).current;
   const potScale = useRef(new Animated.Value(1)).current;
 
   // --- الانضمام للطاولة ---
   useEffect(() => {
-    joinTable(tableId, myId, 'أنت');
+    joinTable(tableId, myId, myName);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tableId, myId]);
 
-  // --- الاستماع لحالة الطاولة من السيرفر ---
+  // --- مغادرة صريحة عند الخروج من الشاشة (يُزال المقعد فورًا ولا يبقى شبحًا) ---
+  useEffect(() => {
+    return () => {
+      leaveTable(tableId, myId);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tableId, myId]);
+
+  // --- الاستماع لحالة الطاولة وقناة الصوت من السيرفر ---
   useEffect(() => {
     const offState = on<GameSnapshot>('table:state', (s) => setSnapshot(s));
     const offHoles = on<{ cards: GameCard[] }>('game:holeCards', (d) => setHoleCards(d.cards ?? []));
     const offError = on<{ message: string }>('error', (d) => setError(d.message));
+    const offNotice = on<{ text: string }>('table:notice', (d) => setNotice(d.text));
+    const offVoice = on<{ appId: string; channelName: string; token: string }>(
+      'voice:token',
+      (d) => joinChannel(d.appId || AGORA_APP_ID, d.channelName, d.token)
+    );
     return () => {
       offState();
       offHoles();
       offError();
+      offNotice();
+      offVoice();
     };
-  }, [on]);
+  }, [on, joinChannel]);
+
+  // --- إتلاف محرك الصوت عند مغادرة الشاشة ---
+  useEffect(() => {
+    return () => {
+      destroy();
+    };
+  }, [destroy]);
 
   // --- نبضة عند تغيّر مجموع الرهان ---
   useEffect(() => {
@@ -235,6 +286,16 @@ export default function PokerTableScreen() {
       Animated.timing(errorAnim, { toValue: 0, duration: 220, useNativeDriver: true }),
     ]).start(() => setError(null));
   }, [error]);
+
+  // --- إظهار الإشعار ثم إخفاؤه ---
+  useEffect(() => {
+    if (!notice) return;
+    Animated.sequence([
+      Animated.timing(noticeAnim, { toValue: 1, duration: 180, useNativeDriver: true }),
+      Animated.delay(2400),
+      Animated.timing(noticeAnim, { toValue: 0, duration: 220, useNativeDriver: true }),
+    ]).start(() => setNotice(null));
+  }, [notice]);
 
   const handleAction = useCallback(
     (action: 'fold' | 'check' | 'call' | 'raise' | 'all_in' | 'bet', amount?: number) => {
@@ -257,7 +318,7 @@ export default function PokerTableScreen() {
 
   return (
     <View style={styles.container}>
-      <LinearGradient colors={['#0A1410', '#050908', '#020403']} style={StyleSheet.absoluteFill} />
+      <LinearGradient colors={[COLORS.bgSoft, COLORS.bg, COLORS.surfaceSunken]} style={StyleSheet.absoluteFill} />
 
       {/* ===== الترويسة ===== */}
       <View style={[styles.header, { paddingTop: insets.top + SPACING.sm }]}>
@@ -274,11 +335,11 @@ export default function PokerTableScreen() {
 
         <View style={styles.headerSide}>
           <Pressable
-            style={[styles.iconBtn, !voiceMuted && styles.iconBtnLive]}
-            onPress={() => setVoiceMuted((v) => !v)}
+            style={[styles.iconBtn, !isMuted && styles.iconBtnLive]}
+            onPress={() => toggleMute()}
             hitSlop={8}
           >
-            {voiceMuted ? (
+            {isMuted ? (
               <MicOffIcon size={20} color={COLORS.textDim} />
             ) : (
               <MicIcon size={20} color={COLORS.emerald} />
@@ -349,6 +410,15 @@ export default function PokerTableScreen() {
         </View>
       </View>
 
+      {/* ===== تنبيه انقطاع الاتصال ===== */}
+      {!isConnected && (
+        <View style={[styles.offlineBar, { top: insets.top + 62 }]}>
+          <Text style={styles.offlineText}>
+            جارٍ الاتصال بالخادم… إذا استمرت المشكلة تأكد من تشغيل السيرفر
+          </Text>
+        </View>
+      )}
+
       {/* ===== رسالة الخطأ ===== */}
       {!!error && (
         <Animated.View
@@ -367,10 +437,28 @@ export default function PokerTableScreen() {
         </Animated.View>
       )}
 
+      {/* ===== شريط الإشعار ===== */}
+      {!!notice && (
+        <Animated.View
+          style={[
+            styles.noticeBar,
+            {
+              top: insets.top + 62,
+              opacity: noticeAnim,
+              transform: [
+                { translateY: noticeAnim.interpolate({ inputRange: [0, 1], outputRange: [-12, 0] }) },
+              ],
+            },
+          ]}
+        >
+          <Text style={styles.noticeText}>{notice}</Text>
+        </Animated.View>
+      )}
+
       {/* ===== منطقتي ===== */}
       <View style={[styles.myArea, { paddingBottom: insets.bottom + SPACING.md }]}>
         <LinearGradient
-          colors={['rgba(2,4,3,0)', 'rgba(2,4,3,0.92)', 'rgba(2,4,3,1)']}
+          colors={['rgba(10,13,18,0)', 'rgba(10,13,18,0.92)', 'rgba(10,13,18,1)']}
           style={StyleSheet.absoluteFill}
           pointerEvents="none"
         />
@@ -403,7 +491,7 @@ export default function PokerTableScreen() {
           <View style={styles.actions}>
             <ActionButton
               label="انسحاب"
-              colors={['#F05262', '#8E1B29'] as const}
+              colors={['#b4233a', '#8e000b'] as const}
               onPress={() => handleAction('fold')}
             />
             <ActionButton
@@ -415,7 +503,7 @@ export default function PokerTableScreen() {
             <ActionButton
               label="مضاعفة"
               sub={formatNumber(Math.max((snapshot?.currentBet || 0) * 2, 80))}
-              colors={['#2FD98A', '#0B7345'] as const}
+              colors={['#8FCBB4', '#0A3D2E'] as const}
               flex={1.15}
               onPress={() => {
                 // توجيه صحيح حسب حالة الرهان + كل الرصيد عندما لا يكفي المبلغ.
@@ -463,7 +551,7 @@ export default function PokerTableScreen() {
             )}
             <ActionButton
               label="جولة جديدة"
-              colors={['#F7E7A6', '#B8912C'] as const}
+              colors={['#E3C98A', '#8C6D2F'] as const}
               darkText
               onPress={startNewHand}
             />
@@ -482,7 +570,7 @@ export default function PokerTableScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#020403' },
+  container: { flex: 1, backgroundColor: '#070A0F' },
 
   // الترويسة
   header: {
@@ -509,15 +597,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   iconBtnLive: {
-    backgroundColor: 'rgba(31,191,117,0.13)',
-    borderColor: 'rgba(31,191,117,0.45)',
+    backgroundColor: 'rgba(143,203,180,0.13)',
+    borderColor: 'rgba(143,203,180,0.45)',
   },
   headerCenter: { alignItems: 'center', gap: 1 },
   tableTitle: {
     fontFamily: FONTS.ar.bold,
     fontSize: TYPE.h3.fontSize,
     lineHeight: TYPE.h3.lineHeight,
-    color: COLORS.text,
+    color: COLORS.goldLight,
   },
   phaseText: {
     fontFamily: FONTS.ar.medium,
@@ -562,18 +650,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: SPACING.sm,
     marginTop: SPACING.lg,
-    backgroundColor: 'rgba(2,10,7,0.62)',
+    backgroundColor: 'rgba(10,13,18,0.62)',
     paddingHorizontal: SPACING.md,
     paddingVertical: 5,
     borderRadius: RADIUS.full,
     borderWidth: 1,
-    borderColor: 'rgba(212,175,55,0.32)',
+    borderColor: 'rgba(201,169,97,0.32)',
   },
   potLabel: {
     fontFamily: FONTS.ar.medium,
     fontSize: 9,
     lineHeight: 12,
-    color: 'rgba(246,242,232,0.6)',
+    color: 'rgba(218,226,253,0.6)',
     textAlign: 'right',
   },
   potValue: {
@@ -599,6 +687,20 @@ const styles = StyleSheet.create({
   seatFolded: {
     opacity: 0.42,
   },
+  addFriendBtn: {
+    marginTop: 3,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(10,13,18,0.92)',
+    borderWidth: 1,
+    borderColor: 'rgba(201,169,97,0.4)',
+  },
+  addFriendBtnDone: {
+    borderColor: 'rgba(143,203,180,0.5)',
+  },
   seatPod: {
     flexDirection: 'row-reverse',
     alignItems: 'center',
@@ -606,16 +708,16 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     paddingHorizontal: 5,
     borderRadius: RADIUS.full,
-    backgroundColor: 'rgba(3,9,7,0.9)',
+    backgroundColor: 'rgba(10,13,18,0.9)',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.09)',
   },
   seatPodActive: {
     borderColor: COLORS.gold,
-    backgroundColor: 'rgba(24,18,4,0.95)',
+    backgroundColor: 'rgba(60,47,0,0.95)',
   },
   seatPodMe: {
-    borderColor: 'rgba(212,175,55,0.5)',
+    borderColor: 'rgba(201,169,97,0.5)',
   },
   seatInfo: {
     alignItems: 'flex-end',
@@ -643,23 +745,23 @@ const styles = StyleSheet.create({
     width: 17,
     height: 17,
     borderRadius: 9,
-    backgroundColor: '#F3EDE0',
+    backgroundColor: '#fdfbf7',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#9A927F',
+    borderColor: '#89938d',
   },
   dealerBtnText: {
     fontFamily: FONTS.num.black,
     fontSize: 9,
-    color: '#1A1206',
+    color: '#3c2f00',
     includeFontPadding: false,
   },
   seatBet: {
     flexDirection: 'row-reverse',
     alignItems: 'center',
     gap: 3,
-    backgroundColor: 'rgba(2,8,6,0.7)',
+    backgroundColor: 'rgba(10,13,18,0.7)',
     paddingHorizontal: 5,
     paddingVertical: 2,
     borderRadius: RADIUS.full,
@@ -677,19 +779,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 7,
     paddingVertical: 1,
     borderRadius: RADIUS.full,
-    backgroundColor: 'rgba(226,61,77,0.18)',
+    backgroundColor: 'rgba(255,180,171,0.18)',
     borderWidth: 1,
-    borderColor: 'rgba(226,61,77,0.4)',
+    borderColor: 'rgba(255,180,171,0.4)',
   },
   seatTagAllIn: {
-    backgroundColor: 'rgba(212,175,55,0.18)',
-    borderColor: 'rgba(212,175,55,0.45)',
+    backgroundColor: 'rgba(201,169,97,0.18)',
+    borderColor: 'rgba(201,169,97,0.45)',
   },
   seatTagText: {
     fontFamily: FONTS.ar.semibold,
     fontSize: 9,
     lineHeight: 14,
-    color: '#FF8A94',
+    color: '#ffdad6',
     includeFontPadding: false,
   },
   seatTagTextAllIn: {
@@ -697,13 +799,32 @@ const styles = StyleSheet.create({
   },
 
   // التنبيه
+  offlineBar: {
+    position: 'absolute',
+    left: SPACING.xl,
+    right: SPACING.xl,
+    backgroundColor: 'rgba(60,47,0,0.97)',
+    borderWidth: 1,
+    borderColor: 'rgba(201,169,97,0.6)',
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.lg,
+    borderRadius: RADIUS.md,
+    alignItems: 'center',
+    zIndex: 65,
+  },
+  offlineText: {
+    fontFamily: FONTS.ar.semibold,
+    fontSize: TYPE.small.fontSize,
+    color: COLORS.goldLight,
+    textAlign: 'center',
+  },
   toast: {
     position: 'absolute',
     left: SPACING.xl,
     right: SPACING.xl,
-    backgroundColor: 'rgba(58,10,16,0.97)',
+    backgroundColor: 'rgba(62,0,8,0.97)',
     borderWidth: 1,
-    borderColor: 'rgba(226,61,77,0.5)',
+    borderColor: 'rgba(255,180,171,0.5)',
     paddingVertical: SPACING.md,
     paddingHorizontal: SPACING.lg,
     borderRadius: RADIUS.md,
@@ -713,7 +834,24 @@ const styles = StyleSheet.create({
   toastText: {
     fontFamily: FONTS.ar.semibold,
     fontSize: TYPE.small.fontSize,
-    color: '#FFD9DD',
+    color: '#ffdad6',
+    textAlign: 'center',
+  },
+  noticeBar: {
+    position: 'absolute',
+    alignSelf: 'center',
+    zIndex: 60,
+    backgroundColor: 'rgba(10,13,18,0.97)',
+    borderWidth: 1,
+    borderColor: 'rgba(201,169,97,0.5)',
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.sm,
+    borderRadius: RADIUS.full,
+  },
+  noticeText: {
+    fontFamily: FONTS.ar.semibold,
+    fontSize: TYPE.small.fontSize,
+    color: COLORS.goldLight,
     textAlign: 'center',
   },
 

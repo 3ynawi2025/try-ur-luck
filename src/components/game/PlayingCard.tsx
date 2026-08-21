@@ -7,7 +7,8 @@ import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Circle, Path, G, Defs, Pattern, Rect } from 'react-native-svg';
-import { RADIUS, FONTS, COLORS, GRADIENTS, SHADOWS } from '../../constants/theme';
+import { RADIUS, FONTS, COLORS, GRADIENTS, SHADOWS, SIZES } from '../../constants/theme';
+import { useReducedMotion } from '../../constants/motion';
 import SuitIcon, { SUIT_COLORS, Suit } from './SuitIcons';
 
 export type { Suit };
@@ -115,17 +116,23 @@ function CardFace({ card, w, h }: { card: Card; w: number; h: number }) {
 export default function PlayingCard({
   card,
   faceDown = false,
-  width = 60,
-  height = 84,
+  width = SIZES.cardWidth,
+  height = SIZES.cardHeight,
   animate = false,
   delay = 0,
   dimmed = false,
 }: PlayingCardProps) {
   const progress = useRef(new Animated.Value(animate ? 0 : 1)).current;
+  const reduced = useReducedMotion();
 
   useEffect(() => {
     if (!animate) return;
     progress.setValue(0);
+    // إتاحة: بلا حركة عند تقليل الحركة — البطاقة تظهر فورًا
+    if (reduced) {
+      progress.setValue(1);
+      return;
+    }
     Animated.timing(progress, {
       toValue: 1,
       duration: 340,
@@ -133,7 +140,7 @@ export default function PlayingCard({
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     }).start();
-  }, [animate, delay]);
+  }, [animate, delay, reduced]);
 
   const animStyle = animate
     ? {
@@ -184,13 +191,17 @@ const styles = StyleSheet.create({
   backFrame: {
     flex: 1,
     borderWidth: 1,
-    borderColor: 'rgba(247,231,166,0.55)',
+    borderColor: 'rgba(227,201,138,0.45)',
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
   },
   backEmblem: {
-    ...StyleSheet.absoluteFillObject,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     alignItems: 'center',
     justifyContent: 'center',
   },

@@ -33,7 +33,7 @@ export function SectionHeader({
       <View style={s.sectionTitleWrap}>
         <Text style={s.sectionTitle}>{title}</Text>
         <LinearGradient
-          colors={[COLORS.gold, 'rgba(212,175,55,0)']}
+          colors={[COLORS.gold, 'rgba(201,169,97,0)']}
           start={{ x: 1, y: 0 }}
           end={{ x: 0, y: 0 }}
           style={s.sectionRule}
@@ -60,9 +60,9 @@ export function Badge({
 }) {
   const tones = {
     neutral: { bg: 'rgba(255,255,255,0.06)', bd: COLORS.border, fg: COLORS.textDim },
-    gold: { bg: 'rgba(212,175,55,0.13)', bd: 'rgba(212,175,55,0.35)', fg: COLORS.goldLight },
-    success: { bg: 'rgba(31,191,117,0.13)', bd: 'rgba(31,191,117,0.35)', fg: '#5BE0A4' },
-    danger: { bg: 'rgba(226,61,77,0.13)', bd: 'rgba(226,61,77,0.35)', fg: '#FF8A94' },
+    gold: { bg: 'rgba(201,169,97,0.10)', bd: 'rgba(201,169,97,0.30)', fg: COLORS.goldLight },
+    success: { bg: 'rgba(149,211,186,0.13)', bd: 'rgba(149,211,186,0.35)', fg: '#b0f0d6' },
+    danger: { bg: 'rgba(255,180,171,0.13)', bd: 'rgba(255,180,171,0.35)', fg: '#ffdad6' },
     violet: { bg: 'rgba(139,92,246,0.15)', bd: 'rgba(139,92,246,0.38)', fg: '#C4B0FF' },
     info: { bg: 'rgba(63,140,255,0.13)', bd: 'rgba(63,140,255,0.35)', fg: '#8FBBFF' },
   }[tone];

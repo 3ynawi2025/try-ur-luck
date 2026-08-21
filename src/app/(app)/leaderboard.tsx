@@ -44,7 +44,7 @@ const MOCK_PLAYERS: LeaderPlayer[] = [
 ];
 
 const PODIUM_TINT: Record<number, [string, string]> = {
-  1: ['rgba(233,195,73,0.30)', 'rgba(233,195,73,0.02)'],
+  1: ['rgba(201,169,97,0.30)', 'rgba(201,169,97,0.02)'],
   2: ['rgba(185,192,202,0.24)', 'rgba(185,192,202,0.02)'],
   3: ['rgba(196,128,74,0.24)', 'rgba(196,128,74,0.02)'],
 };
@@ -176,13 +176,13 @@ function VipStatusCard({ xp, tier }: { xp: number; tier: string }) {
   return (
     <View style={styles.vipCard}>
       <LinearGradient
-        colors={['rgba(233,195,73,0.18)', 'rgba(23,31,51,0.96)', 'rgba(6,14,32,0.98)']}
+        colors={['rgba(201,169,97,0.18)', 'rgba(21,27,38,0.96)', 'rgba(10,13,18,0.98)']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={StyleSheet.absoluteFill}
       />
       <LinearGradient
-        colors={['rgba(255,224,136,0.5)', 'rgba(255,224,136,0)']}
+        colors={['rgba(227,201,138,0.5)', 'rgba(227,201,138,0)']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 0 }}
         style={StyleSheet.absoluteFill}
@@ -204,7 +204,7 @@ function VipStatusCard({ xp, tier }: { xp: number; tier: string }) {
           style={[styles.shimmer, { transform: [{ translateX }] }]}
         >
           <LinearGradient
-            colors={['rgba(233,195,73,0)', 'rgba(233,195,73,0.55)', 'rgba(233,195,73,0)']}
+            colors={['rgba(201,169,97,0)', 'rgba(201,169,97,0.55)', 'rgba(201,169,97,0)']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
             style={StyleSheet.absoluteFill}
@@ -452,7 +452,7 @@ const styles = StyleSheet.create({
   vipCard: {
     borderRadius: RADIUS.lg,
     borderWidth: 1,
-    borderColor: 'rgba(233,195,73,0.4)',
+    borderColor: 'rgba(201,169,97,0.4)',
     padding: SPACING.lg,
     overflow: 'hidden',
     gap: SPACING.md,
@@ -470,9 +470,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.xs,
     borderRadius: RADIUS.full,
-    backgroundColor: 'rgba(233,195,73,0.16)',
+    backgroundColor: 'rgba(201,169,97,0.16)',
     borderWidth: 1,
-    borderColor: 'rgba(233,195,73,0.5)',
+    borderColor: 'rgba(201,169,97,0.5)',
   },
   vipBadgeText: {
     fontFamily: FONTS.num.black,
@@ -496,7 +496,7 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.full,
     backgroundColor: 'rgba(218,226,253,0.08)',
     borderWidth: 1,
-    borderColor: 'rgba(233,195,73,0.25)',
+    borderColor: 'rgba(201,169,97,0.25)',
     overflow: 'hidden',
   },
   progressFill: {

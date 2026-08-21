@@ -1,6 +1,7 @@
 // ============================================================
 // جرب حظك — Screen
-// غلاف الشاشة: تدرّج خلفي + هالات ذهبية محيطة + منطقة آمنة
+// غلاف الشاشة: تدرّج ليلي عميق + هالة شامبين خافتة جدًا + منطقة آمنة
+// (Dark Luxe: الإضاءة خافتة — الفخامة من الهدوء)
 // ============================================================
 
 import React from 'react';
@@ -17,18 +18,18 @@ interface ScreenProps {
   safeTop?: boolean;
   /** يطبّق الحشوة السفلية — أطفئها داخل التبويبات */
   safeBottom?: boolean;
-  /** هالة ذهبية علوية — تعطي إحساس "إضاءة الصالة" */
+  /** هالة علوية خافتة — إحساس إضاءة الصالة */
   ambient?: boolean;
 }
 
-/** هالة إضاءة ناعمة أعلى الشاشة (SVG لأن RN لا يدعم التدرّج الشعاعي) */
+/** هالة شامبين خافتة أعلى الشاشة (SVG لأن RN لا يدعم التدرّج الشعاعي) */
 function AmbientGlow() {
   return (
     <Svg width="100%" height="100%" style={styles.glow} pointerEvents="none">
       <Defs>
         <RadialGradient id="halo" cx="50%" cy="0%" rx="72%" ry="100%">
-          <Stop offset="0%" stopColor={COLORS.gold} stopOpacity={0.16} />
-          <Stop offset="45%" stopColor={COLORS.felt} stopOpacity={0.09} />
+          <Stop offset="0%" stopColor={COLORS.gold} stopOpacity={0.09} />
+          <Stop offset="60%" stopColor={COLORS.gold} stopOpacity={0.03} />
           <Stop offset="100%" stopColor={COLORS.bg} stopOpacity={0} />
         </RadialGradient>
       </Defs>

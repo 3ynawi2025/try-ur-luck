@@ -12,6 +12,8 @@ import GoldButton from '../../components/ui/GoldButton';
 import PlayingCard from '../../components/game/PlayingCard';
 import { LogoMark } from '../../components/icons/GameIcons';
 import { COLORS, FONTS, TYPE, SPACING, SIZES } from '../../constants/theme';
+import { useReducedMotion } from '../../constants/motion';
+import { useAuthStore } from '../../stores/authStore';
 
 const { width } = Dimensions.get('window');
 
@@ -27,8 +29,23 @@ export default function WelcomeScreen() {
   const insets = useSafeAreaInsets();
   const enter = useRef(new Animated.Value(0)).current;
   const float = useRef(new Animated.Value(0)).current;
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const reduced = useReducedMotion();
+
+  // إذا كان المستخدم مسجلاً، ادخل مباشرة إلى التطبيق
+  useEffect(() => {
+    if (isAuthenticated) {
+      router.replace('/(app)');
+    }
+  }, [isAuthenticated]);
 
   useEffect(() => {
+    // إتاحة: بلا حركة عند تقليل الحركة — يظهر المحتوى ثابتًا
+    if (reduced) {
+      enter.setValue(1);
+      return;
+    }
+
     Animated.timing(enter, {
       toValue: 1,
       duration: 700,
@@ -54,7 +71,7 @@ export default function WelcomeScreen() {
     );
     loop.start();
     return () => loop.stop();
-  }, []);
+  }, [reduced]);
 
   const floatY = float.interpolate({ inputRange: [0, 1], outputRange: [0, -9] });
 
@@ -94,14 +111,14 @@ export default function WelcomeScreen() {
           <Text style={styles.title}>جرب حظك</Text>
           <View style={styles.ruleRow}>
             <LinearGradient
-              colors={['rgba(212,175,55,0)', COLORS.gold]}
+              colors={['rgba(201,169,97,0)', COLORS.gold]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
               style={styles.rule}
             />
             <Text style={styles.latin}>TRY UR LUCK</Text>
             <LinearGradient
-              colors={[COLORS.gold, 'rgba(212,175,55,0)']}
+              colors={[COLORS.gold, 'rgba(201,169,97,0)']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
               style={styles.rule}
@@ -122,7 +139,7 @@ export default function WelcomeScreen() {
             },
           ]}
         >
-          <GoldButton title="ابدأ الآن" onPress={() => router.push('/(auth)/phone')} />
+          <GoldButton title="ابدأ الآن" onPress={() => router.push('/(auth)/profile-setup')} />
           <Text style={styles.note}>الدراهم افتراضية بالكامل وليس لها أي قيمة نقدية</Text>
         </Animated.View>
       </View>
@@ -159,8 +176,8 @@ const styles = StyleSheet.create({
   title: {
     fontFamily: FONTS.ar.black,
     fontSize: 44,
-    lineHeight: 62,
-    color: COLORS.goldLight,
+    lineHeight: 58,
+    color: COLORS.text,
     textAlign: 'center',
     includeFontPadding: false,
   },

@@ -373,7 +373,7 @@ export interface ThreeCardSnapshot {
 
 export class ThreeCardPokerEngine {
   private config: ThreeCardConfig;
-  private rng: Rng;
+  private rng?: Rng; // undefined = CSPRNG افتراضي
   private balance: number;
   private wagers: Wagers = { ante: 0, play: 0, pairPlus: 0, sixCardBonus: 0 };
   private reservedForPlay = 0;
@@ -387,7 +387,7 @@ export class ThreeCardPokerEngine {
   constructor(balance: number, config: ThreeCardConfig = RECOMMENDED_THREE_CARD_CONFIG, rng?: Rng) {
     this.balance = balance;
     this.config = config;
-    this.rng = rng ?? Math.random;
+    this.rng = rng; // لا Math.random في الإنتاج
   }
 
   /** Place wagers. Reserves an equal amount for the Play bet (spec edge case #6). */
@@ -397,12 +397,17 @@ export class ThreeCardPokerEngine {
     const pairPlus = w.pairPlus ?? 0;
     const sixCardBonus = w.sixCardBonus ?? 0;
 
+    // منع NaN/كسور/سالب من إفساد الرصيد
+    for (const v of [ante, pairPlus, sixCardBonus]) {
+      if (!Number.isFinite(v) || v < 0 || !Number.isInteger(v)) return 'مبلغ غير صالح';
+    }
+
     if (ante === 0 && pairPlus === 0 && sixCardBonus === 0) return 'ضع رهانًا';
     if (ante > 0) {
       if (ante < this.config.minBet) return `الحد الأدنى ${this.config.minBet}`;
       if (ante > this.config.maxBet) return `الحد الأقصى ${this.config.maxBet}`;
     }
-    if (ante === 0 && sixCardBonus > 0) return 'بونص ٦ أوراق يتطلب رهانًا أساسيًا';
+    if (this.config.sixCardBonusRequiresAnte && ante === 0 && sixCardBonus > 0) return 'بونص ٦ أوراق يتطلب رهانًا أساسيًا';
     if (!this.config.allowPairPlusWithoutAnte && ante === 0 && pairPlus > 0) return 'الزوج الإضافي يتطلب رهانًا أساسيًا';
 
     const total = ante + pairPlus + sixCardBonus + ante; // ante is reserved for Play

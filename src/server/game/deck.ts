@@ -3,8 +3,6 @@
 // CSPRNG-seeded shuffle, injectable RNG for tests/simulations.
 // ============================================================
 
-import { randomInt } from 'node:crypto';
-
 export type Suit = 'hearts' | 'diamonds' | 'clubs' | 'spades';
 export type Rank = '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | '10' | 'J' | 'Q' | 'K' | 'A';
 
@@ -30,7 +28,34 @@ export function createDeck(): Card[] {
 }
 
 /**
- * Fisher-Yates shuffle driven by a CSPRNG (crypto.randomInt) by default.
+ * عدد صحيح عشوائي في [0, max) — يستخدم Web Crypto عند توفره (متصفح/Hermes)،
+ * وإلا يرجع إلى Math.random. تجنّبنا استيراد node:crypto هنا حتى يعمل الملف
+ * نفسه عند حزم تطبيق React Native (Expo) وعلى الخادم (Node).
+ */
+function randomInt(max: number): number {
+  const MAX_UINT = 0x100000000; // 2^32
+  const g = (globalThis as any).crypto as
+    | { getRandomValues?: (arr: Uint32Array) => Uint32Array }
+    | undefined;
+
+  if (g?.getRandomValues) {
+    const buf = new Uint32Array(1);
+    g.getRandomValues(buf);
+    // rejection sampling لإزالة انحياز القسمة (modulo bias)
+    const limit = MAX_UINT - (MAX_UINT % max);
+    let x = buf[0];
+    while (x >= limit) {
+      g.getRandomValues(buf);
+      x = buf[0];
+    }
+    return x % max;
+  }
+
+  return Math.floor(Math.random() * max);
+}
+
+/**
+ * Fisher-Yates shuffle driven by a CSPRNG by default.
  * Pass `rng` for deterministic tests.
  */
 export function shuffleDeck<T>(deck: T[], rng?: Rng): T[] {
@@ -76,6 +101,19 @@ export function cardToString(card: Card): string {
     hearts: '♥', diamonds: '♦', clubs: '♣', spades: '♠',
   };
   return `${card.rank}${suitSymbols[card.suit]}`;
+}
+
+/**
+ * تحقق من أن المبلغ شرائح صالحة: عدد صحيح موجب منتهٍ.
+ * يمنع NaN/Infinity/كسور من إفساد الأرصدة عبر كل المحركات.
+ */
+export function isValidChips(amount: number): boolean {
+  return Number.isFinite(amount) && Number.isInteger(amount) && amount > 0;
+}
+
+/** عدد صحيح عشوائي آمن في [0, max) — للاستخدام المباشر (روليت مثلًا). */
+export function secureRandomInt(max: number): number {
+  return randomInt(max);
 }
 
 /** Canonical card key used by the invariant checker (duplicate detection). */

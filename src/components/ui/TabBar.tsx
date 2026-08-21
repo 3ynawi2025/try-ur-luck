@@ -1,21 +1,47 @@
 // ============================================================
 // جرب حظك — TabBar
-// شريط سفلي مخصص: أيقونات SVG + مؤشر ذهبي متدرّج + لمس مرتد
+// شريط عائم زجاجي: حدود شعرية + مؤشر شامبين هادئ + لمس مرتد
 // ============================================================
 
 import React, { useEffect, useRef } from 'react';
 import { View, Text, Pressable, StyleSheet, Animated, Platform } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
-import { COLORS, FONTS, TYPE, SPACING, SIZES, RADIUS } from '../../constants/theme';
-import { HomeIcon, CardsIcon, TrophyIcon, UserIcon, IconProps } from '../icons/GameIcons';
+import { COLORS, FONTS, TYPE, SPACING, SIZES, RADIUS, ANIMATION } from '../../constants/theme';
+import { HomeIcon, CardsIcon, TrophyIcon, UserIcon, UsersIcon, IconProps } from '../icons/GameIcons';
+
+/**
+ * نوع بنيوي مبسّط لخصائص شريط التبويبات.
+ * نعرّفه محلياً بدل استيراد `BottomTabBarProps` لأن expo-router في SDK 57
+ * يضم نسخة مضمنة (vendored) من react-navigation تتعارض أنواعها مع النسخة
+ * المثبتة في node_modules.
+ */
+type TabBarProps = {
+  state: {
+    index: number;
+    routes: Array<{ key: string; name: string }>;
+  };
+  descriptors: Record<
+    string,
+    {
+      options: {
+        tabBarStyle?: unknown;
+        href?: unknown;
+        title?: unknown;
+      };
+    }
+  >;
+  // نترك navigation عاماً لأن توقيع emit/navigate يختلف بين نسخة
+  // expo-router المضمنة والنسخة المثبتة من react-navigation.
+  navigation: any;
+};
 
 const ICONS: Record<string, React.FC<IconProps>> = {
   index: HomeIcon,
   tables: CardsIcon,
   leaderboard: TrophyIcon,
+  friends: UsersIcon,
   profile: UserIcon,
 };
 
@@ -36,8 +62,9 @@ function TabItem({
     Animated.spring(anim, {
       toValue: focused ? 1 : 0,
       useNativeDriver: true,
-      speed: 20,
-      bounciness: 8,
+      damping: ANIMATION.springSoft.damping,
+      stiffness: ANIMATION.springSoft.stiffness,
+      mass: ANIMATION.springSoft.mass,
     }).start();
   }, [focused]);
 
@@ -52,22 +79,17 @@ function TabItem({
       }}
       hitSlop={6}
     >
-      {/* وهج خلف التبويب النشط */}
+      {/* كبسولة خافتة خلف التبويب النشط */}
       <Animated.View
         pointerEvents="none"
         style={[
           styles.activeHalo,
           {
             opacity: anim,
-            transform: [{ scale: anim.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1] }) }],
+            transform: [{ scale: anim.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1] }) }],
           },
         ]}
-      >
-        <LinearGradient
-          colors={['rgba(212,175,55,0.22)', 'rgba(212,175,55,0)']}
-          style={StyleSheet.absoluteFill}
-        />
-      </Animated.View>
+      />
 
       <Animated.View
         style={{
@@ -76,7 +98,7 @@ function TabItem({
           ],
         }}
       >
-        <Icon size={23} color={focused ? COLORS.gold : COLORS.textFaint} filled={focused} />
+        <Icon size={22} color={focused ? COLORS.goldLight : COLORS.textFaint} filled={focused} />
       </Animated.View>
 
       <Text style={[styles.label, focused && styles.labelActive]} numberOfLines={1}>
@@ -85,19 +107,23 @@ function TabItem({
 
       {/* شرطة المؤشر */}
       <Animated.View
-        style={[
-          styles.indicator,
+        style={
           {
             opacity: anim,
             transform: [{ scaleX: anim }],
-          },
-        ]}
+            marginTop: 3,
+            width: 16,
+            height: 2,
+            borderRadius: 2,
+            backgroundColor: COLORS.gold,
+          } as any
+        }
       />
     </Pressable>
   );
 }
 
-export default function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
+export default function TabBar({ state, descriptors, navigation }: TabBarProps) {
   const insets = useSafeAreaInsets();
 
   // شاشات اللعب تطلب إخفاء الشريط عبر tabBarStyle.display
@@ -109,102 +135,91 @@ export default function TabBar({ state, descriptors, navigation }: BottomTabBarP
 
   return (
     <View style={[styles.bar, { paddingBottom: Math.max(insets.bottom, SPACING.sm) }]}>
-      <LinearGradient
-        colors={['rgba(10,18,14,0.94)', 'rgba(4,7,6,0.99)']}
-        style={StyleSheet.absoluteFill}
-      />
-      {/* خيط ذهبي علوي */}
-      <LinearGradient
-        colors={['rgba(212,175,55,0)', 'rgba(212,175,55,0.5)', 'rgba(212,175,55,0)']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0 }}
-        style={styles.topRule}
-      />
+      {/* خلفية زجاجية عائمة */}
+      <BlurView intensity={34} tint="dark" style={styles.blurSurface}>
+        <View style={styles.row}>
+          {state.routes.map((route, index) => {
+            const { options } = descriptors[route.key];
+            // التبويبات المخفية (href: null من expo-router) لا تُعرض
+            if ((options as { href?: string | null }).href === null) return null;
 
-      <View style={styles.row}>
-        {state.routes.map((route, index) => {
-          const { options } = descriptors[route.key];
-          // التبويبات المخفية (href: null من expo-router) لا تُعرض
-          if ((options as { href?: string | null }).href === null) return null;
+            const Icon = ICONS[route.name];
+            if (!Icon) return null;
 
-          const Icon = ICONS[route.name];
-          if (!Icon) return null;
+            const focused = state.index === index;
+            const label =
+              typeof options.title === 'string' ? options.title : route.name;
 
-          const focused = state.index === index;
-          const label =
-            typeof options.title === 'string' ? options.title : route.name;
-
-          return (
-            <TabItem
-              key={route.key}
-              label={label}
-              focused={focused}
-              Icon={Icon}
-              onPress={() => {
-                const event = navigation.emit({
-                  type: 'tabPress',
-                  target: route.key,
-                  canPreventDefault: true,
-                });
-                if (!focused && !event.defaultPrevented) {
-                  navigation.navigate(route.name);
-                }
-              }}
-            />
-          );
-        })}
-      </View>
+            return (
+              <TabItem
+                key={route.key}
+                label={label}
+                focused={focused}
+                Icon={Icon}
+                onPress={() => {
+                  const event = navigation.emit({
+                    type: 'tabPress',
+                    target: route.key,
+                    canPreventDefault: true,
+                  });
+                  if (!focused && !event.defaultPrevented) {
+                    navigation.navigate(route.name);
+                  }
+                }}
+              />
+            );
+          })}
+        </View>
+      </BlurView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   bar: {
-    paddingTop: SPACING.sm + 2,
-    overflow: 'hidden',
+    paddingTop: SPACING.sm,
   },
-  topRule: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 1,
+  blurSurface: {
+    marginHorizontal: SPACING.md,
+    marginTop: SPACING.xs,
+    borderRadius: RADIUS.lg,
+    borderWidth: StyleSheet.hairlineWidth * 2,
+    borderColor: COLORS.borderStrong,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(16,21,30,0.55)',
+    ...{ shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.4, shadowRadius: 14, elevation: 8 },
   },
   row: {
     flexDirection: 'row-reverse',
     alignItems: 'flex-start',
     justifyContent: 'space-around',
-    minHeight: SIZES.tabBarHeight - 20,
+    minHeight: SIZES.tabBarHeight - 24,
   },
   item: {
     flex: 1,
     alignItems: 'center',
     gap: 4,
-    paddingTop: 6,
+    paddingTop: 8,
+    paddingBottom: 6,
   },
   activeHalo: {
     position: 'absolute',
-    top: -10,
-    width: 62,
+    top: -2,
+    width: 60,
     height: 44,
     borderRadius: RADIUS.full,
-    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: COLORS.hairlineGold,
+    backgroundColor: 'rgba(201,169,97,0.08)',
   },
   label: {
     fontFamily: FONTS.ar.semibold,
-    fontSize: TYPE.micro.fontSize + 0.5,
+    fontSize: TYPE.micro.fontSize,
     lineHeight: TYPE.micro.lineHeight,
     color: COLORS.textFaint,
     includeFontPadding: false,
   },
   labelActive: {
     color: COLORS.goldLight,
-  },
-  indicator: {
-    marginTop: 3,
-    width: 18,
-    height: 2,
-    borderRadius: 2,
-    backgroundColor: COLORS.gold,
   },
 });

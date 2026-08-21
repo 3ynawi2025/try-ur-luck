@@ -96,7 +96,7 @@ const styles = StyleSheet.create({
   },
   fieldFocused: {
     borderColor: COLORS.gold,
-    backgroundColor: 'rgba(212,175,55,0.05)',
+    backgroundColor: 'rgba(201,169,97,0.05)',
   },
   fieldError: {
     borderColor: COLORS.crimson,

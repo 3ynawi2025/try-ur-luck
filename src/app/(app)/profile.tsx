@@ -2,9 +2,9 @@
 // جرب حظك — الملف الشخصي
 // ============================================================
 
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
-import { router } from 'expo-router';
+import React, { useCallback, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, Pressable, Modal, TextInput } from 'react-native';
+import { router, useFocusEffect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import Screen from '../../components/ui/Screen';
 import GlassCard from '../../components/ui/GlassCard';
@@ -19,6 +19,8 @@ import {
   LogoutIcon,
   ChevronIcon,
   CrownIcon,
+  UsersIcon,
+  CloseIcon,
 } from '../../components/icons/GameIcons';
 import {
   COLORS,
@@ -30,15 +32,28 @@ import {
   SHADOWS,
   formatNumber,
 } from '../../constants/theme';
+import { useAuthStore } from '../../stores/authStore';
+import { apiFetch } from '../../lib/api';
 
-const STATS = { games: 15, wins: 8, winRate: 53 };
+interface TxRow {
+  id: string;
+  type: string;
+  amount: number;
+  description: string;
+  date: string;
+}
 
-const TRANSACTIONS = [
-  { id: '1', type: 'win', amount: 500, description: 'فوز في طاولة الرياض', date: 'منذ ساعتين' },
-  { id: '2', type: 'loss', amount: -200, description: 'خسارة في بلاك جاك', date: 'منذ ٥ ساعات' },
-  { id: '3', type: 'refill', amount: 10000, description: 'التجديد الأسبوعي', date: 'الجمعة' },
-  { id: '4', type: 'win', amount: 1200, description: 'فوز في طاولة VIP', date: 'الخميس' },
-];
+/** تنسيق نسبي للوقت (منذ X دقيقة/ساعة/يوم) */
+function relativeTime(iso?: string): string {
+  if (!iso) return '';
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return '';
+  const minutes = Math.max(1, Math.round((Date.now() - t) / 60000));
+  if (minutes < 60) return `منذ ${minutes} دقيقة`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `منذ ${hours} ساعة`;
+  return `منذ ${Math.round(hours / 24)} يوم`;
+}
 
 function MenuRow({
   icon,
@@ -63,13 +78,69 @@ function MenuRow({
 }
 
 export default function ProfileScreen() {
-  const [user] = useState({
-    username: '@ahmad',
-    displayName: 'أحمد',
-    balance: 10250,
-    nextRefill: 'الجمعة ١٢:٠٠ ظهراً',
-    rank: 4,
-  });
+  const profile = useAuthStore((s) => s.profile);
+  const bindEmail = useAuthStore((s) => s.bindEmail);
+  const signOut = useAuthStore((s) => s.signOut);
+  const [emailModal, setEmailModal] = useState(false);
+  const [emailDraft, setEmailDraft] = useState('');
+  const [balance, setBalance] = useState<number | null>(null);
+  const [txs, setTxs] = useState<TxRow[]>([]);
+
+  // بيانات حقيقية من السيرفر (مصادقة بالتوكن) عند كل زيارة للشاشة
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      (async () => {
+        try {
+          const p = await apiFetch<{ balance?: number }>('/api/profile');
+          if (!cancelled && p && typeof p.balance === 'number') {
+            setBalance(Math.max(0, Number(p.balance)));
+          }
+        } catch {
+          /* وضع ضيف — لا بروفايل */
+        }
+        try {
+          const t = await apiFetch<any[]>('/api/transactions');
+          if (!cancelled && Array.isArray(t)) {
+            setTxs(
+              t.slice(0, 6).map((row, i) => ({
+                id: String(row.id ?? i),
+                type: String(row.type ?? ''),
+                amount: Number(row.amount ?? 0),
+                description: String(row.description ?? 'عملية'),
+                date: relativeTime(row.created_at),
+              }))
+            );
+          }
+        } catch {
+          /* وضع ضيف */
+        }
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }, [])
+  );
+
+  const displayName = profile?.displayName ?? 'لاعب';
+  const username = profile ? `@${profile.username}` : '@guest';
+  const shownBalance = balance ?? 0;
+  const nextRefill = 'الجمعة ١٢:٠٠ ظهراً';
+  const rank = 4;
+
+  // إحصائيات محسوبة من المعاملات الحقيقية
+  const winCount = txs.filter((t) => t.type === 'win').length;
+  const lossCount = txs.filter((t) => t.type === 'loss').length;
+  const gameCount = winCount + lossCount;
+  const winRate = gameCount > 0 ? Math.round((winCount / gameCount) * 100) : 0;
+
+  const submitEmail = () => {
+    const v = emailDraft.trim();
+    if (!v || !v.includes('@')) return;
+    bindEmail(v);
+    setEmailModal(false);
+    setEmailDraft('');
+  };
 
   return (
     <Screen>
@@ -81,16 +152,16 @@ export default function ProfileScreen() {
         {/* ===== الهوية ===== */}
         <View style={[styles.hero, SHADOWS.e2]}>
           <LinearGradient
-            colors={['rgba(212,175,55,0.16)', 'rgba(17,26,21,0.6)']}
+            colors={['rgba(201,169,97,0.16)', 'rgba(21,27,38,0.6)']}
             start={{ x: 0.5, y: 0 }}
             end={{ x: 0.5, y: 1 }}
             style={StyleSheet.absoluteFill}
           />
-          <Avatar name={user.displayName} size={SIZES.avatarXl} showBorder />
-          <Text style={styles.name}>{user.displayName}</Text>
-          <Text style={styles.username}>{user.username}</Text>
+          <Avatar name={displayName} size={SIZES.avatarXl} showBorder />
+          <Text style={styles.name}>{displayName}</Text>
+          <Text style={styles.username}>{username}</Text>
           <Badge
-            label={`المركز ${user.rank} هذا الأسبوع`}
+            label={`المركز ${rank} هذا الأسبوع`}
             tone="gold"
             icon={<CrownIcon size={13} color={COLORS.goldLight} />}
           />
@@ -100,12 +171,12 @@ export default function ProfileScreen() {
         <GlassCard variant="gold" padding={SPACING.xl} style={styles.block}>
           <Text style={styles.blockLabel}>رصيدك الحالي</Text>
           <View style={styles.balanceRow}>
-            <Chip amount={5000} size={44} stacked />
-            <Text style={styles.balance}>{formatNumber(user.balance)}</Text>
+            <Chip amount={Math.max(1000, shownBalance)} size={44} stacked />
+            <Text style={styles.balance}>{formatNumber(shownBalance)}</Text>
           </View>
           <View style={styles.refillRow}>
             <ClockIcon size={14} color={COLORS.textDim} />
-            <Text style={styles.refillText}>التجديد القادم: {user.nextRefill}</Text>
+            <Text style={styles.refillText}>التجديد القادم: {nextRefill}</Text>
           </View>
         </GlassCard>
 
@@ -113,45 +184,58 @@ export default function ProfileScreen() {
         <GlassCard padding={SPACING.xl} style={styles.block}>
           <Text style={styles.blockTitle}>إحصائياتي</Text>
           <View style={styles.statsRow}>
-            <StatTile value={STATS.games} label="مباراة" />
+            <StatTile value={gameCount} label="مباراة" />
             <View style={styles.vRule} />
-            <StatTile value={STATS.wins} label="انتصار" tone={COLORS.goldLight} />
+            <StatTile value={winCount} label="انتصار" tone={COLORS.goldLight} />
             <View style={styles.vRule} />
-            <StatTile value={`${STATS.winRate}%`} label="نسبة الفوز" tone={COLORS.emerald} />
+            <StatTile value={`${winRate}%`} label="نسبة الفوز" tone={COLORS.emerald} />
           </View>
         </GlassCard>
 
         {/* ===== العمليات ===== */}
         <GlassCard padding={SPACING.xl} style={styles.block}>
           <Text style={styles.blockTitle}>آخر العمليات</Text>
-          {TRANSACTIONS.map((tx, i) => (
-            <View key={tx.id}>
-              {i > 0 && <Divider />}
-              <View style={styles.tx}>
-                <View style={styles.txInfo}>
-                  <Text style={styles.txDesc}>{tx.description}</Text>
-                  <Text style={styles.txDate}>{tx.date}</Text>
+          {txs.length === 0 ? (
+            <Text style={styles.txDate}>لا توجد عمليات بعد</Text>
+          ) : (
+            txs.map((tx, i) => (
+              <View key={tx.id}>
+                {i > 0 && <Divider />}
+                <View style={styles.tx}>
+                  <View style={styles.txInfo}>
+                    <Text style={styles.txDesc}>{tx.description}</Text>
+                    <Text style={styles.txDate}>{tx.date}</Text>
+                  </View>
+                  <Text
+                    style={[
+                      styles.txAmount,
+                      tx.amount > 0 ? styles.txPositive : styles.txNegative,
+                    ]}
+                  >
+                    {tx.amount > 0 ? '+' : '−'}
+                    {formatNumber(Math.abs(tx.amount))}
+                  </Text>
                 </View>
-                <Text
-                  style={[
-                    styles.txAmount,
-                    tx.amount > 0 ? styles.txPositive : styles.txNegative,
-                  ]}
-                >
-                  {tx.amount > 0 ? '+' : '−'}
-                  {formatNumber(Math.abs(tx.amount))}
-                </Text>
               </View>
-            </View>
-          ))}
+            ))
+          )}
         </GlassCard>
 
         {/* ===== القائمة ===== */}
         <GlassCard padding={SPACING.sm} style={styles.block}>
           <MenuRow
+            icon={<UsersIcon size={19} color={COLORS.textDim} />}
+            label="الأصدقاء"
+            onPress={() => router.push('/(app)/friends')}
+          />
+          <Divider />
+          <MenuRow
             icon={<EditIcon size={19} color={COLORS.textDim} />}
-            label="تعديل الملف الشخصي"
-            onPress={() => {}}
+            label={profile?.email ? `بريدك: ${profile.email}` : 'ربط البريد لتثبيت الحساب'}
+            onPress={() => {
+              setEmailDraft(profile?.email ?? '');
+              setEmailModal(true);
+            }}
           />
           <Divider />
           <MenuRow
@@ -164,8 +248,11 @@ export default function ProfileScreen() {
         <GoldButton
           title="تسجيل الخروج"
           variant="danger"
-          icon={<LogoutIcon size={18} color="#FF8A94" />}
-          onPress={() => router.replace('/(auth)')}
+          icon={<LogoutIcon size={18} color="#ffdad6" />}
+          onPress={() => {
+            signOut();
+            router.replace('/(auth)');
+          }}
           style={styles.logout}
         />
 
@@ -173,6 +260,48 @@ export default function ProfileScreen() {
           الدراهم افتراضية بالكامل وليس لها أي قيمة نقدية
         </Text>
       </ScrollView>
+
+      {/* ===== نافذة ربط البريد ===== */}
+      <Modal
+        visible={emailModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setEmailModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setEmailModal(false)} />
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>ربط البريد الإلكتروني</Text>
+              <Pressable style={styles.modalClose} onPress={() => setEmailModal(false)} hitSlop={8}>
+                <CloseIcon size={18} color={COLORS.textDim} />
+              </Pressable>
+            </View>
+            <Text style={styles.modalDesc}>
+              اربط بريدك لحفظ حسابك واسترجاعه إذا غيّرت جهازك
+            </Text>
+            <View style={styles.modalInputWrap}>
+              <TextInput
+                style={styles.modalInput}
+                placeholder="example@email.com"
+                placeholderTextColor={COLORS.textFaint}
+                selectionColor={COLORS.gold}
+                value={emailDraft}
+                onChangeText={setEmailDraft}
+                autoCapitalize="none"
+                keyboardType="email-address"
+                autoFocus
+              />
+            </View>
+            <GoldButton
+              title="حفظ البريد"
+              onPress={submitEmail}
+              disabled={!emailDraft.includes('@')}
+              style={styles.modalCta}
+            />
+          </View>
+        </View>
+      </Modal>
     </Screen>
   );
 }
@@ -317,6 +446,67 @@ const styles = StyleSheet.create({
   logout: {
     marginTop: SPACING.xl,
   },
+
+  // ===== نافذة ربط البريد =====
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(10,13,18,0.72)',
+    justifyContent: 'center',
+    paddingHorizontal: SPACING.xl,
+  },
+  modalCard: {
+    backgroundColor: COLORS.bgSoft,
+    borderRadius: RADIUS.xl,
+    padding: SPACING.xl,
+    borderWidth: 1,
+    borderColor: COLORS.borderStrong,
+    gap: SPACING.md,
+  },
+  modalHeader: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  modalTitle: {
+    fontFamily: FONTS.ar.bold,
+    fontSize: TYPE.h3.fontSize,
+    color: COLORS.text,
+  },
+  modalClose: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  modalDesc: {
+    fontFamily: FONTS.ar.regular,
+    fontSize: TYPE.small.fontSize,
+    color: COLORS.textDim,
+    lineHeight: TYPE.small.lineHeight,
+  },
+  modalInputWrap: {
+    backgroundColor: COLORS.surfaceSunken,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingHorizontal: SPACING.lg,
+    height: 54,
+    justifyContent: 'center',
+  },
+  modalInput: {
+    color: COLORS.text,
+    fontFamily: FONTS.ar.medium,
+    fontSize: TYPE.body.fontSize,
+    textAlign: 'right',
+  },
+  modalCta: {
+    marginTop: SPACING.sm,
+  },
+
   disclaimer: {
     fontFamily: FONTS.ar.regular,
     fontSize: TYPE.caption.fontSize,

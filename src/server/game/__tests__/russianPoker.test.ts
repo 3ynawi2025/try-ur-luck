@@ -358,3 +358,34 @@ describe('russian engine', () => {
     expect(snap.balance).toBe(700); // 1000 - 100 - 200
   });
 });
+
+// ============================================================
+// Input validation + exchange dedupe (hardening)
+// ============================================================
+
+describe('russian input validation & exchange dedupe', () => {
+  it('rejects NaN / fractional ante without corrupting balance', () => {
+    const { engine } = makeEngine([]);
+    expect(engine.placeAnte(NaN)).toBe('مبلغ غير صالح');
+    expect(engine.placeAnte(10.5)).toBe('مبلغ غير صالح');
+    expect(engine.snapshot().balance).toBe(1000);
+  });
+
+  it('exchange dedupes duplicate card ids (no burned card)', () => {
+    const { engine, deal } = makeEngine([
+      C('2', 'spades'), C('7', 'hearts'), C('9', 'diamonds'), C('J', 'clubs'), C('4', 'spades'), // player
+      C('K', 'spades'), C('K', 'clubs'), C('9', 'hearts'), C('5', 'diamonds'), C('2', 'clubs'), // dealer
+      C('A', 'spades'), // spare — البطاقة البديلة الوحيدة
+    ]);
+    expect(engine.placeAnte(100)).toBeNull();
+    deal();
+    const before = engine.snapshot().playerCards.map((c) => `${c.rank}-${c.suit}`);
+    const id = before[0];
+    expect(engine.exchange([id, id])).toBeNull(); // قبل الإصلاح: كان يُحرق البطاقة الثانية
+    const after = engine.snapshot().playerCards;
+    expect(after.length).toBe(5);
+    expect(after[0].rank === 'A' && after[0].suit === 'spades').toBe(true);
+    expect(after.slice(1).map((c) => `${c.rank}-${c.suit}`)).toEqual(before.slice(1));
+    expect(engine.snapshot().hasExchanged).toBe(true);
+  });
+});

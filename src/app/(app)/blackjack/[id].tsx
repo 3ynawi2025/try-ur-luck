@@ -1,104 +1,65 @@
 // ============================================================
-// جرب حظك — طاولة بلاك جاك (لعبة حقيقية ضد الموزع)
-// نفس التصميم الأصلي + ربط بمحرك BlackjackEngine الحقيقي.
+// جرب حظك — طاولة بلاك جاك (Dark Luxe)
+// لعبة حقيقية ضد الموزع عبر محرك BlackjackEngine على السيرفر.
+// الشاشة مبنية على الغلاف المشترك SoloGameScreen.
 // ============================================================
 
-import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, Animated, ScrollView } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import Avatar from '../../../components/ui/Avatar';
 import Chip from '../../../components/ui/Chip';
 import GoldButton from '../../../components/ui/GoldButton';
 import PlayingCard, { Card as PCard } from '../../../components/game/PlayingCard';
 import FeltTable from '../../../components/game/FeltTable';
+import ActionButton from '../../../components/game/ActionButton';
+import SoloGameScreen from '../../../components/game/SoloGameScreen';
 import InstructionsModal from '../../../components/game/InstructionsModal';
-import { BackIcon, MicIcon, MicOffIcon, InfoIcon } from '../../../components/icons/GameIcons';
-import {
-  BlackjackEngine,
-  DEFAULT_BLACKJACK_CONFIG,
-  BlackjackSnapshot,
-  BlackjackHand,
-} from '../../../server/game/blackjack';
-import { Card } from '../../../server/game/deck';
+import { useSoloGame } from '../../../hooks/useSoloGame';
+import { useErrorToast } from '../../../hooks/useErrorToast';
+import { BlackjackSnapshot, BlackjackHand } from '../../../server/game/blackjack';
+import { Card, getRankValue } from '../../../server/game/deck';
 import {
   COLORS,
   FONTS,
   TYPE,
   SPACING,
   RADIUS,
-  SHADOWS,
   formatCompact,
 } from '../../../constants/theme';
 
 // ===== حالة اليد وألوانها =====
 const STATUS_TONE: Record<string, { bg: string; bd: string; fg: string; label: string }> = {
-  playing: { bg: 'rgba(212,175,55,0.16)', bd: 'rgba(212,175,55,0.45)', fg: COLORS.goldLight, label: 'دورك' },
-  stood: { bg: 'rgba(31,191,117,0.14)', bd: 'rgba(31,191,117,0.4)', fg: '#5BE0A4', label: 'وقف' },
-  bust: { bg: 'rgba(226,61,77,0.15)', bd: 'rgba(226,61,77,0.42)', fg: '#FF8A94', label: 'احترق' },
-  blackjack: { bg: 'rgba(212,175,55,0.2)', bd: 'rgba(212,175,55,0.6)', fg: COLORS.goldLight, label: 'بلاك جاك' },
-  charlie: { bg: 'rgba(31,191,117,0.18)', bd: 'rgba(31,191,117,0.5)', fg: '#5BE0A4', label: 'خمس أوراق' },
-  surrendered: { bg: 'rgba(255,255,255,0.08)', bd: 'rgba(255,255,255,0.2)', fg: COLORS.textDim, label: 'استسلام' },
+  playing: { bg: 'rgba(201,169,97,0.10)', bd: 'rgba(201,169,97,0.35)', fg: COLORS.goldLight, label: 'دورك' },
+  stood: { bg: 'rgba(143,203,180,0.10)', bd: 'rgba(143,203,180,0.35)', fg: COLORS.emerald, label: 'وقف' },
+  bust: { bg: 'rgba(232,169,160,0.10)', bd: 'rgba(232,169,160,0.35)', fg: COLORS.crimson, label: 'احترق' },
+  blackjack: { bg: 'rgba(201,169,97,0.14)', bd: 'rgba(201,169,97,0.5)', fg: COLORS.goldLight, label: 'بلاك جاك' },
+  charlie: { bg: 'rgba(143,203,180,0.12)', bd: 'rgba(143,203,180,0.4)', fg: COLORS.emerald, label: 'خمس أوراق' },
+  surrendered: { bg: 'rgba(255,255,255,0.06)', bd: 'rgba(255,255,255,0.16)', fg: COLORS.textDim, label: 'استسلام' },
 };
 
-const RESULT_LABEL: Record<string, string> = {
-  win: 'ربحت',
-  lose: 'خسرت',
-  push: 'تعادل — أُعيد رهانك',
-  blackjack: 'بلاك جاك! ٣:٢',
-  charlie: 'خمس أوراق — فوز فوري',
-  surrender: 'استسلام — نصف الرهان',
-};
+const toPCard = (c: Card): PCard => ({ rank: c.rank, suit: c.suit });
 
-function ActionButton({
-  label,
-  sub,
-  colors,
-  onPress,
-  flex = 1,
-  darkText = false,
-}: {
-  label: string;
-  sub?: string;
-  colors: readonly [string, string];
-  onPress: () => void;
-  flex?: number;
-  /** نص داكن — للأزرار الذهبية الفاتحة */
-  darkText?: boolean;
-}) {
-  const scale = useRef(new Animated.Value(1)).current;
-  const to = (v: number) =>
-    Animated.spring(scale, { toValue: v, useNativeDriver: true, speed: 50, bounciness: 6 }).start();
-
-  return (
-    <Animated.View style={{ flex, transform: [{ scale }] }}>
-      <Pressable
-        onPress={() => {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-          onPress();
-        }}
-        onPressIn={() => to(0.95)}
-        onPressOut={() => to(1)}
-      >
-        <LinearGradient
-          colors={colors}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 0, y: 1 }}
-          style={[styles.actionBtn, SHADOWS.e2]}
-        >
-          <LinearGradient
-            colors={['rgba(255,255,255,0.26)', 'rgba(255,255,255,0)']}
-            style={styles.actionGloss}
-            pointerEvents="none"
-          />
-          <Text style={[styles.actionLabel, darkText && styles.actionLabelDark]}>{label}</Text>
-          {!!sub && <Text style={[styles.actionSub, darkText && styles.actionLabelDark]}>{sub}</Text>}
-        </LinearGradient>
-      </Pressable>
-    </Animated.View>
-  );
+function handTotal(cards: Card[]): number {
+  let total = 0;
+  let aces = 0;
+  for (const c of cards) {
+    const v = getRankValue(c.rank);
+    if (v === 14) {
+      aces++;
+      total += 11;
+    } else if (v >= 10) {
+      total += 10;
+    } else {
+      total += v;
+    }
+  }
+  while (total > 21 && aces > 0) {
+    total -= 10;
+    aces--;
+  }
+  return total;
 }
 
 function ScoreBubble({ score, tone }: { score: number | string; tone?: string }) {
@@ -109,72 +70,47 @@ function ScoreBubble({ score, tone }: { score: number | string; tone?: string })
   );
 }
 
-const toPCard = (c: Card): PCard => ({ rank: c.rank, suit: c.suit });
-
 export default function BlackjackScreen() {
-  useLocalSearchParams<{ id: string }>();
-  const insets = useSafeAreaInsets();
-  const [voiceMuted, setVoiceMuted] = useState(true);
+  const { id } = useLocalSearchParams<{ id: string }>();
   const [helpOpen, setHelpOpen] = useState(false);
-
-  // ===== المحرك الحقيقي (لاعب واحد ضد الموزع) =====
-  const [engine] = useState(() => new BlackjackEngine({ ...DEFAULT_BLACKJACK_CONFIG }));
-  const [snap, setSnap] = useState<BlackjackSnapshot>(() => engine.snapshot());
   const [bet, setBet] = useState(100);
-  const [error, setError] = useState<string | null>(null);
-  const errorAnim = useRef(new Animated.Value(0)).current;
 
-  useEffect(() => {
-    engine.addPlayer('me', 'أنت', 10000);
-    setSnap(engine.snapshot());
-  }, [engine]);
+  const { showError, errorNode } = useErrorToast();
+  const { snapshot, sendAction } = useSoloGame('blackjack', `bj-${id ?? '1'}`, showError);
 
-  useEffect(() => {
-    if (!error) return;
-    Animated.sequence([
-      Animated.timing(errorAnim, { toValue: 1, duration: 180, useNativeDriver: true }),
-      Animated.delay(1900),
-      Animated.timing(errorAnim, { toValue: 0, duration: 220, useNativeDriver: true }),
-    ]).start(() => setError(null));
-  }, [error, errorAnim]);
-
-  const refresh = () => setSnap(engine.snapshot());
+  const EMPTY_SNAP: BlackjackSnapshot = {
+    phase: 'betting',
+    players: [],
+    dealerCards: [],
+    dealerRevealed: false,
+    dealerScore: null,
+    deckRemaining: 0,
+    reshufflePending: false,
+    currentPlayerId: null,
+    insuranceOffered: false,
+    roundNumber: 0,
+  };
+  const snap: BlackjackSnapshot = (snapshot as BlackjackSnapshot) ?? EMPTY_SNAP;
 
   const me = snap.players[0];
   const activeHand: BlackjackHand | undefined = me?.hands[me.activeHandIndex] ?? me?.hands[0];
   const dealerScore = snap.dealerScore?.total ?? 0;
-  const myScore = activeHand ? engine.calculateScore(activeHand.cards).total : 0;
+  const myScore = activeHand ? handTotal(activeHand.cards) : 0;
 
   // ===== الإجراءات =====
-  const deal = () => {
-    const e = engine.placeBet('me', bet);
-    if (e) return setError(e);
-    const r = engine.startRound();
-    if ('error' in r) return setError(r.error);
-    refresh();
-  };
+  const deal = () => sendAction('bet', { amount: bet });
 
   const act = (action: 'hit' | 'stand' | 'double' | 'split' | 'surrender') => {
-    const r = engine.performAction('me', action);
-    if ('error' in r) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
-      return setError(r.error);
-    }
-    refresh();
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    sendAction(action);
   };
 
   const takeInsurance = (wants: boolean) => {
-    if (wants) {
-      const stake = Math.min(Math.floor(bet / 2), me?.balance ?? 0);
-      const e = engine.takeInsurance('me', stake);
-      if (e) return setError(e);
-    } else {
-      const e = engine.declineInsurance('me');
-      if (e) return setError(e);
-    }
-    const r = engine.finishInsurance();
-    if ('error' in r) return setError(r.error);
-    refresh();
+    sendAction('insurance', {
+      wants,
+      amount: Math.floor((activeHand?.bet ?? bet) / 2),
+      mainBet: activeHand?.bet ?? bet,
+    });
   };
 
   const canDouble =
@@ -199,50 +135,102 @@ export default function BlackjackScreen() {
 
   const handCount = me?.hands.length ?? 1;
 
-  return (
-    <View style={styles.container}>
-      <LinearGradient colors={['#0A1410', '#050908', '#020403']} style={StyleSheet.absoluteFill} />
+  const phaseText =
+    snap.phase === 'betting'
+      ? 'ضع رهانك'
+      : snap.phase === 'insurance'
+      ? 'الموزع يُظهر آص — تأمين؟'
+      : snap.phase === 'playing'
+      ? 'الموزع يقف على ١٧'
+      : 'انتهت الجولة';
 
-      {/* ===== الترويسة ===== */}
-      <View style={[styles.header, { paddingTop: insets.top + SPACING.sm }]}>
-        <Pressable style={styles.iconBtn} onPress={() => router.back()} hitSlop={8}>
-          <BackIcon size={20} color={COLORS.text} />
-        </Pressable>
-        <View style={styles.headerCenter}>
-          <Text style={styles.tableTitle}>بلاك جاك</Text>
-          <Text style={styles.phaseText}>
-            {snap.phase === 'betting'
-              ? 'ضع رهانك'
-              : snap.phase === 'insurance'
-              ? 'الموزع يُظهر آص — تأمين؟'
-              : snap.phase === 'playing'
-              ? 'الموزع يقف على ١٧'
-              : 'انتهت الجولة'}
+  // ===== شريط الإجراءات حسب المرحلة =====
+  const footer = (
+    <View style={styles.footerInner}>
+      {/* مرحلة الرهان */}
+      {(snap.phase === 'betting' || snap.phase === 'complete') && (
+        <View style={styles.betArea}>
+          <View style={styles.betRow}>
+            <ActionButton label="−١٠٠" colors={['#8A94A3', '#4A5568'] as const} onPress={() => setBet((b) => Math.max(10, b - 100))} />
+            <View style={styles.betAmountBox}>
+              <Text style={styles.betLabel}>رهانك</Text>
+              <Text style={styles.betValue}>{bet}</Text>
+            </View>
+            <ActionButton label="+١٠٠" colors={['#8A94A3', '#4A5568'] as const} onPress={() => setBet((b) => Math.min(5000, (me?.balance ?? 0), b + 100))} />
+          </View>
+          <GoldButton title={snap.phase === 'complete' ? 'جولة جديدة' : 'ابدأ الجولة'} onPress={deal} />
+        </View>
+      )}
+
+      {/* مرحلة التأمين */}
+      {snap.phase === 'insurance' && (
+        <View style={styles.betArea}>
+          <Text style={styles.turnLabel}>
+            الموزع يُظهر <Text style={styles.turnScore}>آص A</Text> — هل تريد تأمينًا على رهانك؟
           </Text>
+          <View style={styles.actions}>
+            <ActionButton label="تأمين" colors={['#E3C98A', '#8C6D2F'] as const} darkText onPress={() => takeInsurance(true)} />
+            <ActionButton label="بلا تأمين" colors={['#6E9DFF', '#2C4E9E'] as const} onPress={() => takeInsurance(false)} />
+          </View>
         </View>
-        <View style={styles.headerSide}>
-          <Pressable
-            style={[styles.iconBtn, !voiceMuted && styles.iconBtnLive]}
-            onPress={() => setVoiceMuted((v) => !v)}
-            hitSlop={8}
-          >
-            {voiceMuted ? (
-              <MicOffIcon size={20} color={COLORS.textDim} />
-            ) : (
-              <MicIcon size={20} color={COLORS.emerald} />
-            )}
-          </Pressable>
+      )}
 
-          <Pressable
-            style={styles.iconBtn}
-            onPress={() => setHelpOpen(true)}
-            hitSlop={8}
-            accessibilityLabel="تعليمات"
-          >
-            <InfoIcon size={20} color={COLORS.textDim} />
-          </Pressable>
+      {/* مرحلة اللعب */}
+      {snap.phase === 'playing' && !!activeHand && (
+        <View style={styles.betArea}>
+          <Text style={styles.turnLabel}>
+            دورك — مجموعك <Text style={styles.turnScore}>{myScore}</Text>
+          </Text>
+          <View style={styles.actions}>
+            <ActionButton label="سحب" colors={['#6E9DFF', '#2C4E9E'] as const} onPress={() => act('hit')} />
+            <ActionButton label="وقوف" colors={['#8FCBB4', '#0A3D2E'] as const} onPress={() => act('stand')} />
+            {canDouble && (
+              <ActionButton
+                label="مضاعفة"
+                colors={['#E3C98A', '#8C6D2F'] as const}
+                flex={1.2}
+                darkText
+                onPress={() => act('double')}
+              />
+            )}
+          </View>
+          {(canSplit || canSurrender) && (
+            <View style={styles.actions}>
+              {canSplit && (
+                <ActionButton label="فصل" colors={['#9A7BFF', '#4B3A8C'] as const} onPress={() => act('split')} />
+              )}
+              {canSurrender && (
+                <ActionButton label="استسلام" colors={['#7A1F2B', '#5C0F16'] as const} onPress={() => act('surrender')} />
+              )}
+            </View>
+          )}
         </View>
-      </View>
+      )}
+
+      {/* نتائج الجولة */}
+      {snap.phase === 'complete' && !!snap.results?.length && (
+        <View style={styles.resultsRow}>
+          {snap.results.map((r, i) => (
+            <Text key={i} style={styles.resultText}>
+              {r.result === 'lose' ? 'خسرت ' : r.result === 'push' ? 'تعادل — ' : 'ربحت '}
+              <Text style={styles.resultAmount}>{formatCompact(r.payout)}</Text>
+              {r.result === 'blackjack' ? ' (٣:٢)' : r.result === 'charlie' ? ' (خمس أوراق)' : ''}
+            </Text>
+          ))}
+        </View>
+      )}
+    </View>
+  );
+
+  return (
+    <SoloGameScreen
+      title="بلاك جاك"
+      onBack={() => router.back()}
+      onInfo={() => setHelpOpen(true)}
+      errorNode={errorNode}
+      footer={footer}
+    >
+      <Text style={styles.phaseText}>{phaseText}</Text>
 
       {/* ===== منطقة الموزع ===== */}
       <FeltTable style={styles.dealerFelt} radius={150} railWidth={11} watermark="">
@@ -269,11 +257,6 @@ export default function BlackjackScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={[styles.spot, styles.spotMe]}>
-          <LinearGradient
-            colors={['rgba(212,175,55,0.10)', 'rgba(212,175,55,0)']}
-            style={StyleSheet.absoluteFill}
-          />
-
           <View style={styles.spotTop}>
             <View style={styles.spotWho}>
               <Avatar name="أنت" size={36} showBorder isActive />
@@ -338,159 +321,22 @@ export default function BlackjackScreen() {
         </View>
       </ScrollView>
 
-      {/* ===== رسالة الخطأ ===== */}
-      {!!error && (
-        <Animated.View
-          style={[
-            styles.toast,
-            {
-              top: insets.top + 62,
-              opacity: errorAnim,
-              transform: [{ translateY: errorAnim.interpolate({ inputRange: [0, 1], outputRange: [-12, 0] }) }],
-            },
-          ]}
-        >
-          <Text style={styles.toastText}>{error}</Text>
-        </Animated.View>
-      )}
-
-      {/* ===== شريط الإجراءات ===== */}
-      <View style={[styles.actionBar, { paddingBottom: insets.bottom + SPACING.md }]}>
-        <LinearGradient
-          colors={['rgba(2,4,3,0)', 'rgba(2,4,3,0.95)']}
-          style={StyleSheet.absoluteFill}
-          pointerEvents="none"
-        />
-
-        {/* مرحلة الرهان */}
-        {(snap.phase === 'betting' || snap.phase === 'complete') && (
-          <View style={styles.betArea}>
-            <View style={styles.betRow}>
-              <ActionButton label="−١٠٠" colors={['#3A4650', '#20282E'] as const} onPress={() => setBet((b) => Math.max(10, b - 100))} />
-              <View style={styles.betAmountBox}>
-                <Text style={styles.betLabel}>رهانك</Text>
-                <Text style={styles.betValue}>{bet}</Text>
-              </View>
-              <ActionButton label="+١٠٠" colors={['#3A4650', '#20282E'] as const} onPress={() => setBet((b) => Math.min(5000, (me?.balance ?? 0), b + 100))} />
-            </View>
-            <GoldButton title={snap.phase === 'complete' ? 'جولة جديدة' : 'ابدأ الجولة'} onPress={deal} />
-          </View>
-        )}
-
-        {/* مرحلة التأمين */}
-        {snap.phase === 'insurance' && (
-          <View style={styles.betArea}>
-            <Text style={styles.turnLabel}>
-              الموزع يُظهر <Text style={styles.turnScore}>آص A</Text> — بلاك جاك الموزع يدفع ٣:٢.
-              هل تريد تأمينًا على رهانك؟
-            </Text>
-            <View style={styles.actions}>
-              <ActionButton label="تأمين" colors={['#F7E7A6', '#B8912C'] as const} darkText onPress={() => takeInsurance(true)} />
-              <ActionButton label="بلا تأمين" colors={['#5AA0FF', '#1B4EA8'] as const} onPress={() => takeInsurance(false)} />
-            </View>
-          </View>
-        )}
-
-        {/* مرحلة اللعب */}
-        {snap.phase === 'playing' && !!activeHand && (
-          <View style={styles.betArea}>
-            <Text style={styles.turnLabel}>
-              دورك — مجموعك <Text style={styles.turnScore}>{myScore}</Text>
-            </Text>
-            <View style={styles.actions}>
-              <ActionButton label="سحب" colors={['#5AA0FF', '#1B4EA8'] as const} onPress={() => act('hit')} />
-              <ActionButton label="وقوف" colors={['#2FD98A', '#0B7345'] as const} onPress={() => act('stand')} />
-              {canDouble && (
-                <ActionButton
-                  label="مضاعفة"
-                  colors={['#F7E7A6', '#B8912C'] as const}
-                  flex={1.2}
-                  darkText
-                  onPress={() => act('double')}
-                />
-              )}
-            </View>
-            {(canSplit || canSurrender) && (
-              <View style={styles.actions}>
-                {canSplit && (
-                  <ActionButton label="فصل" colors={['#9B6BF0', '#4B2E85'] as const} onPress={() => act('split')} />
-                )}
-                {canSurrender && (
-                  <ActionButton label="استسلام" colors={['#F05262', '#8E1B29'] as const} onPress={() => act('surrender')} />
-                )}
-              </View>
-            )}
-          </View>
-        )}
-
-        {/* نتائج الجولة */}
-        {snap.phase === 'complete' && !!snap.results?.length && (
-          <View style={styles.resultsRow}>
-            {snap.results.map((r, i) => (
-              <Text key={i} style={styles.resultText}>
-                {r.result === 'lose' ? 'خسرت ' : r.result === 'push' ? 'تعادل — ' : 'ربحت '}
-                <Text style={styles.resultAmount}>{formatCompact(r.payout)}</Text>
-                {r.result === 'blackjack' ? ' (٣:٢)' : r.result === 'charlie' ? ' (خمس أوراق)' : ''}
-              </Text>
-            ))}
-          </View>
-        )}
-      </View>
-
-      {/* ===== نافذة التعليمات ===== */}
       <InstructionsModal
         game="blackjack"
         visible={helpOpen}
         onClose={() => setHelpOpen(false)}
       />
-    </View>
+    </SoloGameScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#020403' },
-
-  header: {
-    flexDirection: 'row-reverse',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: SPACING.lg,
-    paddingBottom: SPACING.md,
-  },
-  headerSide: {
-    flexDirection: 'row-reverse',
-    alignItems: 'center',
-    gap: SPACING.sm,
-  },
-  headerCenter: {
-    alignItems: 'center',
-    flex: 1,
-  },
-  tableTitle: {
-    fontFamily: FONTS.ar.bold,
-    fontSize: TYPE.h3.fontSize,
-    lineHeight: TYPE.h3.lineHeight,
-    color: COLORS.text,
-  },
   phaseText: {
     fontFamily: FONTS.ar.regular,
     fontSize: TYPE.caption.fontSize,
     color: COLORS.textDim,
-    marginTop: 1,
-  },
-  iconBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  iconBtnLive: {
-    backgroundColor: 'rgba(31,191,117,0.15)',
-    borderColor: 'rgba(31,191,117,0.5)',
+    textAlign: 'center',
+    marginTop: SPACING.xs,
   },
 
   dealerFelt: {
@@ -534,8 +380,7 @@ const styles = StyleSheet.create({
     gap: SPACING.md,
   },
   spotMe: {
-    borderColor: 'rgba(212,175,55,0.45)',
-    backgroundColor: 'rgba(212,175,55,0.05)',
+    borderColor: COLORS.hairlineGold,
   },
   spotTop: {
     flexDirection: 'row-reverse',
@@ -558,7 +403,7 @@ const styles = StyleSheet.create({
   spotBalance: {
     fontFamily: FONTS.num.semibold,
     fontSize: TYPE.caption.fontSize,
-    color: COLORS.textDim,
+    color: COLORS.goldLight,
   },
   spotStatus: {
     flexDirection: 'row-reverse',
@@ -566,9 +411,9 @@ const styles = StyleSheet.create({
     gap: SPACING.sm,
   },
   tag: {
-    paddingHorizontal: SPACING.md,
-    paddingVertical: 4,
-    borderRadius: RADIUS.full,
+    paddingHorizontal: SPACING.sm + 2,
+    paddingVertical: 3,
+    borderRadius: RADIUS.sm,
     borderWidth: 1,
   },
   tagText: {
@@ -582,61 +427,64 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   cardRow: {
-    flexDirection: 'row-reverse',
+    flexDirection: 'row',
     alignItems: 'center',
   },
   score: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(255,255,255,0.07)',
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    minWidth: 34,
+    height: 34,
+    borderRadius: 17,
+    borderWidth: 1.5,
+    borderColor: COLORS.borderStrong,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    paddingHorizontal: SPACING.sm,
   },
   scoreText: {
     fontFamily: FONTS.num.bold,
-    fontSize: TYPE.h3.fontSize,
+    fontSize: TYPE.small.fontSize,
     color: COLORS.text,
+    includeFontPadding: false,
   },
 
-  actionBar: {
-    paddingHorizontal: SPACING.lg,
-    paddingTop: SPACING.sm,
+  // ===== شريط الإجراءات =====
+  footerInner: {
+    gap: SPACING.sm,
   },
   betArea: {
-    gap: SPACING.md,
+    gap: SPACING.sm,
   },
   betRow: {
     flexDirection: 'row-reverse',
     alignItems: 'center',
-    gap: SPACING.md,
+    gap: SPACING.sm,
   },
   betAmountBox: {
-    flex: 1.4,
+    flex: 1,
     alignItems: 'center',
+    paddingVertical: SPACING.xs + 2,
     borderRadius: RADIUS.md,
-    backgroundColor: 'rgba(255,255,255,0.05)',
     borderWidth: 1,
-    borderColor: COLORS.border,
-    paddingVertical: SPACING.xs,
+    borderColor: COLORS.hairlineGold,
+    backgroundColor: 'rgba(201,169,97,0.06)',
   },
   betLabel: {
-    fontFamily: FONTS.ar.regular,
+    fontFamily: FONTS.ar.medium,
     fontSize: TYPE.caption.fontSize,
     color: COLORS.textDim,
   },
   betValue: {
     fontFamily: FONTS.num.bold,
-    fontSize: TYPE.h2.fontSize,
+    fontSize: TYPE.h3.fontSize,
     color: COLORS.goldLight,
+    includeFontPadding: false,
   },
   turnLabel: {
-    fontFamily: FONTS.ar.regular,
+    fontFamily: FONTS.ar.medium,
     fontSize: TYPE.small.fontSize,
     color: COLORS.textDim,
-    textAlign: 'right',
+    textAlign: 'center',
   },
   turnScore: {
     fontFamily: FONTS.num.bold,
@@ -644,65 +492,23 @@ const styles = StyleSheet.create({
   },
   actions: {
     flexDirection: 'row-reverse',
+    alignItems: 'center',
     gap: SPACING.sm,
   },
-  actionBtn: {
-    borderRadius: RADIUS.lg,
-    paddingVertical: SPACING.md,
+  resultsRow: {
+    flexDirection: 'row-reverse',
     alignItems: 'center',
     justifyContent: 'center',
-    overflow: 'hidden',
-    gap: 2,
-  },
-  actionGloss: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: '55%',
-  },
-  actionLabel: {
-    fontFamily: FONTS.ar.bold,
-    fontSize: TYPE.body.fontSize,
-    color: '#FFFFFF',
-    includeFontPadding: false,
-  },
-  actionLabelDark: {
-    color: '#3A2E10',
-  },
-  actionSub: {
-    fontFamily: FONTS.num.semibold,
-    fontSize: TYPE.caption.fontSize,
-    color: 'rgba(255,255,255,0.75)',
-    includeFontPadding: false,
-  },
-  resultsRow: {
-    alignItems: 'center',
-    paddingTop: SPACING.xs,
-    gap: 4,
+    gap: SPACING.md,
+    flexWrap: 'wrap',
   },
   resultText: {
     fontFamily: FONTS.ar.semibold,
-    fontSize: TYPE.body.fontSize,
-    color: COLORS.text,
+    fontSize: TYPE.small.fontSize,
+    color: COLORS.textDim,
   },
   resultAmount: {
     fontFamily: FONTS.num.bold,
     color: COLORS.goldLight,
-  },
-
-  toast: {
-    position: 'absolute',
-    alignSelf: 'center',
-    zIndex: 50,
-    backgroundColor: 'rgba(226,61,77,0.95)',
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.sm,
-    borderRadius: RADIUS.full,
-  },
-  toastText: {
-    fontFamily: FONTS.ar.semibold,
-    fontSize: TYPE.small.fontSize,
-    color: '#FFFFFF',
   },
 });

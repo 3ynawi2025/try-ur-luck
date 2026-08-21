@@ -97,6 +97,82 @@ export const UserIcon = ({ size = 24, color = COLORS.textDim, filled }: IconProp
   </Svg>
 );
 
+/** عدسة بحث */
+export const SearchIcon = ({ size = 24, color = COLORS.textDim }: IconProps) => (
+  <Svg {...base(size)}>
+    <Circle cx={10.8} cy={10.8} r={6.6} fill="none" stroke={color} strokeWidth={1.7} />
+    <Path d="m15.8 15.8 4.4 4.4" stroke={color} strokeWidth={1.7} strokeLinecap="round" fill="none" />
+  </Svg>
+);
+
+/** إضافة صديق */
+export const UserPlusIcon = ({ size = 24, color = COLORS.gold }: IconProps) => (
+  <Svg {...base(size)}>
+    <G stroke={color} strokeWidth={1.6} strokeLinecap="round" fill="none">
+      <Circle cx={9.4} cy={8.6} r={3.4} />
+      <Path d="M3.4 19.6c0-3.3 2.6-5.4 6-5.4s6 2.1 6 5.4" />
+      <Path d="M17.4 7v6M14.4 10h6" />
+    </G>
+  </Svg>
+);
+
+/** موافقة على صديق */
+export const UserCheckIcon = ({ size = 24, color = COLORS.emerald }: IconProps) => (
+  <Svg {...base(size)}>
+    <G stroke={color} strokeWidth={1.6} strokeLinecap="round" fill="none">
+      <Circle cx={9.4} cy={8.6} r={3.4} />
+      <Path d="M3.4 19.6c0-3.3 2.6-5.4 6-5.4s6 2.1 6 5.4" />
+      <Path d="m14.4 14.4 2.6 2.6 4.4-4.6" />
+    </G>
+  </Svg>
+);
+
+/** إزالة/رفض صديق */
+export const UserXIcon = ({ size = 24, color = COLORS.textFaint }: IconProps) => (
+  <Svg {...base(size)}>
+    <G stroke={color} strokeWidth={1.6} strokeLinecap="round" fill="none">
+      <Circle cx={9.4} cy={8.6} r={3.4} />
+      <Path d="M3.4 19.6c0-3.3 2.6-5.4 6-5.4s6 2.1 6 5.4" />
+      <Path d="m15.2 13.8 4.8 4.8M20 13.8l-4.8 4.8" />
+    </G>
+  </Svg>
+);
+
+/** فقاعة محادثة */
+export const MessageIcon = ({ size = 24, color = COLORS.textDim }: IconProps) => (
+  <Svg {...base(size)}>
+    <Path
+      d="M4 6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5v7a2.5 2.5 0 0 1-2.5 2.5H9l-4 3.5v-3.5A2.5 2.5 0 0 1 4 13.5z"
+      fill="none"
+      stroke={color}
+      strokeWidth={1.6}
+      strokeLinejoin="round"
+    />
+  </Svg>
+);
+
+/** إرسال رسالة */
+export const SendIcon = ({ size = 24, color = COLORS.onGold }: IconProps) => (
+  <Svg {...base(size)}>
+    <Path
+      d="M4 12 20 4l-5 16-3-6.5L4 12Z"
+      fill="none"
+      stroke={color}
+      strokeWidth={1.7}
+      strokeLinejoin="round"
+      strokeLinecap="round"
+    />
+    <Path d="M12 13.5 20 4" stroke={color} strokeWidth={1.7} strokeLinecap="round" fill="none" />
+  </Svg>
+);
+
+/** إغلاق */
+export const CloseIcon = ({ size = 24, color = COLORS.text }: IconProps) => (
+  <Svg {...base(size)}>
+    <Path d="m6 6 12 12M18 6 6 18" stroke={color} strokeWidth={1.9} strokeLinecap="round" fill="none" />
+  </Svg>
+);
+
 // ------------------------------------------------------------
 // الألعاب
 // ------------------------------------------------------------
@@ -342,7 +418,7 @@ export const TrendIcon = ({ size = 24, color = COLORS.emerald }: IconProps) => (
 /** شعار التطبيق — بستوني داخل درع ذهبي */
 export const LogoMark = ({ size = 72, color = COLORS.gold }: IconProps) => (
   <Svg width={size} height={size} viewBox="0 0 72 72">
-    <Circle cx={36} cy={36} r={33} fill="rgba(212,175,55,0.07)" stroke={color} strokeWidth={1.4} />
+    <Circle cx={36} cy={36} r={33} fill="rgba(201,169,97,0.06)" stroke={color} strokeWidth={1.4} />
     <Circle cx={36} cy={36} r={27.5} fill="none" stroke={color} strokeWidth={0.9} strokeDasharray="2 5" />
     <Path
       d="M36 15c9.8 8.6 15.6 12.9 15.6 19.4A7.6 7.6 0 0 1 38.4 40l2.8 9.4h-10.4L33.6 40a7.6 7.6 0 0 1-13.2-5.6C20.4 27.9 26.2 23.6 36 15z"
@@ -360,7 +436,7 @@ export const MedalIcon = ({
   rank?: number;
 }) => {
   const tint =
-    rank === 1 ? ['#FFE9A3', '#D4AF37', '#8C6D1F'] :
+    rank === 1 ? ['#E3C98A', '#C9A961', '#8C6D2F'] :
     rank === 2 ? ['#F0F2F5', '#B9C0CA', '#77808C'] :
     ['#F0C6A0', '#C4804A', '#7C4A24'];
   return (

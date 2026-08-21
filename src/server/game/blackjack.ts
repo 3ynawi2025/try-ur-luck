@@ -5,7 +5,7 @@
 // five-card Charlie, Perfect Pairs (D) + 21+3 (V7) side bets.
 // ============================================================
 
-import { Card, createDeck, shuffleDeck, getRankValue, Rng, cardKey } from './deck';
+import { Card, createDeck, shuffleDeck, getRankValue, Rng, isValidChips } from './deck';
 
 // ===== Types =====
 
@@ -116,7 +116,7 @@ const err = (message: string, code: string): { error: string; code: string } => 
 
 export class BlackjackEngine {
   private config: BlackjackConfig;
-  private rng: Rng;
+  private rng?: Rng; // undefined = CSPRNG افتراضي (لا Math.random في الإنتاج)
   private shoe: Card[] = [];
   private cutCardPosition = 0;
   private reshufflePending = false;
@@ -130,7 +130,8 @@ export class BlackjackEngine {
 
   constructor(config?: Partial<BlackjackConfig>) {
     this.config = { ...DEFAULT_BLACKJACK_CONFIG, ...config };
-    this.rng = this.config.rng ?? Math.random;
+    // لا Math.random في الإنتاج: عند غياب RNG المحقون تستخدم shuffleDeck الـCSPRNG
+    this.rng = this.config.rng;
   }
 
   // ===== Player management =====
@@ -169,12 +170,16 @@ export class BlackjackEngine {
       this.phase = 'betting';
       this.results = [];
     }
+    if (!isValidChips(amount)) return 'مبلغ غير صالح';
     if (amount < this.config.tableMin) return `الحد الأدنى ${this.config.tableMin}`;
     if (amount > this.config.tableMax) return `الحد الأقصى ${this.config.tableMax}`;
     if (amount > player.balance) return 'رصيد غير كاف';
 
     const pp = sideBets.perfectPairs ?? 0;
     const tp = sideBets.twentyOnePlusThree ?? 0;
+    if (!Number.isFinite(pp) || !Number.isFinite(tp) || pp < 0 || tp < 0 || (pp !== 0 && !Number.isInteger(pp)) || (tp !== 0 && !Number.isInteger(tp))) {
+      return 'رهان جانبي غير صالح';
+    }
     if (this.config.sideBetCapToMain && (pp > amount || tp > amount)) return 'الرهان الجانبي لا يتجاوز الرهان الأساسي';
     if (pp + tp + amount > player.balance) return 'رصيد غير كاف';
 
@@ -318,6 +323,7 @@ export class BlackjackEngine {
     this.dealerRevealed = true;
     for (const player of this.players) {
       const hand = player.hands[0];
+      if (hand.preSettled) continue; // استُوفيت مسبقًا (Even Money) — لا تسجّل نتيجة زائفة
       if (hand.status === 'blackjack') {
         // Natural vs natural → push: stake returned.
         player.balance += hand.bet;
@@ -342,10 +348,11 @@ export class BlackjackEngine {
     const player = this.players.find((p) => p.id === playerId);
     if (!player) return 'اللاعب غير موجود';
     if (this.phase !== 'insurance') return 'التأمين غير متاح';
+    if (player.hands[0]?.preSettled) return 'لا يمكن الجمع بين Even Money والتأمين';
     const mainBet = player.hands[0]?.bet ?? player.currentBet;
     const maxInsurance = Math.floor(mainBet / 2);
     const stake = amount ?? maxInsurance;
-    if (stake <= 0) return 'مبلغ غير صالح';
+    if (!isValidChips(stake)) return 'مبلغ غير صالح';
     if (stake > maxInsurance) return `الحد الأقصى للتأمين ${maxInsurance}`;
     if (stake > player.balance) return 'رصيد غير كاف';
     player.balance -= stake;
@@ -377,6 +384,7 @@ export class BlackjackEngine {
     const player = this.players.find((p) => p.id === playerId);
     if (!player) return 'اللاعب غير موجود';
     if (this.phase !== 'insurance') return 'غير متاح';
+    if (player.insuranceBet > 0) return 'لا يمكن الجمع بين التأمين وEven Money';
     const hand = player.hands[0];
     if (!hand || hand.status !== 'blackjack') return 'يجب أن يكون لديك بلاك جاك';
     // Settled immediately at 1:1; resolveAll must skip it.

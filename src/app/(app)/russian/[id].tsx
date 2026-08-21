@@ -15,9 +15,12 @@ import GoldButton from '../../../components/ui/GoldButton';
 import PlayingCard, { Card as PCard } from '../../../components/game/PlayingCard';
 import FeltTable from '../../../components/game/FeltTable';
 import InstructionsModal from '../../../components/game/InstructionsModal';
-import { BackIcon, MicIcon, MicOffIcon, InfoIcon } from '../../../components/icons/GameIcons';
-import { RussianPokerEngine, RussianSnapshot, RussianCategory } from '../../../server/game/russianPoker';
+import GameHeader from '../../../components/game/GameHeader';
+import ActionButton from '../../../components/game/ActionButton';
+import { useErrorToast } from '../../../hooks/useErrorToast';
+import { RussianSnapshot, RussianCategory } from '../../../server/game/russianPoker';
 import { Card } from '../../../server/game/deck';
+import { useSoloGame } from '../../../hooks/useSoloGame';
 import {
   COLORS,
   FONTS,
@@ -53,100 +56,53 @@ const OUTCOME_LABEL: Record<string, string> = {
 const FACE_DOWN: PCard = { rank: 'A', suit: 'spades' };
 const cardKey = (c: Card) => `${c.rank}-${c.suit}`;
 
-function ActionButton({
-  label,
-  sub,
-  colors,
-  onPress,
-  flex = 1,
-  darkText = false,
-}: {
-  label: string;
-  sub?: string;
-  colors: readonly [string, string];
-  onPress: () => void;
-  flex?: number;
-  darkText?: boolean;
-}) {
-  const scale = useRef(new Animated.Value(1)).current;
-  const to = (v: number) =>
-    Animated.spring(scale, { toValue: v, useNativeDriver: true, speed: 50, bounciness: 6 }).start();
-
-  return (
-    <Animated.View style={{ flex, transform: [{ scale }] }}>
-      <Pressable
-        onPress={() => {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-          onPress();
-        }}
-        onPressIn={() => to(0.95)}
-        onPressOut={() => to(1)}
-      >
-        <LinearGradient
-          colors={colors}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 0, y: 1 }}
-          style={[styles.actionBtn, SHADOWS.e2]}
-        >
-          <LinearGradient
-            colors={['rgba(255,255,255,0.26)', 'rgba(255,255,255,0)']}
-            style={styles.actionGloss}
-            pointerEvents="none"
-          />
-          <Text style={[styles.actionLabel, darkText && styles.actionLabelDark]}>{label}</Text>
-          {!!sub && <Text style={[styles.actionSub, darkText && styles.actionLabelDark]}>{sub}</Text>}
-        </LinearGradient>
-      </Pressable>
-    </Animated.View>
-  );
-}
-
 const toPCard = (c: Card): PCard => ({ rank: c.rank, suit: c.suit });
 
 export default function RussianScreen() {
-  useLocalSearchParams<{ id: string }>();
+  const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
-  const [voiceMuted, setVoiceMuted] = useState(true);
   const [helpOpen, setHelpOpen] = useState(false);
 
-  const [engine] = useState(() => new RussianPokerEngine(10000));
-  const [snap, setSnap] = useState<RussianSnapshot>(() => engine.snapshot());
   const [ante, setAnte] = useState(100);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [error, setError] = useState<string | null>(null);
-  const errorAnim = useRef(new Animated.Value(0)).current;
+  const { showError, errorNode } = useErrorToast();
 
-  useEffect(() => {
-    if (!error) return;
-    Animated.sequence([
-      Animated.timing(errorAnim, { toValue: 1, duration: 180, useNativeDriver: true }),
-      Animated.delay(1900),
-      Animated.timing(errorAnim, { toValue: 0, duration: 220, useNativeDriver: true }),
-    ]).start(() => setError(null));
-  }, [error, errorAnim]);
+  // ===== المحرك على السيرفر =====
+  const { snapshot, sendAction } = useSoloGame('russian', `ru-${id ?? '1'}`, showError);
 
-  const refresh = () => setSnap(engine.snapshot());
+  const EMPTY_SNAP: RussianSnapshot = {
+    phase: 'BETTING',
+    handId: 0,
+    balance: 10000,
+    wagers: { ante: 0, bet: 0, insurance: 0, feesPaid: 0 },
+    playerCards: [],
+    dealerCards: null,
+    dealerUpCard: null,
+    folded: false,
+    hasExchanged: false,
+    hasBoughtSixth: false,
+    hasInsured: false,
+    playerHand: null,
+    dealerHand: null,
+    dealerQualified: null,
+    combinationPair: null,
+    outcome: null,
+    settlement: null,
+  };
+  const snap: RussianSnapshot = (snapshot as RussianSnapshot) ?? EMPTY_SNAP;
 
   const deal = () => {
-    const e = engine.placeAnte(ante);
-    if (e) return setError(e);
-    refresh();
-    engine.deal();
     setSelected(new Set());
-    refresh();
+    sendAction('ante', { amount: ante });
   };
 
   const betOrFold = (betNow: boolean) => {
-    const e = betNow ? engine.bet2x() : engine.fold();
-    if (e) return setError(e);
-    refresh();
+    sendAction(betNow ? 'bet2x' : 'fold');
   };
 
   const doExchange = () => {
-    const e = engine.exchange([...selected]);
-    if (e) return setError(e);
+    sendAction('exchange', { cardIds: [...selected] });
     setSelected(new Set());
-    refresh();
   };
 
   const toggleCard = (key: string) => {
@@ -160,9 +116,8 @@ export default function RussianScreen() {
   };
 
   const newRound = () => {
-    engine.newRound();
     setSelected(new Set());
-    refresh();
+    sendAction('next');
   };
 
   const s = snap.settlement;
@@ -174,46 +129,20 @@ export default function RussianScreen() {
 
   return (
     <View style={styles.container}>
-      <LinearGradient colors={['#0A1410', '#050908', '#020403']} style={StyleSheet.absoluteFill} />
+      <LinearGradient colors={[COLORS.bgSoft, COLORS.bg, COLORS.surfaceSunken]} style={StyleSheet.absoluteFill} />
 
-      {/* ===== الترويسة ===== */}
-      <View style={[styles.header, { paddingTop: insets.top + SPACING.sm }]}>
-        <Pressable style={styles.iconBtn} onPress={() => router.back()} hitSlop={8}>
-          <BackIcon size={20} color={COLORS.text} />
-        </Pressable>
-        <View style={styles.headerCenter}>
-          <Text style={styles.tableTitle}>البوكر الروسي</Text>
-          <Text style={styles.phaseText}>
-            {snap.phase === 'BETTING'
-              ? 'ضع رهانك'
-              : canDecide
-              ? 'اربح بالتركيبة الثانية'
-              : isSettled
-              ? 'انتهت الجولة'
-              : '…'}
-          </Text>
-        </View>
-        <View style={styles.headerSide}>
-          <Pressable
-            style={[styles.iconBtn, !voiceMuted && styles.iconBtnLive]}
-            onPress={() => setVoiceMuted((v) => !v)}
-            hitSlop={8}
-          >
-            {voiceMuted ? (
-              <MicOffIcon size={20} color={COLORS.textDim} />
-            ) : (
-              <MicIcon size={20} color={COLORS.emerald} />
-            )}
-          </Pressable>
-          <Pressable
-            style={styles.iconBtn}
-            onPress={() => setHelpOpen(true)}
-            hitSlop={8}
-            accessibilityLabel="تعليمات"
-          >
-            <InfoIcon size={20} color={COLORS.textDim} />
-          </Pressable>
-        </View>
+      {/* ===== الترويسة الموحدة ===== */}
+      <View style={{ paddingTop: insets.top + SPACING.xs }}>
+        <GameHeader title="البوكر الروسي" onBack={() => router.back()} onInfo={() => setHelpOpen(true)} />
+        <Text style={styles.phaseText}>
+          {snap.phase === 'BETTING'
+            ? 'ضع رهانك'
+            : canDecide
+            ? 'اربح بالتركيبة الثانية'
+            : isSettled
+            ? 'انتهت الجولة'
+            : '…'}
+        </Text>
       </View>
 
       {/* ===== منطقة الموزع ===== */}
@@ -249,7 +178,7 @@ export default function RussianScreen() {
       >
         <View style={[styles.spot, styles.spotMe]}>
           <LinearGradient
-            colors={['rgba(212,175,55,0.10)', 'rgba(212,175,55,0)']}
+            colors={['rgba(201,169,97,0.08)', 'rgba(201,169,97,0)']}
             style={StyleSheet.absoluteFill}
           />
           <View style={styles.spotTop}>
@@ -298,26 +227,13 @@ export default function RussianScreen() {
         </View>
       </ScrollView>
 
-      {/* ===== رسالة الخطأ ===== */}
-      {!!error && (
-        <Animated.View
-          style={[
-            styles.toast,
-            {
-              top: insets.top + 62,
-              opacity: errorAnim,
-              transform: [{ translateY: errorAnim.interpolate({ inputRange: [0, 1], outputRange: [-12, 0] }) }],
-            },
-          ]}
-        >
-          <Text style={styles.toastText}>{error}</Text>
-        </Animated.View>
-      )}
+      {/* ===== رسالة الخطأ الموحدة ===== */}
+      {errorNode}
 
       {/* ===== شريط الإجراءات ===== */}
       <View style={[styles.actionBar, { paddingBottom: insets.bottom + SPACING.md }]}>
         <LinearGradient
-          colors={['rgba(2,4,3,0)', 'rgba(2,4,3,0.95)']}
+          colors={['rgba(10,13,18,0)', 'rgba(10,13,18,0.95)']}
           style={StyleSheet.absoluteFill}
           pointerEvents="none"
         />
@@ -326,12 +242,12 @@ export default function RussianScreen() {
         {snap.phase === 'BETTING' && (
           <View style={styles.betArea}>
             <View style={styles.betRow}>
-              <ActionButton label="−١٠٠" colors={['#3A4650', '#20282E'] as const} onPress={() => setAnte((b) => Math.max(10, b - 100))} />
+              <ActionButton label="−١٠٠" colors={['#8A94A3', '#4A5568'] as const} onPress={() => setAnte((b) => Math.max(10, b - 100))} />
               <View style={styles.betAmountBox}>
                 <Text style={styles.betLabel}>الرهان الأساسي</Text>
                 <Text style={styles.betValue}>{ante}</Text>
               </View>
-              <ActionButton label="+١٠٠" colors={['#3A4650', '#20282E'] as const} onPress={() => setAnte((b) => Math.min(Math.floor(snap.balance / 4), b + 100))} />
+              <ActionButton label="+١٠٠" colors={['#8A94A3', '#4A5568'] as const} onPress={() => setAnte((b) => Math.min(Math.floor(snap.balance / 4), b + 100))} />
             </View>
             <GoldButton title="وزّع الأوراق" onPress={deal} />
           </View>
@@ -349,11 +265,11 @@ export default function RussianScreen() {
               <GoldButton title={`تبديل ${selected.size} أوراق (${ante})`} onPress={doExchange} />
             )}
             <View style={styles.actions}>
-              <ActionButton label="انسحاب" colors={['#F05262', '#8E1B29'] as const} onPress={() => betOrFold(false)} />
+              <ActionButton label="انسحاب" colors={['#7A1F2B', '#5C0F16'] as const} onPress={() => betOrFold(false)} />
               <ActionButton
                 label="رهان"
                 sub={`×٢ = ${ante * 2}`}
-                colors={['#F7E7A6', '#B8912C'] as const}
+                colors={['#E3C98A', '#8C6D2F'] as const}
                 flex={1.2}
                 darkText
                 onPress={() => betOrFold(true)}
@@ -393,7 +309,7 @@ export default function RussianScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#020403' },
+  container: { flex: 1, backgroundColor: '#070A0F' },
 
   header: {
     flexDirection: 'row-reverse',
@@ -415,7 +331,7 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.ar.bold,
     fontSize: TYPE.h3.fontSize,
     lineHeight: TYPE.h3.lineHeight,
-    color: COLORS.text,
+    color: COLORS.goldLight,
   },
   phaseText: {
     fontFamily: FONTS.ar.regular,
@@ -434,8 +350,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   iconBtnLive: {
-    backgroundColor: 'rgba(31,191,117,0.15)',
-    borderColor: 'rgba(31,191,117,0.5)',
+    backgroundColor: 'rgba(143,203,180,0.15)',
+    borderColor: 'rgba(143,203,180,0.5)',
   },
 
   dealerFelt: {
@@ -464,9 +380,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.md,
     paddingVertical: 3,
     borderRadius: RADIUS.full,
-    backgroundColor: 'rgba(212,175,55,0.14)',
+    backgroundColor: 'rgba(201,169,97,0.14)',
     borderWidth: 1,
-    borderColor: 'rgba(212,175,55,0.4)',
+    borderColor: 'rgba(201,169,97,0.4)',
   },
   dealerQualifyText: {
     fontFamily: FONTS.ar.semibold,
@@ -493,8 +409,8 @@ const styles = StyleSheet.create({
     gap: SPACING.md,
   },
   spotMe: {
-    borderColor: 'rgba(212,175,55,0.45)',
-    backgroundColor: 'rgba(212,175,55,0.05)',
+    borderColor: 'rgba(201,169,97,0.45)',
+    backgroundColor: 'rgba(201,169,97,0.05)',
   },
   spotTop: {
     flexDirection: 'row-reverse',
@@ -527,7 +443,8 @@ const styles = StyleSheet.create({
   spotCards: {
     flexDirection: 'row-reverse',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
+    gap: SPACING.lg,
   },
   cardRow: {
     flexDirection: 'row-reverse',
@@ -542,7 +459,7 @@ const styles = StyleSheet.create({
   },
   pressCardSelected: {
     borderColor: COLORS.gold,
-    backgroundColor: 'rgba(212,175,55,0.18)',
+    backgroundColor: 'rgba(201,169,97,0.18)',
     transform: [{ translateY: -6 }],
   },
   handCol: {
@@ -629,7 +546,7 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
   actionLabelDark: {
-    color: '#3A2E10',
+    color: '#3c2f00',
   },
   actionSub: {
     fontFamily: FONTS.num.semibold,
@@ -652,7 +569,7 @@ const styles = StyleSheet.create({
     color: COLORS.goldLight,
   },
   resultLoss: {
-    color: '#FF8A94',
+    color: '#ffdad6',
   },
   resultBonus: {
     fontFamily: FONTS.ar.regular,
@@ -664,7 +581,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     alignSelf: 'center',
     zIndex: 50,
-    backgroundColor: 'rgba(226,61,77,0.95)',
+    backgroundColor: 'rgba(255,180,171,0.95)',
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.sm,
     borderRadius: RADIUS.full,

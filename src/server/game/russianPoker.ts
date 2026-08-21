@@ -6,7 +6,7 @@
 // buy-the-dealer-a-card, and the SECOND COMBINATION (payout = sum).
 // ============================================================
 
-import { Card, createDeck, shuffleDeck, getRankValue, Rng } from './deck';
+import { Card, createDeck, shuffleDeck, getRankValue, Rng, isValidChips } from './deck';
 import { evaluate5Cards, HandRank } from './evaluator';
 
 // ===== Hand categories (standard 5-card + ACE_KING) =====
@@ -338,7 +338,7 @@ export interface RussianSnapshot {
 
 export class RussianPokerEngine {
   private config: RussianPokerConfig;
-  private rng: Rng;
+  private rng?: Rng; // undefined = CSPRNG افتراضي
   private deck: Card[] = [];
   private balance: number;
   private handId = 0;
@@ -363,14 +363,14 @@ export class RussianPokerEngine {
   ) {
     this.balance = balance;
     this.config = config;
-    this.rng = rng ?? Math.random;
+    this.rng = rng; // لا Math.random في الإنتاج
   }
 
   // ===== Betting =====
 
   placeAnte(amount: number): string | null {
     if (this.phase !== 'BETTING') return 'انتهى وقت الرهان';
-    if (amount <= 0) return 'مبلغ غير صالح';
+    if (!isValidChips(amount)) return 'مبلغ غير صالح';
     // Max ante = floor(balance / 4) so Ante + Bet + one purchase always fit (spec #1).
     const maxAnte = Math.floor(this.balance / 4);
     if (amount > maxAnte) return `الحد الأقصى للرهان ${maxAnte}`;
@@ -422,13 +422,15 @@ export class RussianPokerEngine {
   exchange(cardIds: string[]): string | null {
     if (this.hasBoughtSixth) return 'لا يمكن الجمع بين التبديل والورقة السادسة';
     if (this.phase !== 'DEALT' && this.phase !== 'EXCHANGE_SELECT') return 'ليس وقت التبديل';
-    if (cardIds.length < 1 || cardIds.length > this.config.maxExchangeCards) {
+    // إزالة التكرار حتى لا تُحرق بطاقة مقابل معرّف مكرر
+    const ids = [...new Set(cardIds)];
+    if (ids.length < 1 || ids.length > this.config.maxExchangeCards) {
       return `بدّل من ١ إلى ${this.config.maxExchangeCards} أوراق`;
     }
     const cost = this.ante * this.config.exchangeCostAntes;
     if (cost > this.balance) return 'رصيد غير كاف للتبديل';
-    const toReplace = cardIds.map((id) => this.playerCards.findIndex((c) => ck(c) === id)).filter((i) => i >= 0);
-    if (toReplace.length !== cardIds.length) return 'ورقة غير موجودة';
+    const toReplace = ids.map((id) => this.playerCards.findIndex((c) => ck(c) === id)).filter((i) => i >= 0);
+    if (toReplace.length !== ids.length) return 'ورقة غير موجودة';
 
     this.balance -= cost;
     this.feesPaid += cost;
@@ -466,6 +468,7 @@ export class RussianPokerEngine {
 
   takeInsurance(amount: number): string | null {
     if (this.phase !== 'INSURANCE') return 'التأمين غير متاح';
+    if (!isValidChips(amount)) return 'مبلغ غير صالح';
     const hand = bestRussian5(this.playerCards);
     const potentialBetPayout = this.bet * RUSSIAN_PAYTABLE[hand.category];
     const maxInsurance = Math.floor(potentialBetPayout / 2);

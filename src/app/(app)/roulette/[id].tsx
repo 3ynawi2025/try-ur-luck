@@ -12,7 +12,9 @@ import * as Haptics from 'expo-haptics';
 import Svg, { G, Circle, Path, Ellipse, Rect, Text as SvgText } from 'react-native-svg';
 import GoldButton from '../../../components/ui/GoldButton';
 import InstructionsModal from '../../../components/game/InstructionsModal';
-import { BackIcon, MicIcon, MicOffIcon, InfoIcon, CrownIcon } from '../../../components/icons/GameIcons';
+import GameHeader from '../../../components/game/GameHeader';
+import { CrownIcon } from '../../../components/icons/GameIcons';
+import { useErrorToast } from '../../../hooks/useErrorToast';
 import {
   RouletteSnapshot,
   RouletteBetType,
@@ -35,7 +37,7 @@ const CHIP_VALUES = [10, 50, 100, 500];
 
 const CELL_COLOR: Record<string, string> = {
   red: COLORS.crimsonContainer,
-  black: '#161b2b',
+  black: '#1B2230',
   green: COLORS.emeraldContainer,
 };
 
@@ -66,15 +68,15 @@ function Wheel({ spinAngle }: { spinAngle: Animated.Value }) {
       <Animated.View style={{ transform: [{ rotate: spinAngle.interpolate({ inputRange: [0, 360], outputRange: ['0deg', '360deg'], extrapolate: 'extend' }) }] }}>
         <Svg width={260} height={260}>
           {/* جسم العجلة — ماهوجني */}
-          <Circle cx={CX} cy={CY} r={R + 8} fill="#3b2a1a" />
+          <Circle cx={CX} cy={CY} r={R + 8} fill="#2A1E12" />
           <Circle cx={CX} cy={CY} r={R + 3} fill={COLORS.railDark} />
           {sectors.map((s, i) => (
             <G key={i}>
-              <Path d={s.d} fill={CELL_COLOR[s.color]} stroke="rgba(233,195,73,0.35)" strokeWidth={0.6} />
+              <Path d={s.d} fill={CELL_COLOR[s.color]} stroke="rgba(201,169,97,0.30)" strokeWidth={0.6} />
               <SvgText
                 x={s.lx}
                 y={s.ly}
-                fill={s.color === 'black' ? '#e8eaf2' : '#fff'}
+                fill={s.color === 'black' ? '#F2EFE9' : '#fff'}
                 fontSize={7.5}
                 fontWeight="700"
                 textAnchor="middle"
@@ -85,9 +87,9 @@ function Wheel({ spinAngle }: { spinAngle: Animated.Value }) {
             </G>
           ))}
           {/* الفواصل الذهبية */}
-          <Circle cx={CX} cy={CY} r={R} fill="none" stroke="#e9c349" strokeWidth={2} />
-          <Circle cx={CX} cy={CY} r={R * 0.42} fill="#161b2b" stroke="#e9c349" strokeWidth={2.5} />
-          <Circle cx={CX} cy={CY} r={R * 0.42} fill="none" stroke="rgba(233,195,73,0.4)" strokeWidth={1} strokeDasharray="4 4" />
+          <Circle cx={CX} cy={CY} r={R} fill="none" stroke="#C9A961" strokeWidth={2} />
+          <Circle cx={CX} cy={CY} r={R * 0.42} fill="#1B2230" stroke="#C9A961" strokeWidth={2.5} />
+          <Circle cx={CX} cy={CY} r={R * 0.42} fill="none" stroke="rgba(201,169,97,0.35)" strokeWidth={1} strokeDasharray="4 4" />
         </Svg>
       </Animated.View>
 
@@ -104,13 +106,13 @@ function PawnMarker({ size = 20 }: { size?: number }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 26">
       {/* الرأس */}
-      <Circle cx={12} cy={6} r={4.4} fill="#ffe088" stroke="#3c2f00" strokeWidth={0.9} />
+      <Circle cx={12} cy={6} r={4.4} fill="#E3C98A" stroke="#14100A" strokeWidth={0.9} />
       {/* الطوق */}
-      <Ellipse cx={12} cy={10.6} rx={4.8} ry={1.7} fill="#e9c349" stroke="#3c2f00" strokeWidth={0.9} />
+      <Ellipse cx={12} cy={10.6} rx={4.8} ry={1.7} fill="#C9A961" stroke="#14100A" strokeWidth={0.9} />
       {/* الجسم المتدرج نحو القاعدة */}
-      <Path d="M7.2 10.4 L16.8 10.4 L19 20.4 L5 20.4 Z" fill="#e9c349" stroke="#3c2f00" strokeWidth={0.9} />
+      <Path d="M7.2 10.4 L16.8 10.4 L19 20.4 L5 20.4 Z" fill="#C9A961" stroke="#14100A" strokeWidth={0.9} />
       {/* القاعدة */}
-      <Rect x={5} y={20.2} width={14} height={3.2} rx={1.6} fill="#af8d11" stroke="#3c2f00" strokeWidth={0.9} />
+      <Rect x={5} y={20.2} width={14} height={3.2} rx={1.6} fill="#8C6D2F" stroke="#14100A" strokeWidth={0.9} />
       {/* لمعة ضوئية */}
       <Circle cx={10} cy={4.6} r={1.4} fill="#ffffff" opacity={0.6} />
     </Svg>
@@ -158,7 +160,7 @@ function BetCell({
             <PawnMarker size={20} />
           </View>
         )}
-        <Text style={[styles.cellText, color === CELL_COLOR.black && { color: '#e8eaf2' }]}>{label}</Text>
+        <Text style={[styles.cellText, color === CELL_COLOR.black && { color: '#F2EFE9' }]}>{label}</Text>
         {total > 0 && <View style={styles.cellChip}><Text style={styles.cellChipText}>{total}</Text></View>}
       </Pressable>
     </Animated.View>
@@ -168,13 +170,11 @@ function BetCell({
 export default function RouletteScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
-  const [voiceMuted, setVoiceMuted] = useState(true);
   const [helpOpen, setHelpOpen] = useState(false);
 
   const [chip, setChip] = useState(100);
-  const [error, setError] = useState<string | null>(null);
+  const { showError, errorNode } = useErrorToast();
   const [spinning, setSpinning] = useState(false);
-  const errorAnim = useRef(new Animated.Value(0)).current;
   const spinAngle = useRef(new Animated.Value(0)).current;
   const lastResultRef = useRef<number | null>(null);
   // إجمالي زاوية الدوران المتراكمة — نضمن إضافة لفات كاملة كل جولة
@@ -186,7 +186,7 @@ export default function RouletteScreen() {
   const ballRadius = useRef(new Animated.Value(118)).current;
 
   // ===== المحرك على السيرفر =====
-  const { snapshot, sendAction } = useSoloGame('roulette', `ro-${id ?? '1'}`, setError);
+  const { snapshot, sendAction } = useSoloGame('roulette', `ro-${id ?? '1'}`, showError);
 
   const EMPTY_SNAP: RouletteSnapshot = {
     phase: 'BETTING',
@@ -199,15 +199,6 @@ export default function RouletteScreen() {
     result: null,
   };
   const snap: RouletteSnapshot = (snapshot as RouletteSnapshot) ?? EMPTY_SNAP;
-
-  useEffect(() => {
-    if (!error) return;
-    Animated.sequence([
-      Animated.timing(errorAnim, { toValue: 1, duration: 180, useNativeDriver: true }),
-      Animated.delay(1900),
-      Animated.timing(errorAnim, { toValue: 0, duration: 220, useNativeDriver: true }),
-    ]).start(() => setError(null));
-  }, [error, errorAnim]);
 
   const place = (type: RouletteBetType, numbers: number[]) => {
     if (spinning || snap.phase !== 'BETTING') return;
@@ -297,32 +288,19 @@ export default function RouletteScreen() {
 
   return (
     <View style={styles.container}>
-      <LinearGradient colors={['#0e1730', '#0b1326', '#060e20']} style={StyleSheet.absoluteFill} />
+      <LinearGradient colors={['#10151E', '#0A0D12', '#070A0F']} style={StyleSheet.absoluteFill} />
 
-      {/* ===== الترويسة ===== */}
-      <View style={[styles.header, { paddingTop: insets.top + SPACING.sm }]}>
-        <Pressable style={styles.iconBtn} onPress={() => router.back()} hitSlop={8}>
-          <BackIcon size={20} color={COLORS.text} />
-        </Pressable>
-        <View style={styles.headerCenter}>
-          <Text style={styles.tableTitle}>الروليت</Text>
-          <Text style={styles.phaseText}>
-            {spinning ? 'العجلة تدور…' : isBETTING ? 'ضع رهاناتك' : 'انتهت الجولة'}
-          </Text>
-        </View>
-        <View style={styles.headerSide}>
-          <Pressable style={[styles.iconBtn, !voiceMuted && styles.iconBtnLive]} onPress={() => setVoiceMuted((v) => !v)} hitSlop={8}>
-            {voiceMuted ? <MicOffIcon size={20} color={COLORS.textDim} /> : <MicIcon size={20} color={COLORS.emerald} />}
-          </Pressable>
-          <Pressable style={styles.iconBtn} onPress={() => setHelpOpen(true)} hitSlop={8} accessibilityLabel="تعليمات">
-            <InfoIcon size={20} color={COLORS.textDim} />
-          </Pressable>
-        </View>
+      {/* ===== الترويسة الموحدة ===== */}
+      <View style={{ paddingTop: insets.top + SPACING.xs }}>
+        <GameHeader title="الروليت" onBack={() => router.back()} onInfo={() => setHelpOpen(true)} />
+        <Text style={styles.phaseText}>
+          {spinning ? 'العجلة تدور…' : isBETTING ? 'ضع رهاناتك' : 'انتهت الجولة'}
+        </Text>
       </View>
 
       {/* ===== منطقة العجلة ===== */}
       <View style={styles.wheelArea}>
-        <LinearGradient colors={['rgba(45,52,73,0.5)', 'rgba(19,27,46,0.8)']} style={StyleSheet.absoluteFill} />
+        <LinearGradient colors={['rgba(21,27,38,0.5)', 'rgba(10,13,18,0.8)']} style={StyleSheet.absoluteFill} />
         {/* الرصيد */}
         <View style={[styles.glassPill, styles.balancePill]}>
           <Text style={styles.pillLabel}>الرصيد</Text>
@@ -385,7 +363,7 @@ export default function RouletteScreen() {
       <View style={styles.betPanel}>
         {/* سطح الطاولة ثلاثي الأبعاد */}
         <View style={styles.table3d}>
-          <LinearGradient colors={['#0e5c46', '#064e3b', '#002117']} style={StyleSheet.absoluteFill} />
+          <LinearGradient colors={['#0E4635', '#0A3D2E', '#02150F']} style={StyleSheet.absoluteFill} />
           <LinearGradient
             colors={['rgba(255,255,255,0.18)', 'rgba(255,255,255,0)']}
             start={{ x: 0.5, y: 0 }}
@@ -411,7 +389,7 @@ export default function RouletteScreen() {
               {[3, 2, 1].map((col) => {
                 const nums = Array.from({ length: 12 }, (_, i) => col + i * 3);
                 return (
-                  <BetCell key={col} label={`2:1`} numbers={nums} type="column" color="#161b2b" height={44} onPress={place} total={cellTotal('column', nums)} />
+                  <BetCell key={col} label={`2:1`} numbers={nums} type="column" color="#1B2230" height={44} onPress={place} total={cellTotal('column', nums)} />
                 );
               })}
             </View>
@@ -424,7 +402,7 @@ export default function RouletteScreen() {
               ['2nd 12', Array.from({ length: 12 }, (_, i) => i + 13)],
               ['3rd 12', Array.from({ length: 12 }, (_, i) => i + 25)],
             ].map(([label, nums]) => (
-              <BetCell key={String(label)} label={String(label)} numbers={nums as number[]} type="dozen" color="#161b2b" height={44} onPress={place} total={cellTotal('dozen', nums as number[])} />
+              <BetCell key={String(label)} label={String(label)} numbers={nums as number[]} type="dozen" color="#1B2230" height={44} onPress={place} total={cellTotal('dozen', nums as number[])} />
             ))}
           </View>
 
@@ -440,7 +418,7 @@ export default function RouletteScreen() {
                 ['19-36', 'high'],
               ] as [string, RouletteBetType][]
             ).map(([label, type]) => (
-              <BetCell key={type} label={label} numbers={[]} type={type} color={type === 'red' ? CELL_COLOR.red : '#161b2b'} height={44} onPress={place} total={cellTotal(type, [])} />
+              <BetCell key={type} label={label} numbers={[]} type={type} color={type === 'red' ? CELL_COLOR.red : '#1B2230'} height={44} onPress={place} total={cellTotal(type, [])} />
             ))}
           </View>
           </ScrollView>
@@ -491,12 +469,8 @@ export default function RouletteScreen() {
         </View>
       </View>
 
-      {/* ===== رسالة الخطأ ===== */}
-      {!!error && (
-        <Animated.View style={[styles.toast, { top: insets.top + 62, opacity: errorAnim, transform: [{ translateY: errorAnim.interpolate({ inputRange: [0, 1], outputRange: [-12, 0] }) }] }]}>
-          <Text style={styles.toastText}>{error}</Text>
-        </Animated.View>
-      )}
+      {/* ===== رسالة الخطأ الموحدة ===== */}
+      {errorNode}
 
       <InstructionsModal game="roulette" visible={helpOpen} onClose={() => setHelpOpen(false)} />
     </View>
@@ -538,8 +512,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   iconBtnLive: {
-    backgroundColor: 'rgba(149,211,186,0.15)',
-    borderColor: 'rgba(149,211,186,0.5)',
+    backgroundColor: 'rgba(143,203,180,0.15)',
+    borderColor: 'rgba(143,203,180,0.5)',
   },
 
   wheelArea: {
@@ -548,7 +522,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     overflow: 'hidden',
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(233,195,73,0.25)',
+    borderBottomColor: 'rgba(201,169,97,0.22)',
   },
   wheelWrap: {
     width: 260,
@@ -599,9 +573,9 @@ const styles = StyleSheet.create({
   glassPill: {
     position: 'absolute',
     zIndex: 6,
-    backgroundColor: 'rgba(45,52,73,0.75)',
+    backgroundColor: 'rgba(21,27,38,0.75)',
     borderWidth: 1,
-    borderColor: 'rgba(233,195,73,0.4)',
+    borderColor: 'rgba(201,169,97,0.35)',
     borderRadius: RADIUS.md,
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.xs,
@@ -647,7 +621,7 @@ const styles = StyleSheet.create({
     padding: 6,
     backgroundColor: COLORS.rail,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(84,60,36,0.7)',
+    borderTopColor: 'rgba(58,42,25,0.7)',
   },
   table3d: {
     flex: 1,
@@ -678,7 +652,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(233,195,73,0.25)',
+    borderColor: 'rgba(201,169,97,0.22)',
     borderTopWidth: 1.5,
     borderTopColor: 'rgba(255,255,255,0.35)',
     borderBottomWidth: 2,
@@ -716,7 +690,7 @@ const styles = StyleSheet.create({
     height: 16,
     paddingHorizontal: 3,
     borderRadius: 8,
-    backgroundColor: 'rgba(233,195,73,0.95)',
+    backgroundColor: 'rgba(201,169,97,0.95)',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
@@ -754,7 +728,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#161b2b',
+    backgroundColor: '#1B2230',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
@@ -822,9 +796,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.xl,
     paddingVertical: SPACING.md,
     borderRadius: RADIUS.full,
-    backgroundColor: 'rgba(6,14,32,0.92)',
+    backgroundColor: 'rgba(10,13,18,0.92)',
     borderWidth: 1,
-    borderColor: 'rgba(233,195,73,0.6)',
+    borderColor: 'rgba(201,169,97,0.6)',
     ...SHADOWS.gold,
   },
   winBannerText: {

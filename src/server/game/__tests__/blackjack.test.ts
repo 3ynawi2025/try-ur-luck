@@ -408,3 +408,47 @@ describe('blackjack lifecycle', () => {
     expect(engine.snapshot().phase).toBe('betting');
   });
 });
+
+// ============================================================
+// Input validation & even-money/insurance exclusivity (hardening)
+// ============================================================
+
+describe('blackjack input validation', () => {
+  it('rejects NaN / fractional / negative bets without corrupting balance', () => {
+    const { engine } = setupWithPlayer([]);
+    expect(engine.placeBet('p0', NaN)).toBe('مبلغ غير صالح');
+    expect(engine.placeBet('p0', 10.5)).toBe('مبلغ غير صالح');
+    expect(engine.placeBet('p0', -50)).toBe('مبلغ غير صالح');
+    expect(engine.snapshot().players[0].balance).toBe(1000);
+  });
+});
+
+describe('blackjack even money vs insurance', () => {
+  // player A+K natural; dealer A (up) + 10 (hole) → natural
+  const naturalShoe = [C('A', 'spades'), C('A', 'hearts'), C('K', 'spades'), C('10', 'clubs')];
+
+  it('even money then insurance is rejected; no spurious lose entry', () => {
+    const { engine, start } = setupWithPlayer(naturalShoe);
+    ok(start());
+    expect(engine.snapshot().phase).toBe('insurance');
+    expect(engine.takeEvenMoney('p0')).toBeNull();
+    expect(engine.takeInsurance('p0', 50)).toBe('لا يمكن الجمع بين Even Money والتأمين');
+    ok(engine.finishInsurance());
+    const snap = engine.snapshot();
+    expect(snap.results).toHaveLength(1);
+    expect(snap.results![0].result).toBe('win');
+    expect(snap.players[0].balance).toBe(1100); // 1000 - 100 bet + 200 even money
+  });
+
+  it('insurance then even money is rejected; insurance still settles 2:1', () => {
+    const { engine, start } = setupWithPlayer(naturalShoe);
+    ok(start());
+    expect(engine.takeInsurance('p0', 50)).toBeNull();
+    expect(engine.takeEvenMoney('p0')).toBe('لا يمكن الجمع بين التأمين وEven Money');
+    ok(engine.finishInsurance());
+    const snap = engine.snapshot();
+    const kinds = snap.results!.map((r) => r.result).sort();
+    expect(kinds).toEqual(['push', 'win']);
+    expect(snap.players[0].balance).toBe(1100); // 1000 - 100 - 50 + 100 push + 150 insurance
+  });
+});

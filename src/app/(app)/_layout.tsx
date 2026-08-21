@@ -1,6 +1,6 @@
 // ============================================================
-// جرب حظك — (app) Tab Layout
-// شريط مخصص: الرئيسية | الطاولات | البطولات | حسابي
+// جرب حظك — (app) Tab Layout — Midnight Royale
+// شريط مخصص من ٤ وجهات: الرئيسية | الطاولات | المكافآت | حسابي
 // ============================================================
 
 import React from 'react';
@@ -19,8 +19,10 @@ export default function AppLayout() {
     >
       <Tabs.Screen name="index" options={{ title: 'الرئيسية' }} />
       <Tabs.Screen name="tables" options={{ title: 'الطاولات' }} />
-      <Tabs.Screen name="leaderboard" options={{ title: 'البطولات' }} />
+      <Tabs.Screen name="leaderboard" options={{ title: 'المكافآت' }} />
       <Tabs.Screen name="profile" options={{ title: 'حسابي' }} />
+      {/* الأصدقاء — شاشة متاحة لكنها ليست وجهة رئيسية في الشريط */}
+      <Tabs.Screen name="friends" options={{ href: null }} />
 
       {/* شاشات اللعب — تُخفي الشريط بالكامل لتجربة غامرة */}
       <Tabs.Screen
@@ -37,6 +39,10 @@ export default function AppLayout() {
       />
       <Tabs.Screen
         name="russian/[id]"
+        options={{ href: null, tabBarStyle: { display: 'none' } }}
+      />
+      <Tabs.Screen
+        name="roulette/[id]"
         options={{ href: null, tabBarStyle: { display: 'none' } }}
       />
     </Tabs>

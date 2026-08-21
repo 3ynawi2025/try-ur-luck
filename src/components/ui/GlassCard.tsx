@@ -1,12 +1,14 @@
 // ============================================================
 // جرب حظك — GlassCard
-// سطح زجاجي بحافة شعرية ذهبية + عمق حقيقي
+// زجاج حقيقي (expo-blur) بحافة شعرية + لمعة علوية خافتة
+// Dark Luxe: شفافية هادئة بدل الأسطح المصمتة
 // ============================================================
 
 import React from 'react';
 import { View, StyleSheet, ViewStyle, StyleProp } from 'react-native';
+import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
-import { COLORS, RADIUS, SPACING, SHADOWS, GRADIENTS } from '../../constants/theme';
+import { COLORS, RADIUS, SPACING, SHADOWS } from '../../constants/theme';
 
 type Variant = 'default' | 'gold' | 'sunken';
 
@@ -17,9 +19,9 @@ interface GlassCardProps {
   /** يُطبَّق على حاوية المحتوى — لتخطيط الأبناء (flexDirection وغيره) */
   contentStyle?: StyleProp<ViewStyle>;
   variant?: Variant;
-  /** خط ضوء ذهبي على الحافة العليا — يعطي إحساس الانعكاس */
+  /** خط ضوء علوي — يعطي إحساس الانعكاس */
   sheen?: boolean;
-  /** توهج ذهبي حول البطاقة */
+  /** توهج شامبين حول البطاقة */
   glow?: boolean;
   padding?: number;
 }
@@ -45,33 +47,46 @@ export default function GlassCard({
         style,
       ]}
     >
-      <LinearGradient
-        colors={isGold ? GRADIENTS.surfaceGold : GRADIENTS.surface}
-        start={{ x: 0.1, y: 0 }}
-        end={{ x: 0.9, y: 1 }}
-        style={[
-          styles.surface,
-          { padding },
-          isGold && styles.goldBorder,
-          isSunken && styles.sunken,
-          contentStyle,
-        ]}
-      >
-        {sheen && (
-          <LinearGradient
-            colors={
-              isGold
-                ? ['rgba(247,231,166,0.55)', 'rgba(247,231,166,0)']
-                : ['rgba(255,255,255,0.20)', 'rgba(255,255,255,0)']
-            }
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.sheen}
-            pointerEvents="none"
-          />
-        )}
-        {children}
-      </LinearGradient>
+      {isSunken ? (
+        <View style={[styles.surface, styles.sunken, { padding }, contentStyle]}>
+          {children}
+        </View>
+      ) : (
+        <BlurView
+          intensity={26}
+          tint="dark"
+          style={[
+            styles.surface,
+            { padding },
+            isGold && styles.goldBorder,
+            contentStyle,
+          ]}
+        >
+          {isGold && (
+            <LinearGradient
+              colors={['rgba(201,169,97,0.08)', 'rgba(201,169,97,0)']}
+              start={{ x: 0.1, y: 0 }}
+              end={{ x: 0.9, y: 1 }}
+              style={StyleSheet.absoluteFill}
+              pointerEvents="none"
+            />
+          )}
+          {sheen && (
+            <LinearGradient
+              colors={
+                isGold
+                  ? ['rgba(227,201,138,0.32)', 'rgba(227,201,138,0)']
+                  : ['rgba(255,255,255,0.14)', 'rgba(255,255,255,0)']
+              }
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.sheen}
+              pointerEvents="none"
+            />
+          )}
+          {children}
+        </BlurView>
+      )}
     </View>
   );
 }

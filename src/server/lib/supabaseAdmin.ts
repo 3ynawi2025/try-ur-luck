@@ -1,16 +1,26 @@
 // جرب حظك — Supabase Admin Client (Server-side)
+//
+// ⚠️ يجب توفير المتغيرين عبر البيئة فقط:
+//   SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY
+// لا تضع المفتاح في الكود المصدري أبدًا (تمت إزالته من هنا في جولة التحصين).
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 let supabaseAdminInstance: SupabaseClient | null = null;
 
 export function getSupabaseAdmin(): SupabaseClient {
-  if (!supabaseAdminInstance) {
-    supabaseAdminInstance = createClient(
-      'https://iycuncfqxjlcqhupyvyq.supabase.co',
-      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml5Y3VuY2ZxeGpsY3FodXB5dnlxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4NjQ4Njc0NywiZXhwIjoyMTAyMDYyNzQ3fQ.KRj7aq3gnNGsfVrd4cseCdZPptgnpAe9ZAbELfvlM3Q',
-      { auth: { persistSession: false } }
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+    throw new Error(
+      'Database not configured: set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY environment variables'
     );
+  }
+  if (!supabaseAdminInstance) {
+    supabaseAdminInstance = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+      auth: { persistSession: false },
+    });
   }
   return supabaseAdminInstance;
 }

@@ -3,7 +3,7 @@
 // رقاقة كازينو مجسّمة: حافة مشقوقة + إضاءة علوية + ظل تماس
 // ============================================================
 
-import React from 'react';
+import React, { useId } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import Svg, {
   Circle,
@@ -30,12 +30,12 @@ interface ChipSkin {
   ink: string;
 }
 
-/** ألوان الرقاقات تتبع أعراف الكازينو: أبيض < أحمر < أخضر < أسود < بنفسجي */
+/** ألوان الرقاقات تتبع أعراف الكازينو (بتناغم Dark Luxe): أبيض < أحمر < أخضر < أسود/شامبين < بنفسجي */
 function getSkin(amount: number): ChipSkin {
-  if (amount >= 5000) return { face: '#6D28D9', faceDark: '#3B1682', edge: '#EDE4FF', ink: '#FFFFFF' };
-  if (amount >= 1000) return { face: '#15161A', faceDark: '#050506', edge: '#D4AF37', ink: '#F7E7A6' };
-  if (amount >= 500) return { face: '#0E6B48', faceDark: '#053B27', edge: '#EAF7F0', ink: '#FFFFFF' };
-  if (amount >= 100) return { face: '#B01F2E', faceDark: '#6B0F1A', edge: '#FFE9EC', ink: '#FFFFFF' };
+  if (amount >= 5000) return { face: '#5B3FA8', faceDark: '#2E1F5E', edge: '#E8E2F5', ink: '#FFFFFF' };
+  if (amount >= 1000) return { face: '#15161A', faceDark: '#050506', edge: '#C9A961', ink: '#E3C98A' };
+  if (amount >= 500) return { face: '#0A3D2E', faceDark: '#062A20', edge: '#DFF2EA', ink: '#FFFFFF' };
+  if (amount >= 100) return { face: '#8E2430', faceDark: '#4A1018', edge: '#F6E3E5', ink: '#FFFFFF' };
   return { face: '#E8E4DA', faceDark: '#B3ADA0', edge: '#3A3630', ink: '#26231E' };
 }
 
@@ -69,7 +69,8 @@ function EdgeNotches({ s, color }: { s: number; color: string }) {
 export default function Chip({ amount, size = SIZES.chipDiameter, stacked = false }: ChipProps) {
   const skin = getSkin(amount);
   const r = size / 2;
-  const id = `c${Math.round(size)}${amount}`;
+  // useId يمنع تصادم معرّفات التدرجات عند رقاقات متطابقة الحجم والقيمة
+  const id = useId().replace(/[^a-zA-Z0-9]/g, '') + Math.round(size) + amount;
 
   return (
     <View style={{ width: size, height: size }}>
@@ -159,7 +160,11 @@ const styles = StyleSheet.create({
     left: 0,
   },
   labelWrap: {
-    ...StyleSheet.absoluteFillObject,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     alignItems: 'center',
     justifyContent: 'center',
   },

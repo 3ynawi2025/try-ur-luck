@@ -388,3 +388,17 @@ describe('three-card engine', () => {
     expect(snap.result!.outcome).toBe('FOLDED');
   });
 });
+
+// ============================================================
+// Input validation (hardening)
+// ============================================================
+
+describe('three-card input validation', () => {
+  it('rejects NaN / fractional / infinite wagers without corrupting balance', () => {
+    const e = new ThreeCardPokerEngine(1000);
+    expect(e.placeWagers({ ante: NaN })).toBe('مبلغ غير صالح');
+    expect(e.placeWagers({ ante: 10.5 })).toBe('مبلغ غير صالح');
+    expect(e.placeWagers({ ante: 100, pairPlus: Infinity })).toBe('مبلغ غير صالح');
+    expect(e.snapshot().balance).toBe(1000);
+  });
+});

@@ -1,5 +1,7 @@
 // ============================================================
-// جرب حظك — إنشاء الملف الشخصي
+// جرب حظك — إنشاء الحساب
+// اختيار اسم مستخدم واسم معروض، ثم دخول فوري (بدون رقم هاتف).
+// يرتبط بسيرفر Supabase لفحص تفرّد اسم المستخدم عالمياً.
 // ============================================================
 
 import React, { useState } from 'react';
@@ -18,14 +20,36 @@ import GoldButton from '../../components/ui/GoldButton';
 import Avatar from '../../components/ui/Avatar';
 import Input from '../../components/ui/Input';
 import { BackIcon, PlusIcon } from '../../components/icons/GameIcons';
-import { COLORS, FONTS, TYPE, SPACING, SIZES, RADIUS } from '../../constants/theme';
+import { COLORS, FONTS, TYPE, SPACING, SIZES } from '../../constants/theme';
+import { useAuthStore } from '../../stores/authStore';
 
 export default function ProfileSetupScreen() {
   const [username, setUsername] = useState('');
   const [displayName, setDisplayName] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const signInWithUsername = useAuthStore((s) => s.signInWithUsername);
+  const busy = useAuthStore((s) => s.busy);
 
-  const clean = username.replace(/^@/, '');
-  const valid = clean.length >= 3;
+  const clean = username.replace(/^@/, '').toLowerCase();
+  // مطابق للتحقق في السيرفر: أحرف لاتينية/أرقام/شرطة سفلية فقط
+  const valid = /^[a-z0-9_]{3,20}$/.test(clean);
+
+  const create = async () => {
+    if (!valid || busy) return;
+    setError(null);
+    try {
+      await signInWithUsername(clean, displayName);
+      router.replace('/(app)');
+    } catch (e: any) {
+      if (e?.message === 'USERNAME_TAKEN') {
+        setError('اسم المستخدم مستخدم مسبقاً — اختر اسماً آخر');
+      } else if (e?.message === 'USERNAME_INVALID') {
+        setError('اسم المستخدم: ٣-٢٠ حرفًا لاتينيًا أو أرقامًا أو شرطة سفلية فقط');
+      } else {
+        setError('تعذّر إنشاء الحساب. تأكد من اتصالك بالإنترنت ثم أعد المحاولة');
+      }
+    }
+  };
 
   return (
     <Screen>
@@ -44,14 +68,10 @@ export default function ProfileSetupScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          <View style={styles.stepRow}>
-            <View style={[styles.step, styles.stepDone]} />
-            <View style={[styles.step, styles.stepDone]} />
-            <View style={[styles.step, styles.stepActive]} />
-          </View>
-
-          <Text style={styles.title}>أنشئ ملفك</Text>
-          <Text style={styles.subtitle}>هذا ما سيراه بقية اللاعبين على الطاولة</Text>
+          <Text style={styles.title}>أنشئ حسابك</Text>
+          <Text style={styles.subtitle}>
+            اختر اسم مستخدم واسم معروض، وابدأ اللعب فوراً — بدون رقم هاتف
+          </Text>
 
           {/* الصورة */}
           <Pressable style={styles.avatarWrap}>
@@ -74,12 +94,16 @@ export default function ProfileSetupScreen() {
               autoCorrect={false}
               maxLength={20}
               error={
-                username.length > 0 && !valid ? 'ثلاثة أحرف على الأقل' : undefined
+                error
+                  ? error
+                  : username.length > 0 && !valid
+                  ? 'ثلاثة أحرف على الأقل'
+                  : undefined
               }
             />
             <Input
               label="الاسم المعروض"
-              placeholder="أدخل اسمك"
+              placeholder="هذا ما سيراه اللاعبون على الطاولة"
               value={displayName}
               onChangeText={setDisplayName}
               maxLength={24}
@@ -87,10 +111,15 @@ export default function ProfileSetupScreen() {
           </View>
 
           <GoldButton
-            title="ابدأ اللعب"
-            onPress={() => router.replace('/(app)')}
-            disabled={!valid}
+            title={busy ? 'جارٍ إنشاء الحساب…' : 'ابدأ اللعب'}
+            onPress={create}
+            disabled={!valid || busy}
+            loading={busy}
           />
+
+          <Text style={styles.hint}>
+            يمكنك لاحقاً ربط بريدك الإلكتروني من الملف الشخصي لتثبيت حسابك حتى لا تفقده عند تغيير الجهاز
+          </Text>
         </ScrollView>
       </KeyboardAvoidingView>
     </Screen>
@@ -120,24 +149,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: SIZES.screenPadding,
     paddingVertical: SPACING.xl,
   },
-  stepRow: {
-    flexDirection: 'row-reverse',
-    gap: 6,
-    marginBottom: SPACING.xl,
-  },
-  step: {
-    width: 26,
-    height: 3,
-    borderRadius: 2,
-    backgroundColor: COLORS.border,
-  },
-  stepDone: {
-    backgroundColor: 'rgba(212,175,55,0.45)',
-  },
-  stepActive: {
-    backgroundColor: COLORS.gold,
-    width: 34,
-  },
   title: {
     fontFamily: FONTS.ar.bold,
     fontSize: TYPE.display.fontSize,
@@ -151,6 +162,7 @@ const styles = StyleSheet.create({
     color: COLORS.textDim,
     textAlign: 'right',
     marginTop: SPACING.xs,
+    lineHeight: TYPE.body.lineHeight,
   },
 
   avatarWrap: {
@@ -179,5 +191,14 @@ const styles = StyleSheet.create({
   },
   form: {
     marginTop: SPACING.xxl,
+  },
+  hint: {
+    fontFamily: FONTS.ar.regular,
+    fontSize: TYPE.caption.fontSize,
+    lineHeight: TYPE.caption.lineHeight + 4,
+    color: COLORS.textFaint,
+    textAlign: 'center',
+    marginTop: SPACING.lg,
+    paddingHorizontal: SPACING.lg,
   },
 });
