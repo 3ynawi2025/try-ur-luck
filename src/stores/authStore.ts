@@ -22,8 +22,12 @@ interface AuthState {
   profile: PlayerProfile | null;
   isAuthenticated: boolean;
   busy: boolean;
-  /** إنشاء حساب حقيقي على السيرفر (يمنع تكرار اسم المستخدم) */
-  signInWithUsername: (username: string, displayName: string) => Promise<void>;
+  /** إنشاء حساب حقيقي على السيرفر (يمنع تكرار اسم المستخدم) — ref = اسم الداعي */
+  signInWithUsername: (
+    username: string,
+    displayName: string,
+    ref?: string
+  ) => Promise<{ inviteBonus?: boolean }>;
   bindEmail: (email: string) => void;
   signOut: () => Promise<void>;
 }
@@ -35,7 +39,7 @@ export const useAuthStore = create<AuthState>()(
       isAuthenticated: false,
       busy: false,
 
-      signInWithUsername: async (username, displayName) => {
+      signInWithUsername: async (username, displayName, ref) => {
         set({ busy: true });
         try {
           const clean = username.replace(/^@/, '').trim();
@@ -44,7 +48,11 @@ export const useAuthStore = create<AuthState>()(
           const res = await fetch(`${API_URL}/api/auth/register`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username: clean, displayName: name }),
+            body: JSON.stringify({
+              username: clean,
+              displayName: name,
+              ...(ref ? { ref: String(ref).replace(/^@/, '').trim().toLowerCase() } : {}),
+            }),
           });
 
           const data = await res.json().catch(() => ({}));
@@ -76,6 +84,8 @@ export const useAuthStore = create<AuthState>()(
             isAuthenticated: true,
             busy: false,
           });
+
+          return { inviteBonus: Boolean(data.inviteBonus) };
         } catch (e) {
           set({ busy: false });
           throw e;

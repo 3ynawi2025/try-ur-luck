@@ -20,6 +20,7 @@ import { BlurView } from 'expo-blur';
 import Screen from '../../components/ui/Screen';
 import GoldButton from '../../components/ui/GoldButton';
 import Avatar from '../../components/ui/Avatar';
+import RewardsModal from '../../components/ui/RewardsModal';
 import { useAuthStore } from '../../stores/authStore';
 import { apiFetch } from '../../lib/api';
 import { useReducedMotion } from '../../constants/motion';
@@ -172,6 +173,7 @@ function GameCard({
 export default function LobbyScreen() {
   const profile = useAuthStore((s) => s.profile);
   const [tokens, setTokens] = useState(10000);
+  const [rewardsOpen, setRewardsOpen] = useState(false);
   const reduced = useReducedMotion();
   const heroIn = useRef(new Animated.Value(0)).current;
 
@@ -263,7 +265,11 @@ export default function LobbyScreen() {
               <Text style={styles.offerTitle}>{o.title}</Text>
               <Text style={styles.offerDesc}>{o.desc}</Text>
               {o.ctaStyle === 'solid' ? (
-                <GoldButton title={o.cta} onPress={() => {}} size="sm" />
+                <GoldButton
+                  title={o.cta}
+                  onPress={() => (o.key === 'daily' ? setRewardsOpen(true) : undefined)}
+                  size="sm"
+                />
               ) : (
                 <Pressable style={styles.offerOutlineBtn} onPress={() => {}}>
                   <Text style={styles.offerOutlineText}>{o.cta}</Text>
@@ -304,6 +310,13 @@ export default function LobbyScreen() {
           <Text style={styles.eventsText}>فعاليات حصرية — قريبًا</Text>
         </View>
       </ScrollView>
+
+      {/* نافذة المكافآت اليومية */}
+      <RewardsModal
+        visible={rewardsOpen}
+        onClose={() => setRewardsOpen(false)}
+        onReward={(amount) => setTokens((t) => Math.max(0, t) + amount)}
+      />
     </Screen>
   );
 }

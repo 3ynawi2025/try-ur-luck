@@ -37,17 +37,22 @@ import {
 
 const CHIP_VALUES = [10, 50, 100, 500];
 
+// حجم القرص في النافذة السينمائية + مسار الكرة المناسب له
+const WHEEL_SIZE = 300;
+const BALL_START = Math.round(118 * (WHEEL_SIZE / 260));
+const BALL_END = Math.round(78 * (WHEEL_SIZE / 260));
+
 const CELL_COLOR: Record<string, string> = {
   red: COLORS.crimsonContainer,
   black: '#1B2230',
   green: COLORS.emeraldContainer,
 };
 
-// ===== عجلة الروليت (SVG) =====
-function Wheel({ spinAngle }: { spinAngle: Animated.Value }) {
-  const R = 130;
-  const CX = 130;
-  const CY = 130;
+// ===== عجلة الروليت (SVG) — الحجم قابل للضبط (للنافذة السينمائية) =====
+function Wheel({ spinAngle, size = 300 }: { spinAngle: Animated.Value; size?: number }) {
+  const R = size / 2;
+  const CX = R;
+  const CY = R;
   const N = EUROPEAN_WHEEL.length;
   const step = (2 * Math.PI) / N;
 
@@ -66,20 +71,20 @@ function Wheel({ spinAngle }: { spinAngle: Animated.Value }) {
   });
 
   return (
-    <View style={styles.wheelWrap}>
+    <View style={[styles.wheelWrap, { width: size, height: size }]}>
       <Animated.View style={{ transform: [{ rotate: spinAngle.interpolate({ inputRange: [0, 360], outputRange: ['0deg', '360deg'], extrapolate: 'extend' }) }] }}>
-        <Svg width={260} height={260}>
+        <Svg width={size} height={size}>
           {/* جسم العجلة — ماهوجني */}
-          <Circle cx={CX} cy={CY} r={R + 8} fill="#2A1E12" />
-          <Circle cx={CX} cy={CY} r={R + 3} fill={COLORS.railDark} />
+          <Circle cx={CX} cy={CY} r={R + size * 0.03} fill="#2A1E12" />
+          <Circle cx={CX} cy={CY} r={R + size * 0.012} fill={COLORS.railDark} />
           {sectors.map((s, i) => (
             <G key={i}>
-              <Path d={s.d} fill={CELL_COLOR[s.color]} stroke="rgba(201,169,97,0.30)" strokeWidth={0.6} />
+              <Path d={s.d} fill={CELL_COLOR[s.color]} stroke="rgba(201,169,97,0.30)" strokeWidth={size * 0.0024} />
               <SvgText
                 x={s.lx}
                 y={s.ly}
                 fill={s.color === 'black' ? '#F2EFE9' : '#fff'}
-                fontSize={7.5}
+                fontSize={size * 0.032}
                 fontWeight="700"
                 textAnchor="middle"
                 alignmentBaseline="central"
@@ -89,9 +94,9 @@ function Wheel({ spinAngle }: { spinAngle: Animated.Value }) {
             </G>
           ))}
           {/* الفواصل الذهبية */}
-          <Circle cx={CX} cy={CY} r={R} fill="none" stroke="#C9A961" strokeWidth={2} />
-          <Circle cx={CX} cy={CY} r={R * 0.42} fill="#1B2230" stroke="#C9A961" strokeWidth={2.5} />
-          <Circle cx={CX} cy={CY} r={R * 0.42} fill="none" stroke="rgba(201,169,97,0.35)" strokeWidth={1} strokeDasharray="4 4" />
+          <Circle cx={CX} cy={CY} r={R} fill="none" stroke="#C9A961" strokeWidth={size * 0.008} />
+          <Circle cx={CX} cy={CY} r={R * 0.42} fill="#1B2230" stroke="#C9A961" strokeWidth={size * 0.01} />
+          <Circle cx={CX} cy={CY} r={R * 0.42} fill="none" stroke="rgba(201,169,97,0.35)" strokeWidth={size * 0.004} strokeDasharray="4 4" />
         </Svg>
       </Animated.View>
 
@@ -145,7 +150,7 @@ function BetCell({
 }) {
   const scale = useRef(new Animated.Value(1)).current;
   return (
-    <Animated.View style={[{ flex: flex ?? 1, height: height ?? 40 }, { transform: [{ scale }] }]}>
+    <Animated.View style={[{ flex: flex ?? 1, height: height ?? 54 }, { transform: [{ scale }] }]}>
       <Pressable
         style={[styles.cell, { backgroundColor: color }]}
         onPress={() => {
@@ -177,6 +182,8 @@ export default function RouletteScreen() {
   const [chip, setChip] = useState(100);
   const { showError, errorNode } = useErrorToast();
   const [spinning, setSpinning] = useState(false);
+  // القرص يظهر كعنصر أساسي وحيد عند الدوران فقط
+  const [wheelVisible, setWheelVisible] = useState(false);
   const spinAngle = useRef(new Animated.Value(0)).current;
   const lastResultRef = useRef<number | null>(null);
   // إجمالي زاوية الدوران المتراكمة — نضمن إضافة لفات كاملة كل جولة
@@ -185,7 +192,7 @@ export default function RouletteScreen() {
   const resultPop = useRef(new Animated.Value(0)).current;
   // الكرة: زاوية الدوران (عكس العجلة) + نصف القطر (من الخارج للداخل)
   const ballOrbit = useRef(new Animated.Value(0)).current;
-  const ballRadius = useRef(new Animated.Value(118)).current;
+  const ballRadius = useRef(new Animated.Value(BALL_START)).current;
 
   // ===== المحرك على السيرفر =====
   const { snapshot, sendAction } = useSoloGame('roulette', `ro-${id ?? '1'}`, showError);
@@ -211,14 +218,16 @@ export default function RouletteScreen() {
 
   const spin = () => {
     if (spinning || snap.phase !== 'BETTING' || snap.totalBet === 0) return;
+    setWheelVisible(true);
     sendAction('spin');
   };
 
   const newRound = () => {
     setSpinning(false);
+    setWheelVisible(false);
     lastResultRef.current = null;
     resultPop.setValue(0);
-    ballRadius.setValue(118);
+    ballRadius.setValue(BALL_START);
     sendAction('next');
   };
 
@@ -255,7 +264,7 @@ export default function RouletteScreen() {
         useNativeDriver: true,
       }),
       Animated.timing(ballRadius, {
-        toValue: 78,
+        toValue: BALL_END,
         duration: 4800,
         easing: Easing.out(Easing.cubic),
         useNativeDriver: true,
@@ -312,69 +321,108 @@ export default function RouletteScreen() {
         </Text>
       </View>
 
-      {/* ===== منطقة العجلة ===== */}
-      <View style={styles.wheelArea}>
-        <LinearGradient colors={['rgba(21,27,38,0.5)', 'rgba(10,13,18,0.8)']} style={StyleSheet.absoluteFill} />
-        {/* الرصيد */}
-        <View style={[styles.glassPill, styles.balancePill]}>
-          <Text style={styles.pillLabel}>الرصيد</Text>
-          <Text style={styles.pillValue}>{formatCompact(balanceDisplay)}</Text>
-        </View>
-        {/* السجل */}
-        <View style={[styles.glassPill, styles.historyPill]}>
-          <Text style={styles.pillLabel}>آخر الأرقام</Text>
-          <View style={styles.historyRow}>
-            {snap.history.slice(0, 6).map((n, i) => (
-              <View key={i} style={[styles.historyBall, { backgroundColor: CELL_COLOR[numberColor(n)] }]}>
-                <Text style={styles.historyBallText}>{n}</Text>
+      {/* ===== النافذة السينمائية للقرص — العنصر الأساسي الوحيد عند الدوران ===== */}
+      {wheelVisible && !isBETTING && (
+        <View style={styles.wheelOverlay}>
+          <LinearGradient colors={['rgba(7,10,15,0.97)', 'rgba(10,13,18,0.99)']} style={StyleSheet.absoluteFill} />
+
+          {/* الرصيد والسجل أعلى النافذة */}
+          <View style={styles.overlayTopRow}>
+            <View style={[styles.glassPill, styles.pillStatic]}>
+              <Text style={styles.pillLabel}>الرصيد</Text>
+              <Text style={styles.pillValue}>{formatCompact(balanceDisplay)}</Text>
+            </View>
+            <View style={[styles.glassPill, styles.pillStatic]}>
+              <Text style={styles.pillLabel}>آخر الأرقام</Text>
+              <View style={styles.historyRow}>
+                {snap.history.slice(0, 6).map((n, i) => (
+                  <View key={i} style={[styles.historyBall, { backgroundColor: CELL_COLOR[numberColor(n)] }]}>
+                    <Text style={styles.historyBallText}>{n}</Text>
+                  </View>
+                ))}
+                {snap.history.length === 0 && <Text style={styles.pillLabel}>—</Text>}
               </View>
-            ))}
-            {snap.history.length === 0 && <Text style={styles.pillLabel}>—</Text>}
+            </View>
+          </View>
+
+          {/* القرص في مركز الشاشة */}
+          <View style={styles.wheelStage}>
+            <Wheel spinAngle={spinAngle} size={WHEEL_SIZE} />
+
+            {/* الكرة — تدور عكس العجلة وتستقر في المسار الداخلي */}
+            <Animated.View
+              pointerEvents="none"
+              style={[
+                styles.ballOrbit,
+                {
+                  transform: [
+                    { rotate: ballOrbit.interpolate({ inputRange: [-2160, 0], outputRange: ['-2160deg', '0deg'], extrapolate: 'extend' }) },
+                    { translateX: ballRadius },
+                  ],
+                },
+              ]}
+            >
+              <View style={styles.rouletteBall} />
+            </Animated.View>
+
+            {!!res && !spinning && (
+              <Animated.View
+                pointerEvents="none"
+                style={[
+                  styles.winBanner,
+                  {
+                    opacity: resultPop,
+                    transform: [{ scale: resultPop.interpolate({ inputRange: [0, 1], outputRange: [0.4, 1] }) }],
+                  },
+                ]}
+              >
+                <CrownIcon size={22} color={COLORS.goldLight} />
+                <Text style={styles.winBannerText}>الرقم الفائز</Text>
+                <Text style={styles.winBannerNumber}>{res.winningNumber}</Text>
+              </Animated.View>
+            )}
+          </View>
+
+          {spinning ? (
+            <Text style={styles.spinningLabel}>العجلة تدور…</Text>
+          ) : !!res ? (
+            <View style={styles.overlayResult}>
+              <Text style={styles.resultText}>
+                {res.netWin >= 0 ? 'ربحت ' : 'خسرت '}
+                <Text style={res.netWin >= 0 ? styles.resultWin : styles.resultLoss}>
+                  {formatCompact(Math.abs(res.netWin))}
+                </Text>
+              </Text>
+              <GoldButton title="متابعة" onPress={() => setWheelVisible(false)} />
+            </View>
+          ) : null}
+        </View>
+      )}
+
+      {/* ===== طاولة الرهان — الشاشة كلها لها أثناء الرهان ===== */}
+      <View style={styles.betPanel}>
+        {/* شريط علوي مضغوط: الرصيد + السجل + تلميح */}
+        <View style={styles.tableTopBar}>
+          <View style={[styles.glassPill, styles.pillStatic]}>
+            <Text style={styles.pillLabel}>الرصيد</Text>
+            <Text style={styles.pillValue}>{formatCompact(balanceDisplay)}</Text>
+          </View>
+          {isBETTING && snap.totalBet === 0 && (
+            <Text style={styles.hintTextInline}>اختر شريحة ثم اضغط على الطاولة لوضع رهانك</Text>
+          )}
+          <View style={[styles.glassPill, styles.pillStatic]}>
+            <Text style={styles.pillLabel}>آخر الأرقام</Text>
+            <View style={styles.historyRow}>
+              {snap.history.slice(0, 6).map((n, i) => (
+                <View key={i} style={[styles.historyBall, { backgroundColor: CELL_COLOR[numberColor(n)] }]}>
+                  <Text style={styles.historyBallText}>{n}</Text>
+                </View>
+              ))}
+              {snap.history.length === 0 && <Text style={styles.pillLabel}>—</Text>}
+            </View>
           </View>
         </View>
 
-        <Wheel spinAngle={spinAngle} />
-
-        {/* الكرة — تدور عكس العجلة وتستقر في المسار الداخلي */}
-        <Animated.View
-          pointerEvents="none"
-          style={[
-            styles.ballOrbit,
-            {
-              transform: [
-                { rotate: ballOrbit.interpolate({ inputRange: [-2160, 0], outputRange: ['-2160deg', '0deg'], extrapolate: 'extend' }) },
-                { translateX: ballRadius },
-              ],
-            },
-          ]}
-        >
-          <View style={styles.rouletteBall} />
-        </Animated.View>
-
-        {!!res && !spinning && (
-          <Animated.View
-            pointerEvents="none"
-            style={[
-              styles.winBanner,
-              {
-                opacity: resultPop,
-                transform: [{ scale: resultPop.interpolate({ inputRange: [0, 1], outputRange: [0.4, 1] }) }],
-              },
-            ]}
-          >
-            <CrownIcon size={22} color={COLORS.goldLight} />
-            <Text style={styles.winBannerText}>الرقم الفائز</Text>
-            <Text style={styles.winBannerNumber}>{res.winningNumber}</Text>
-          </Animated.View>
-        )}
-
-        {isBETTING && snap.totalBet === 0 && !spinning && (
-          <Text style={styles.hintText}>اختر شريحة ثم اضغط على الطاولة لوضع رهانك</Text>
-        )}
-      </View>
-
-      {/* ===== طاولة الرهان ===== */}
-      <View style={styles.betPanel}>
         {/* سطح الطاولة ثلاثي الأبعاد */}
         <View style={styles.table3d}>
           <LinearGradient colors={['#0E4635', '#0A3D2E', '#02150F']} style={StyleSheet.absoluteFill} />
@@ -388,7 +436,7 @@ export default function RouletteScreen() {
           <ScrollView contentContainerStyle={styles.gridWrap} showsVerticalScrollIndicator={false}>
           {/* صف الأصفار + أول صف */}
           <View style={styles.gridRow}>
-            <BetCell label="0" numbers={[0]} type="straight" color={CELL_COLOR.green} height={88} flex={0.9} onPress={place} total={cellTotal('straight', [0])} crowned={!!res && res.winningNumber === 0} />
+            <BetCell label="0" numbers={[0]} type="straight" color={CELL_COLOR.green} height={120} flex={0.9} onPress={place} total={cellTotal('straight', [0])} crowned={!!res && res.winningNumber === 0} />
             <View style={styles.gridCol}>
               {rows.map((row, ri) => (
                 <View key={ri} style={styles.gridRow}>
@@ -403,7 +451,7 @@ export default function RouletteScreen() {
               {[3, 2, 1].map((col) => {
                 const nums = Array.from({ length: 12 }, (_, i) => col + i * 3);
                 return (
-                  <BetCell key={col} label={`2:1`} numbers={nums} type="column" color="#1B2230" height={44} onPress={place} total={cellTotal('column', nums)} />
+                  <BetCell key={col} label={`2:1`} numbers={nums} type="column" color="#1B2230" height={54} onPress={place} total={cellTotal('column', nums)} />
                 );
               })}
             </View>
@@ -416,7 +464,7 @@ export default function RouletteScreen() {
               ['2nd 12', Array.from({ length: 12 }, (_, i) => i + 13)],
               ['3rd 12', Array.from({ length: 12 }, (_, i) => i + 25)],
             ].map(([label, nums]) => (
-              <BetCell key={String(label)} label={String(label)} numbers={nums as number[]} type="dozen" color="#1B2230" height={44} onPress={place} total={cellTotal('dozen', nums as number[])} />
+              <BetCell key={String(label)} label={String(label)} numbers={nums as number[]} type="dozen" color="#1B2230" height={54} onPress={place} total={cellTotal('dozen', nums as number[])} />
             ))}
           </View>
 
@@ -432,7 +480,7 @@ export default function RouletteScreen() {
                 ['19-36', 'high'],
               ] as [string, RouletteBetType][]
             ).map(([label, type]) => (
-              <BetCell key={type} label={label} numbers={[]} type={type} color={type === 'red' ? CELL_COLOR.red : '#1B2230'} height={44} onPress={place} total={cellTotal(type, [])} />
+              <BetCell key={type} label={label} numbers={[]} type={type} color={type === 'red' ? CELL_COLOR.red : '#1B2230'} height={54} onPress={place} total={cellTotal(type, [])} />
             ))}
           </View>
           </ScrollView>
@@ -533,17 +581,66 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(143,203,180,0.5)',
   },
 
-  wheelArea: {
-    height: 300,
+  // ===== النافذة السينمائية للقرص =====
+  wheelOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 40,
     alignItems: 'center',
     justifyContent: 'center',
-    overflow: 'hidden',
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(201,169,97,0.22)',
   },
+  overlayTopRow: {
+    position: 'absolute',
+    top: SPACING.xxl,
+    left: SPACING.lg,
+    right: SPACING.lg,
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    zIndex: 42,
+  },
+  wheelStage: {
+    width: WHEEL_SIZE,
+    height: WHEEL_SIZE,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  spinningLabel: {
+    position: 'absolute',
+    bottom: SPACING.xxl + 24,
+    fontFamily: FONTS.ar.semibold,
+    fontSize: TYPE.body.fontSize,
+    color: COLORS.goldLight,
+    letterSpacing: 1,
+  },
+  overlayResult: {
+    position: 'absolute',
+    bottom: SPACING.xxl,
+    alignItems: 'center',
+    gap: SPACING.md,
+  },
+
+  // ===== شريط الطاولة العلوي =====
+  tableTopBar: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: SPACING.sm,
+    paddingBottom: SPACING.sm,
+    gap: SPACING.sm,
+  },
+  hintTextInline: {
+    flex: 1,
+    fontFamily: FONTS.ar.regular,
+    fontSize: TYPE.caption.fontSize,
+    color: COLORS.textFaint,
+    textAlign: 'center',
+  },
+
   wheelWrap: {
-    width: 260,
-    height: 260,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -588,7 +685,6 @@ const styles = StyleSheet.create({
     ...SHADOWS.gold,
   },
   glassPill: {
-    position: 'absolute',
     zIndex: 6,
     backgroundColor: 'rgba(21,27,38,0.75)',
     borderWidth: 1,
@@ -597,8 +693,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.xs,
   },
-  balancePill: { top: SPACING.sm, right: SPACING.lg, alignItems: 'flex-start' },
-  historyPill: { top: SPACING.sm, left: SPACING.lg, alignItems: 'flex-end' },
+  pillStatic: {
+    alignItems: 'center',
+    gap: 2,
+  },
   pillLabel: {
     fontFamily: FONTS.ar.regular,
     fontSize: TYPE.micro.fontSize,
@@ -624,14 +722,6 @@ const styles = StyleSheet.create({
     fontSize: 9,
     color: '#fff',
   },
-  hintText: {
-    position: 'absolute',
-    bottom: SPACING.sm,
-    fontFamily: FONTS.ar.regular,
-    fontSize: TYPE.caption.fontSize,
-    color: COLORS.textFaint,
-  },
-
   betPanel: {
     flex: 1,
     overflow: 'hidden',
@@ -683,7 +773,7 @@ const styles = StyleSheet.create({
   },
   cellText: {
     fontFamily: FONTS.num.semibold,
-    fontSize: 12,
+    fontSize: 15,
     color: '#fff',
     includeFontPadding: false,
   },

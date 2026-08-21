@@ -14,21 +14,25 @@ import {
   Platform,
   ScrollView,
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import Screen from '../../components/ui/Screen';
 import GoldButton from '../../components/ui/GoldButton';
 import Avatar from '../../components/ui/Avatar';
 import Input from '../../components/ui/Input';
 import { BackIcon, PlusIcon } from '../../components/icons/GameIcons';
-import { COLORS, FONTS, TYPE, SPACING, SIZES } from '../../constants/theme';
+import { COLORS, FONTS, TYPE, SPACING, SIZES, RADIUS } from '../../constants/theme';
 import { useAuthStore } from '../../stores/authStore';
 
 export default function ProfileSetupScreen() {
+  const params = useLocalSearchParams<{ ref?: string }>();
   const [username, setUsername] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [invited, setInvited] = useState<string | null>(null);
   const signInWithUsername = useAuthStore((s) => s.signInWithUsername);
   const busy = useAuthStore((s) => s.busy);
+
+  const ref = typeof params.ref === 'string' ? params.ref : undefined;
 
   const clean = username.replace(/^@/, '').toLowerCase();
   // مطابق للتحقق في السيرفر: أحرف لاتينية/أرقام/شرطة سفلية فقط
@@ -38,8 +42,14 @@ export default function ProfileSetupScreen() {
     if (!valid || busy) return;
     setError(null);
     try {
-      await signInWithUsername(clean, displayName);
-      router.replace('/(app)');
+      const r = await signInWithUsername(clean, displayName, ref);
+      if (r.inviteBonus) {
+        // مكافأة الدعوة استُلمت — أظهرها لحظتين ثم ادخل
+        setInvited(ref ?? 'صديقك');
+        setTimeout(() => router.replace('/(app)'), 1600);
+      } else {
+        router.replace('/(app)');
+      }
     } catch (e: any) {
       if (e?.message === 'USERNAME_TAKEN') {
         setError('اسم المستخدم مستخدم مسبقاً — اختر اسماً آخر');
@@ -84,6 +94,13 @@ export default function ProfileSetupScreen() {
 
           {/* النموذج */}
           <View style={styles.form}>
+            {!!invited && (
+              <View style={styles.inviteBanner}>
+                <Text style={styles.inviteBannerText}>
+                  🎉 مكافأة الدعوة استُلمت — +2,000 شريحة لك ولفريق {invited}
+                </Text>
+              </View>
+            )}
             <Input
               label="اسم المستخدم"
               prefix="@"
@@ -191,6 +208,21 @@ const styles = StyleSheet.create({
   },
   form: {
     marginTop: SPACING.xxl,
+  },
+  inviteBanner: {
+    marginBottom: SPACING.md,
+    padding: SPACING.md,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    borderColor: COLORS.hairlineGold,
+    backgroundColor: 'rgba(201,169,97,0.10)',
+  },
+  inviteBannerText: {
+    fontFamily: FONTS.ar.semibold,
+    fontSize: TYPE.small.fontSize,
+    lineHeight: TYPE.small.lineHeight,
+    color: COLORS.goldLight,
+    textAlign: 'center',
   },
   hint: {
     fontFamily: FONTS.ar.regular,

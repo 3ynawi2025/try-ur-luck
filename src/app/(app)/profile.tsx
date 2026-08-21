@@ -3,7 +3,7 @@
 // ============================================================
 
 import React, { useCallback, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Modal, TextInput } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Modal, TextInput, Share } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import Screen from '../../components/ui/Screen';
@@ -85,6 +85,7 @@ export default function ProfileScreen() {
   const [emailDraft, setEmailDraft] = useState('');
   const [balance, setBalance] = useState<number | null>(null);
   const [txs, setTxs] = useState<TxRow[]>([]);
+  const [inviteCount, setInviteCount] = useState(0);
 
   // بيانات حقيقية من السيرفر (مصادقة بالتوكن) عند كل زيارة للشاشة
   useFocusEffect(
@@ -115,6 +116,14 @@ export default function ProfileScreen() {
         } catch {
           /* وضع ضيف */
         }
+        try {
+          const inv = await apiFetch<{ count?: number }>('/api/invites');
+          if (!cancelled && inv && typeof inv.count === 'number') {
+            setInviteCount(inv.count);
+          }
+        } catch {
+          /* وضع ضيف */
+        }
       })();
       return () => {
         cancelled = true;
@@ -140,6 +149,18 @@ export default function ProfileScreen() {
     bindEmail(v);
     setEmailModal(false);
     setEmailDraft('');
+  };
+
+  // مشاركة رابط الدعوة — كل صديق يسجل = +2,000 لك وله
+  const shareInvite = async () => {
+    if (!profile?.username) return;
+    const link = `jareb-hazzak://(auth)/profile-setup?ref=${profile.username}`;
+    const message = `🎰 تعال العب معي «جرب حظك» — مجلس اجتماعي للورق بدراهم افتراضية!\nسجّل برابطي واستلم +2,000 شريحة فورًا:\n${link}`;
+    try {
+      await Share.share({ message });
+    } catch {
+      /* ignore */
+    }
   };
 
   return (
@@ -189,6 +210,29 @@ export default function ProfileScreen() {
             <StatTile value={winCount} label="انتصار" tone={COLORS.goldLight} />
             <View style={styles.vRule} />
             <StatTile value={`${winRate}%`} label="نسبة الفوز" tone={COLORS.emerald} />
+          </View>
+        </GlassCard>
+
+        {/* ===== دعوة الأصدقاء ===== */}
+        <GlassCard padding={SPACING.xl} style={styles.block} variant="gold">
+          <View style={styles.inviteTop}>
+            <View style={styles.inviteTitleCol}>
+              <Text style={styles.blockTitle}>ادعُ أصدقاءك</Text>
+              <Text style={styles.inviteDesc}>
+                كل صديق يسجل برابطك = +2,000 شريحة لك وله فورًا
+              </Text>
+            </View>
+            {inviteCount >= 3 ? (
+              <Badge label="سفير" tone="gold" icon={<CrownIcon size={13} color={COLORS.goldLight} />} />
+            ) : (
+              <Badge label={`${inviteCount} مدعو`} tone="gold" />
+            )}
+          </View>
+          <View style={styles.inviteRow}>
+            <Text style={styles.inviteCode} numberOfLines={1}>
+              jareb-hazzak://…?ref={profile?.username ?? 'username'}
+            </Text>
+            <GoldButton title="مشاركة" size="sm" onPress={shareInvite} />
           </View>
         </GlassCard>
 
@@ -389,6 +433,38 @@ const styles = StyleSheet.create({
     width: StyleSheet.hairlineWidth,
     height: 34,
     backgroundColor: COLORS.border,
+  },
+
+  inviteTop: {
+    flexDirection: 'row-reverse',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: SPACING.md,
+  },
+  inviteTitleCol: {
+    flex: 1,
+    alignItems: 'flex-end',
+  },
+  inviteDesc: {
+    fontFamily: FONTS.ar.regular,
+    fontSize: TYPE.small.fontSize,
+    lineHeight: TYPE.small.lineHeight,
+    color: COLORS.textDim,
+    marginTop: -SPACING.sm,
+  },
+  inviteRow: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: SPACING.md,
+    marginTop: SPACING.lg,
+  },
+  inviteCode: {
+    flex: 1,
+    fontFamily: FONTS.num.medium,
+    fontSize: TYPE.caption.fontSize,
+    color: COLORS.textFaint,
+    textAlign: 'left',
   },
 
   tx: {
