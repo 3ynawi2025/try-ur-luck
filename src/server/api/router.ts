@@ -5,6 +5,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { randomBytes, randomUUID, createHash } from 'node:crypto';
 import { getSupabaseAdmin, verifyUserToken } from '../lib/supabaseAdmin';
+import { generateAgoraToken } from '../game/agora';
 import { SupabaseClient } from '@supabase/supabase-js';
 
 const router = Router();
@@ -112,10 +113,47 @@ router.post('/auth/register', async (req: Request, res: Response) => {
     return res.status(500).json({ error: 'SESSION_FAILED' });
   }
 
+  // ===== دعوة صديق: مكافأة 2000 للطرفين عند تسجيل بمرجع صالح =====
+  let inviteBonus = false;
+  const ref = String(req.body?.ref ?? '').replace(/^@/, '').trim().toLowerCase();
+  if (/^[a-z0-9_]{3,20}$/.test(ref) && ref !== username) {
+    const { data: inviter } = await admin
+      .from('profiles')
+      .select('id, username')
+      .eq('username', ref)
+      .single();
+
+    if (inviter) {
+      // كل مدعو يُحسب مرة واحدة (UNIQUE invitee_id) — أمان ضد ازدواج المكافأة
+      const { error: invErr } = await admin.from('invites').insert({
+        inviter_id: inviter.id,
+        invitee_id: userId,
+      });
+      if (!invErr) {
+        await admin.rpc('apply_balance_delta', { p_user_id: inviter.id, p_delta: 2000 });
+        await admin.from('balance_transactions').insert({
+          user_id: inviter.id,
+          amount: 2000,
+          type: 'refill',
+          description: `مكافأة دعوة ${username}`,
+        });
+        await admin.rpc('apply_balance_delta', { p_user_id: userId, p_delta: 2000 });
+        await admin.from('balance_transactions').insert({
+          user_id: userId,
+          amount: 2000,
+          type: 'refill',
+          description: `مكافأة دعوة ${inviter.username}`,
+        });
+        inviteBonus = true;
+      }
+    }
+  }
+
   return res.json({
     userId,
     username,
     displayName,
+    inviteBonus,
     session: {
       access_token: session.data.session.access_token,
       refresh_token: session.data.session.refresh_token,
@@ -264,6 +302,182 @@ router.post('/tables', authenticate, async (req: Request, res: Response) => {
 
   if (error) return res.status(500).json({ error: error.message });
   return res.json(data);
+});
+
+// ============================================================
+// المكافآت اليومية (سلسلة الحضور + عجلة الحظ)
+// ============================================================
+
+// حالة المكافآت: السلسلة + هل استُلم اليوم؟ + هل دارت العجلة اليوم؟
+router.get('/rewards/status', authenticate, async (req: Request, res: Response) => {
+  const { data, error } = await getAdmin()
+    .from('profiles')
+    .select('daily_streak, last_daily_claim, last_wheel_spin')
+    .eq('id', req.user!.id)
+    .single();
+
+  if (error || !data) {
+    return res.json({ streak: 0, claimedToday: false, wheelSpunToday: false });
+  }
+  const today = new Date().toISOString().slice(0, 10);
+  return res.json({
+    streak: Number(data.daily_streak ?? 0),
+    claimedToday: data.last_daily_claim === today,
+    wheelSpunToday: data.last_wheel_spin === today,
+  });
+});
+
+// استلام مكافأة الحضور اليومية (RPC ذرّية)
+router.post('/rewards/daily', authenticate, async (req: Request, res: Response) => {
+  const { data, error } = await getAdmin().rpc('claim_daily_reward', {
+    p_user_id: req.user!.id,
+  });
+  if (error) return res.status(500).json({ error: error.message });
+  const row = (data as { awarded: number; streak: number }[])?.[0];
+  if (!row) return res.status(500).json({ error: 'CLAIM_FAILED' });
+  return res.json({ awarded: Number(row.awarded), streak: Number(row.streak) });
+});
+
+// تدوير عجلة الحظ (السيرفر يحسم الجائزة أولًا)
+router.post('/rewards/wheel', authenticate, async (req: Request, res: Response) => {
+  const { data, error } = await getAdmin().rpc('spin_daily_wheel', {
+    p_user_id: req.user!.id,
+  });
+  if (error) return res.status(500).json({ error: error.message });
+  const row = (data as { prize: number }[])?.[0];
+  if (!row) return res.status(500).json({ error: 'SPIN_FAILED' });
+  return res.json({ prize: Number(row.prize) });
+});
+
+// ============================================================
+// دعوات الأصدقاء
+// ============================================================
+
+// مدعوّو المستخدم الحالي (لشارة السفير والعرض)
+router.get('/invites', authenticate, async (req: Request, res: Response) => {
+  const { data, error } = await getAdmin()
+    .from('invites')
+    .select('invitee_id, created_at, profiles!invites_invitee_id_fkey(username, display_name)')
+    .eq('inviter_id', req.user!.id)
+    .order('created_at', { ascending: false })
+    .limit(50);
+
+  if (error) return res.json({ count: 0, invitees: [] });
+  return res.json({ count: (data ?? []).length, invitees: data ?? [] });
+});
+
+// ============================================================
+// المجالس الصوتية
+// ============================================================
+
+const genCode = () => String(Math.floor(100000 + Math.random() * 900000));
+
+// قائمة المجالس العامة النشطة (+ عدد الحضور)، أو البحث برمز غرفة خاصة
+router.get('/majlis', authenticate, async (req: Request, res: Response) => {
+  const code = String(req.query.code ?? '').trim();
+  const admin = getAdmin();
+
+  if (/^\d{6}$/.test(code)) {
+    const { data, error } = await admin
+      .from('majlis_rooms')
+      .select('id, name, is_private, owner_id, active, created_at, majlis_members(count)')
+      .eq('code', code)
+      .eq('active', true)
+      .single();
+    if (error || !data) return res.status(404).json({ error: 'MAJLIS_NOT_FOUND' });
+    return res.json(data);
+  }
+
+  const { data, error } = await admin
+    .from('majlis_rooms')
+    .select('id, name, is_private, owner_id, active, created_at, majlis_members(count)')
+    .eq('is_private', false)
+    .eq('active', true)
+    .order('created_at', { ascending: false })
+    .limit(50);
+
+  if (error) return res.json([]);
+  return res.json(data ?? []);
+});
+
+// إنشاء مجلس (خاصة برمز 6 أرقام — عامة بلا رمز)
+router.post('/majlis', authenticate, async (req: Request, res: Response) => {
+  const name = String(req.body?.name ?? '').trim().slice(0, 40);
+  if (!name) return res.status(400).json({ error: 'MAJLIS_NAME_REQUIRED' });
+  const isPrivate = Boolean(req.body?.is_private);
+
+  const admin = getAdmin();
+  const { data, error } = await admin
+    .from('majlis_rooms')
+    .insert({
+      name,
+      is_private: isPrivate,
+      code: isPrivate ? genCode() : null,
+      owner_id: req.user!.id,
+    })
+    .select()
+    .single();
+
+  if (error) return res.status(500).json({ error: error.message });
+
+  // المالك عضو تلقائيًا
+  await admin
+    .from('majlis_members')
+    .upsert({ room_id: data.id, user_id: req.user!.id })
+    .then(() => {}, () => {});
+
+  return res.json(data);
+});
+
+// انضمام لمجلس (بمعرّف أو برمز) — يعيد توكن Agora للقناة
+router.post('/majlis/join', authenticate, async (req: Request, res: Response) => {
+  const admin = getAdmin();
+  const roomId = String(req.body?.roomId ?? '').trim();
+  const code = String(req.body?.code ?? '').trim();
+
+  let query = admin.from('majlis_rooms').select('*').eq('active', true);
+  if (roomId) query = query.eq('id', roomId);
+  else if (/^\d{6}$/.test(code)) query = query.eq('code', code);
+  else return res.status(400).json({ error: 'MAJLIS_ID_OR_CODE_REQUIRED' });
+
+  const { data, error } = await query.single();
+  if (error || !data) return res.status(404).json({ error: 'MAJLIS_NOT_FOUND' });
+
+  await admin
+    .from('majlis_members')
+    .upsert({ room_id: data.id, user_id: req.user!.id })
+    .then(() => {}, () => {});
+
+  const { data: members, error: memErr } = await admin
+    .from('majlis_members')
+    .select('user_id, profiles!majlis_members_user_id_fkey(username, display_name)')
+    .eq('room_id', data.id)
+    .limit(30);
+
+  const token = generateAgoraToken(`majlis-${data.id}`, req.user!.id);
+
+  return res.json({
+    room: { id: data.id, name: data.name, is_private: data.is_private, code: data.code, owner_id: data.owner_id },
+    members: (memErr ? [] : (members ?? [])).map((m: any) => ({
+      userId: m.user_id,
+      username: m.profiles?.username ?? '',
+      displayName: m.profiles?.display_name ?? 'لاعب',
+    })),
+    token,
+  });
+});
+
+// مغادرة مجلس
+router.post('/majlis/leave', authenticate, async (req: Request, res: Response) => {
+  const roomId = String(req.body?.roomId ?? '').trim();
+  if (!roomId) return res.status(400).json({ error: 'MAJLIS_ID_REQUIRED' });
+  const { error } = await getAdmin()
+    .from('majlis_members')
+    .delete()
+    .eq('room_id', roomId)
+    .eq('user_id', req.user!.id);
+  if (error) return res.status(500).json({ error: error.message });
+  return res.json({ ok: true });
 });
 
 export default router;
