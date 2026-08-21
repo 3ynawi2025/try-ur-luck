@@ -9,6 +9,7 @@ import {
   StyleSheet,
   Pressable,
   Animated,
+  Easing,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -17,6 +18,7 @@ import * as Haptics from 'expo-haptics';
 import Avatar from '../../../components/ui/Avatar';
 import Chip from '../../../components/ui/Chip';
 import PlayingCard from '../../../components/game/PlayingCard';
+import FlyCard from '../../../components/game/FlyCard';
 import FeltTable from '../../../components/game/FeltTable';
 import InstructionsModal from '../../../components/game/InstructionsModal';
 import { Badge } from '../../../components/ui/Bits';
@@ -32,6 +34,7 @@ import {
   formatNumber,
   formatCompact,
 } from '../../../constants/theme';
+import { useReducedMotion } from '../../../constants/motion';
 import { GameSnapshot } from '../../../server/game/texasHoldem';
 import { Card as GameCard } from '../../../server/game/deck';
 import { useGameSocket } from '../../../hooks/useGameSocket';
@@ -39,6 +42,38 @@ import { useAgoraVoice } from '../../../hooks/useAgoraVoice';
 import { useFriendsStore } from '../../../stores/friendsStore';
 import { useAuthStore } from '../../../stores/authStore';
 import { AGORA_APP_ID } from '../../../lib/config';
+
+/** عدّاد يتدحرج نحو الهدف (لمجموع الرهان) — يحترم reduced-motion */
+function useCountUp(target: number, duration = 550): number {
+  const [display, setDisplay] = useState(target);
+  const anim = useRef(new Animated.Value(target)).current;
+  const prev = useRef(target);
+  const reduced = useReducedMotion();
+
+  useEffect(() => {
+    if (reduced) {
+      setDisplay(target);
+      prev.current = target;
+      return;
+    }
+    if (target === prev.current) return;
+    anim.stopAnimation();
+    anim.setValue(prev.current);
+    const id = anim.addListener(({ value }) => setDisplay(Math.round(value)));
+    Animated.timing(anim, {
+      toValue: target,
+      duration,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start(() => {
+      prev.current = target;
+      anim.removeListener(id);
+    });
+    return () => anim.removeListener(id);
+  }, [target, duration, reduced, anim]);
+
+  return display;
+}
 
 /**
  * مواقع المقاعد على حافة البيضاوي (٠ = أنت، أسفل الوسط).
@@ -119,17 +154,38 @@ function Seat({
   player,
   isMe,
   topHalf,
+  winner = false,
 }: {
   player: GameSnapshot['players'][number];
   isMe: boolean;
   /** المقعد في النصف العلوي — الرقاقة تنزل تحته لتقترب من المركز */
   topHalf: boolean;
+  /** فائز باليد — حلقة شامبين نابضة */
+  winner?: boolean;
 }) {
   const folded = player.status === 'folded';
   const allIn = player.status === 'all_in';
 
   const isFriend = useFriendsStore((s) => s.isFriend(player.id));
   const addFriend = useFriendsStore((s) => s.addFriendDirectly);
+
+  // نبض حلقة الفائز
+  const winPulse = useRef(new Animated.Value(0)).current;
+  const reduced = useReducedMotion();
+  useEffect(() => {
+    if (!winner || reduced) {
+      winPulse.setValue(0);
+      return;
+    }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(winPulse, { toValue: 1, duration: 700, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        Animated.timing(winPulse, { toValue: 0, duration: 700, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [winner, reduced, winPulse]);
 
   const bet = player.totalRoundBet > 0 && (
     <View style={[styles.seatBet, topHalf ? styles.seatBetBelow : styles.seatBetAbove]}>
@@ -142,11 +198,26 @@ function Seat({
     <View style={[styles.seat, folded && styles.seatFolded]}>
       {!topHalf && bet}
 
+      {/* حلقة الفائز النابضة */}
+      {winner && (
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.winnerRing,
+            {
+              opacity: winPulse.interpolate({ inputRange: [0, 1], outputRange: [0.5, 1] }),
+              transform: [{ scale: winPulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.18] }) }],
+            },
+          ]}
+        />
+      )}
+
       <View
         style={[
           styles.seatPod,
           player.isCurrentTurn && styles.seatPodActive,
           isMe && styles.seatPodMe,
+          winner && styles.seatPodWinner,
         ]}
       >
         <Avatar
@@ -212,9 +283,10 @@ export default function PokerTableScreen() {
   const { isConnected, joinTable, leaveTable, performAction, on } = useGameSocket();
   const { isMuted, joinChannel, toggleMute, destroy } = useAgoraVoice();
 
-  // هوية هذه الجلسة — من الحساب الحقيقي (الخادم يتحقق من التوكن ويهمل أي معرّف آخر)
+  // هوية هذه الجلسة — من الحساب الحقيقي، أو من معرّف المقعد الذي يمنحه الخادم
   const profile = useAuthStore((s) => s.profile);
-  const myId = profile?.id ?? 'guest';
+  const [seatId, setSeatId] = useState<string | null>(null);
+  const myId = seatId ?? profile?.id ?? 'guest';
   const myName = profile?.displayName ?? 'أنت';
   const tableId = `table-${id ?? '1'}`;
 
@@ -246,6 +318,9 @@ export default function PokerTableScreen() {
   useEffect(() => {
     const offState = on<GameSnapshot>('table:state', (s) => setSnapshot(s));
     const offHoles = on<{ cards: GameCard[] }>('game:holeCards', (d) => setHoleCards(d.cards ?? []));
+    const offSeat = on<{ playerId: string }>('table:seat', (d) => {
+      if (d?.playerId) setSeatId(d.playerId);
+    });
     const offError = on<{ message: string }>('error', (d) => setError(d.message));
     const offNotice = on<{ text: string }>('table:notice', (d) => setNotice(d.text));
     const offVoice = on<{ appId: string; channelName: string; token: string }>(
@@ -255,6 +330,7 @@ export default function PokerTableScreen() {
     return () => {
       offState();
       offHoles();
+      offSeat();
       offError();
       offNotice();
       offVoice();
@@ -315,6 +391,12 @@ export default function PokerTableScreen() {
   const toCall = Math.max(0, (snapshot?.currentBet || 0) - (me?.totalRoundBet || 0));
   const minRaiseTo = Math.max((snapshot?.currentBet || 0) * 2, 80);
   const community = snapshot?.communityCards || [];
+  const winnerIds = new Set((snapshot?.winners ?? []).map((w) => w.playerId));
+  const winnersCards = (snapshot?.winners ?? []).flatMap((w) =>
+    (w.revealedCards ?? []).map((c) => ({ id: w.playerId, card: c }))
+  );
+  const potDisplay = useCountUp(snapshot?.pot || 0);
+  const handKey = `h${snapshot?.handNumber ?? 0}`;
 
   return (
     <View style={styles.container}>
@@ -362,31 +444,50 @@ export default function PokerTableScreen() {
         {/* حلقة بنسبة أبعاد ثابتة — تضمن بيضاوياً عريضاً على كل الشاشات */}
         <View style={styles.tableRing}>
         <FeltTable style={styles.felt} radius={155} railWidth={14}>
-          {/* أوراق المجتمع */}
+          {/* أوراق المجتمع — توزيع سينمائي من يد الموزع */}
           <View style={styles.community}>
             {Array.from({ length: 5 }).map((_, i) => {
               const card = community[i];
               return card ? (
-                <PlayingCard
-                  key={`c-${i}-${card.rank}${card.suit}`}
-                  card={card}
-                  width={40}
-                  height={57}
-                  animate
-                  delay={i * 90}
-                />
+                <FlyCard
+                  key={`c-${i}-${card.rank}${card.suit}-${handKey}`}
+                  dealKey={`${handKey}-${i}`}
+                  origin="dealer"
+                  // الفلوب يتتابع، والتيرن/الريفر بعد وقفة ترقّب (الموزع يحرق ورقة)
+                  delay={i === 3 || i === 4 ? 480 : i * 140}
+                  duration={i === 3 || i === 4 ? 520 : 380}
+                >
+                  <PlayingCard card={card} width={40} height={57} />
+                </FlyCard>
               ) : (
                 <View key={`slot-${i}`} style={styles.cardSlot} />
               );
             })}
           </View>
 
-          {/* مجموع الرهان */}
+          {/* أوراق الفائزين عند الكشف — تطير وتُقلب من المركز */}
+          {isShowdown && winnersCards.length > 0 && (
+            <View style={styles.revealedRow} pointerEvents="none">
+              {winnersCards.map((w, i) => (
+                <FlyCard
+                  key={`win-${w.id}-${i}`}
+                  dealKey={`reveal-${handKey}-${i}`}
+                  origin="center"
+                  delay={300 + i * 160}
+                  flip
+                >
+                  <PlayingCard card={w.card} width={34} height={48} />
+                </FlyCard>
+              ))}
+            </View>
+          )}
+
+          {/* مجموع الرهان — عدّاد متدحرج + نبضة */}
           <Animated.View style={[styles.pot, { transform: [{ scale: potScale }] }]}>
             <Chip amount={Math.min(snapshot?.pot || 0, 5000)} size={22} stacked />
             <View>
               <Text style={styles.potLabel}>مجموع الرهان</Text>
-              <Text style={styles.potValue}>{formatNumber(snapshot?.pot || 0)}</Text>
+              <Text style={styles.potValue}>{formatNumber(potDisplay)}</Text>
             </View>
           </Animated.View>
         </FeltTable>
@@ -403,6 +504,7 @@ export default function PokerTableScreen() {
                 player={p}
                 isMe={p.id === myId}
                 topHalf={parseFloat(pos.top) < 50}
+                winner={winnerIds.has(p.id)}
               />
             </View>
           );
@@ -463,12 +565,12 @@ export default function PokerTableScreen() {
           pointerEvents="none"
         />
 
-        {/* أوراقي — مروحة */}
+        {/* أوراقي — مروحة تنساب من حذاء البطاقات ثم تُقلب عند الكشف */}
         {holeCards.length > 0 && (
           <View style={styles.myCards}>
             {holeCards.map((c, i) => (
               <View
-                key={`${c.rank}${c.suit}`}
+                key={`${c.rank}${c.suit}-${handKey}`}
                 style={[
                   styles.myCard,
                   {
@@ -480,7 +582,16 @@ export default function PokerTableScreen() {
                   },
                 ]}
               >
-                <PlayingCard card={c} width={62} height={88} animate delay={i * 110} />
+                <FlyCard
+                  dealKey={`mine-${handKey}-${i}`}
+                  origin="shoe"
+                  delay={i * 120}
+                  duration={460}
+                  flip
+                  flipKey={`${handKey}-${isShowdown ? 'show' : 'hide'}`}
+                >
+                  <PlayingCard card={c} width={62} height={88} />
+                </FlyCard>
               </View>
             ))}
           </View>
@@ -714,10 +825,33 @@ const styles = StyleSheet.create({
   },
   seatPodActive: {
     borderColor: COLORS.gold,
-    backgroundColor: 'rgba(60,47,0,0.95)',
+    backgroundColor: 'rgba(38,30,12,0.95)',
   },
   seatPodMe: {
     borderColor: 'rgba(201,169,97,0.5)',
+  },
+  seatPodWinner: {
+    borderColor: COLORS.goldLight,
+    backgroundColor: 'rgba(38,30,12,0.98)',
+    ...SHADOWS.goldSoft,
+  },
+  winnerRing: {
+    position: 'absolute',
+    top: -7,
+    width: 74,
+    height: 52,
+    borderRadius: RADIUS.full,
+    borderWidth: 1.5,
+    borderColor: COLORS.gold,
+    backgroundColor: 'rgba(201,169,97,0.10)',
+  },
+  revealedRow: {
+    position: 'absolute',
+    bottom: 56,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    gap: 6,
+    zIndex: 8,
   },
   seatInfo: {
     alignItems: 'flex-end',

@@ -180,6 +180,9 @@ export function setupGameHandlers(io: Server) {
       table.players.set(socket.id, seat);
       socket.join(tableId);
 
+      // يعرّف الخادم اللاعب بمعرّف مقعده الفعلي — يستخدمه العميل في إجراءاته
+      socket.emit('table:seat', { playerId });
+
       socket.to(tableId).emit('table:notice', {
         text: `انضم ${name} إلى الطاولة`,
       });
