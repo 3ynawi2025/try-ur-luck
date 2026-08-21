@@ -9,7 +9,7 @@ import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { COLORS, FONTS, TYPE, SPACING, SIZES, RADIUS, ANIMATION } from '../../constants/theme';
-import { HomeIcon, CardsIcon, TrophyIcon, UserIcon, UsersIcon, IconProps } from '../icons/GameIcons';
+import { HomeIcon, CardsIcon, TrophyIcon, UserIcon, UsersIcon, MajlisIcon, IconProps } from '../icons/GameIcons';
 
 /**
  * نوع بنيوي مبسّط لخصائص شريط التبويبات.
@@ -40,6 +40,7 @@ type TabBarProps = {
 const ICONS: Record<string, React.FC<IconProps>> = {
   index: HomeIcon,
   tables: CardsIcon,
+  majlis: MajlisIcon,
   leaderboard: TrophyIcon,
   friends: UsersIcon,
   profile: UserIcon,

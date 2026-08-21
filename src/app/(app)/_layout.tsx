@@ -19,6 +19,7 @@ export default function AppLayout() {
     >
       <Tabs.Screen name="index" options={{ title: 'الرئيسية' }} />
       <Tabs.Screen name="tables" options={{ title: 'الطاولات' }} />
+      <Tabs.Screen name="majlis" options={{ title: 'المجالس' }} />
       <Tabs.Screen name="leaderboard" options={{ title: 'المكافآت' }} />
       <Tabs.Screen name="profile" options={{ title: 'حسابي' }} />
       {/* الأصدقاء — شاشة متاحة لكنها ليست وجهة رئيسية في الشريط */}
@@ -27,6 +28,10 @@ export default function AppLayout() {
       {/* شاشات اللعب — تُخفي الشريط بالكامل لتجربة غامرة */}
       <Tabs.Screen
         name="table/[id]"
+        options={{ href: null, tabBarStyle: { display: 'none' } }}
+      />
+      <Tabs.Screen
+        name="majlis/[id]"
         options={{ href: null, tabBarStyle: { display: 'none' } }}
       />
       <Tabs.Screen

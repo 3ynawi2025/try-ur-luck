@@ -449,3 +449,22 @@ export const MedalIcon = ({
     </Svg>
   );
 };
+
+/** مجلس — دلة قهوة عربية (تبويب المجالس الصوتية) */
+export const MajlisIcon = ({ size = 24, color = COLORS.textDim, filled }: IconProps) => (
+  <Svg {...base(size)}>
+    <G stroke={color} strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
+      {/* جسم الدلة */}
+      <Path
+        d="M8.6 5.2c0-1 .8-1.8 1.8-1.8h3.2c1 0 1.8.8 1.8 1.8v0"
+        fill={filled ? color : 'none'}
+        fillOpacity={filled ? 0.2 : 0}
+      />
+      <Path d="M8.6 5.2h6.8l1.4 7.4c.5 2.8-1.6 5.4-4.8 5.4s-5.3-2.6-4.8-5.4z" />
+      {/* الفوهة والمقبض */}
+      <Path d="M15.4 7.8c3.4-.5 5.6-2.4 5.6-4.6M10.6 5.6c-2.9.3-4.9 1.4-5.6 3" />
+      {/* قاعدة */}
+      <Path d="M8.2 18.4h7.6M9.6 20.4h4.8" />
+    </G>
+  </Svg>
+);
