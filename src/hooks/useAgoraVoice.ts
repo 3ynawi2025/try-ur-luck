@@ -16,6 +16,7 @@ let engineRef: IRtcEngine | null = null;
 export function useAgoraVoice() {
   const [isJoined, setIsJoined] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
+  const [joinError, setJoinError] = useState<string | null>(null);
   const engineCreated = useRef(false);
 
   const requestPermission = useCallback(async (): Promise<boolean> => {
@@ -55,6 +56,12 @@ export function useAgoraVoice() {
       engine.enableAudio();
       engine.enableAudioVolumeIndication(500, 3, false);
 
+      // إشعارات الأخطاء بدل الفشل الصامت
+      engine.addListener('onError', (err: any) => {
+        setJoinError(`تعذر الاتصال الصوتي (${String(err?.code ?? err)})`);
+      });
+      engine.addListener('onJoinChannelSuccess', () => setJoinError(null));
+
       engine.joinChannel(token, channelName, 0, {});
       engine.muteLocalAudioStream(true); // mute افتراضيًا
 
@@ -92,6 +99,7 @@ export function useAgoraVoice() {
   return {
     isJoined,
     isMuted,
+    joinError,
     joinChannel,
     leaveChannel,
     toggleMute,

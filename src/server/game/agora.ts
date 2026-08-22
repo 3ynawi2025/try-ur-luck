@@ -11,12 +11,14 @@ const APP_CERTIFICATE = process.env.AGORA_APP_CERTIFICATE ?? '';
 /**
  * يولد Token لانضمام المستخدم لقناة صوت Agora.
  *
- * - شهادة + App ID: token مؤمّن كامل.
+ * - شهادة + App ID: token مؤمّن كامل — مبني بـ uid=0 (wildcard)
+ *   ليقبله العميل مهما كان معرّفه التلقائي (كان يُبنى بحساب نصي
+ *   بينما العميل ينضم بـ uid=0 → فشل انضمام صامت).
  * - App ID فقط (بدون شهادة): يرجع "" (وضع App-ID-only،
  *   أمان أخف ويعمل للتجربة المحلية).
  * - لا App ID: يرجع 'dev_token_no_agora_config'.
  */
-export function generateAgoraToken(channelName: string, uid: string): string {
+export function generateAgoraToken(channelName: string, _uid: string): string {
   if (!APP_ID) {
     return 'dev_token_no_agora_config';
   }
@@ -30,12 +32,12 @@ export function generateAgoraToken(channelName: string, uid: string): string {
   const currentTimestamp = Math.floor(Date.now() / 1000);
   const privilegeExpiredTs = currentTimestamp + expirationInSeconds;
 
-  // معرف المستخدم الحقيقي (string) بدل uid=0 الثابت للجميع
-  return RtcTokenBuilder.buildTokenWithAccount(
+  // uid=0 → التوكن صالح لأي مستخدم ينضم للقناة (Wildcard)
+  return RtcTokenBuilder.buildTokenWithUid(
     APP_ID,
     APP_CERTIFICATE,
     channelName,
-    uid,
+    0,
     RtcRole.PUBLISHER,
     privilegeExpiredTs
   );

@@ -241,7 +241,7 @@ export default function PokerTableScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
   const { isConnected, joinTable, leaveTable, performAction, on } = useGameSocket();
-  const { isMuted, joinChannel, toggleMute, destroy } = useAgoraVoice();
+  const { isMuted, joinChannel, toggleMute, destroy, joinError } = useAgoraVoice();
 
   // هوية هذه الجلسة — من الحساب الحقيقي، أو من معرّف المقعد الذي يمنحه الخادم
   const profile = useAuthStore((s) => s.profile);
@@ -262,6 +262,11 @@ export default function PokerTableScreen() {
   const errorAnim = useRef(new Animated.Value(0)).current;
   const noticeAnim = useRef(new Animated.Value(0)).current;
   const potScale = useRef(new Animated.Value(1)).current;
+
+  // إظهار أخطاء الصوت للمستخدم بدل الفشل الصامت
+  useEffect(() => {
+    if (joinError) setError(joinError);
+  }, [joinError]);
 
   // --- الانضمام للطاولة ---
   useEffect(() => {

@@ -42,7 +42,12 @@ export function useSoloGame(
   const [players, setPlayers] = useState<SoloPlayer[]>([]);
 
   // الدردشة الصوتية — نفس قناة طاولة اللعبة
-  const { isMuted, toggleMute, joinChannel } = useAgoraVoice();
+  const { isMuted, toggleMute, joinChannel, joinError } = useAgoraVoice();
+
+  // إظهار أخطاء الصوت للمستخدم بدل الفشل الصامت
+  useEffect(() => {
+    if (joinError) onErrorRef.current?.(joinError);
+  }, [joinError]);
 
   const profile = useAuthStore((s) => s.profile);
   const userId = profile?.id ?? null;
