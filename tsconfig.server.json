@@ -19,7 +19,7 @@
   "exclude": [
     "src/app",
     "src/components",
-    "src/server/game/__tests__",
+    "src/server/**/__tests__",
     "node_modules"
   ]
 }
