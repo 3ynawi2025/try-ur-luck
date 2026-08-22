@@ -7,7 +7,6 @@ import { View, Text, StyleSheet, ScrollView, Animated } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Screen from '../../components/ui/Screen';
 import GlassCard from '../../components/ui/GlassCard';
-import GoldButton from '../../components/ui/GoldButton';
 import Avatar from '../../components/ui/Avatar';
 import { Badge } from '../../components/ui/Bits';
 import { CrownIcon, MedalIcon, TrendIcon } from '../../components/icons/GameIcons';
@@ -280,11 +279,6 @@ export default function LeaderboardScreen() {
       >
         <VipStatusCard xp={vip.user_xp} tier={vip.current_tier} />
 
-        <View style={styles.claimCard}>
-          <GoldButton title="استلام المكافأة الأسبوعية" onPress={() => {}} size="sm" />
-          <Text style={styles.claimHint}>تُجدد كل جمعة الساعة 12 ظهرًا</Text>
-        </View>
-
         <Text style={styles.sectionTitle}>ترتيب الأبطال</Text>
 
         <Podium players={players.slice(0, 3)} />
@@ -531,17 +525,6 @@ const styles = StyleSheet.create({
     color: COLORS.goldLight,
   },
 
-  // بطاقة الاستلام
-  claimCard: {
-    marginTop: SPACING.lg,
-    gap: SPACING.sm,
-    alignItems: 'flex-end',
-  },
-  claimHint: {
-    fontFamily: FONTS.ar.regular,
-    fontSize: TYPE.caption.fontSize,
-    color: COLORS.textFaint,
-  },
   sectionTitle: {
     fontFamily: 'Cairo-Bold',
     fontSize: TYPE.h2.fontSize,

@@ -55,6 +55,16 @@ function relativeTime(iso?: string): string {
   return `منذ ${Math.round(hours / 24)} يوم`;
 }
 
+/** موعد تجديد الرصيد الأسبوعي: الجمعة القادمة 12:00 ظهرًا (بتوقيت الرياض) */
+function nextFridayLabel(): string {
+  const now = new Date();
+  const daysUntilFriday = (5 - now.getDay() + 7) % 7;
+  const target = new Date(now.getFullYear(), now.getMonth(), now.getDate() + daysUntilFriday, 12, 0);
+  if (daysUntilFriday === 0 && now.getHours() >= 12) target.setDate(target.getDate() + 7);
+  const dateLabel = new Intl.DateTimeFormat('ar-u-ca-gregory', { day: 'numeric', month: 'long' }).format(target);
+  return `الجمعة ${dateLabel} ١٢:٠٠ ظهراً`;
+}
+
 function MenuRow({
   icon,
   label,
@@ -84,7 +94,8 @@ export default function ProfileScreen() {
   const [emailModal, setEmailModal] = useState(false);
   const [emailDraft, setEmailDraft] = useState('');
   const [balance, setBalance] = useState<number | null>(null);
-  const [txs, setTxs] = useState<TxRow[]>([]);
+  const [allTxs, setAllTxs] = useState<TxRow[]>([]);
+  const [weeklyRank, setWeeklyRank] = useState<number | null>(null);
   const [inviteCount, setInviteCount] = useState(0);
 
   // بيانات حقيقية من السيرفر (مصادقة بالتوكن) عند كل زيارة للشاشة
@@ -103,8 +114,9 @@ export default function ProfileScreen() {
         try {
           const t = await apiFetch<any[]>('/api/transactions');
           if (!cancelled && Array.isArray(t)) {
-            setTxs(
-              t.slice(0, 6).map((row, i) => ({
+            // الإحصائيات من كل العمليات المسترجعة، والعرض لآخر 6 فقط
+            setAllTxs(
+              t.map((row, i) => ({
                 id: String(row.id ?? i),
                 type: String(row.type ?? ''),
                 amount: Number(row.amount ?? 0),
@@ -112,6 +124,14 @@ export default function ProfileScreen() {
                 date: relativeTime(row.created_at),
               }))
             );
+          }
+        } catch {
+          /* وضع ضيف */
+        }
+        try {
+          const r = await apiFetch<{ rank?: number | null }>('/api/rank');
+          if (!cancelled && r && typeof r.rank === 'number') {
+            setWeeklyRank(r.rank);
           }
         } catch {
           /* وضع ضيف */
@@ -134,12 +154,14 @@ export default function ProfileScreen() {
   const displayName = profile?.displayName ?? 'لاعب';
   const username = profile ? `@${profile.username}` : '@guest';
   const shownBalance = balance ?? 0;
-  const nextRefill = 'الجمعة ١٢:٠٠ ظهراً';
-  const rank = 4;
+  const nextRefill = nextFridayLabel();
+
+  // آخر 6 عمليات للعرض فقط — الإحصائيات من كل العمليات المسترجعة
+  const txs = allTxs.slice(0, 6);
 
   // إحصائيات محسوبة من المعاملات الحقيقية
-  const winCount = txs.filter((t) => t.type === 'win').length;
-  const lossCount = txs.filter((t) => t.type === 'loss').length;
+  const winCount = allTxs.filter((t) => t.type === 'win').length;
+  const lossCount = allTxs.filter((t) => t.type === 'loss').length;
   const gameCount = winCount + lossCount;
   const winRate = gameCount > 0 ? Math.round((winCount / gameCount) * 100) : 0;
 
@@ -182,7 +204,7 @@ export default function ProfileScreen() {
           <Text style={styles.name}>{displayName}</Text>
           <Text style={styles.username}>{username}</Text>
           <Badge
-            label={`المركز ${rank} هذا الأسبوع`}
+            label={weeklyRank !== null ? `المركز ${weeklyRank} في المتصدرين` : 'المركز —'}
             tone="gold"
             icon={<CrownIcon size={13} color={COLORS.goldLight} />}
           />

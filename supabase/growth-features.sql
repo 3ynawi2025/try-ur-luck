@@ -20,7 +20,7 @@ DECLARE
   v_streak INT;
   v_last DATE;
   v_award BIGINT;
-  v_today DATE := CURRENT_DATE;
+  v_today DATE := (now() AT TIME ZONE 'Asia/Riyadh')::date;
 BEGIN
   SELECT daily_streak, last_daily_claim INTO v_streak, v_last
     FROM profiles WHERE id = p_user_id FOR UPDATE;
@@ -55,32 +55,27 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- ------------------------------------------------------------
--- عجلة الحظ اليومية (السيرفر يحسم الجائزة — مرة واحدة في اليوم)
+-- عجلة الحظ اليومية (الجائزة يقررها السيرفر CSPRNG — RPC يتحقق مرة واحدة فقط)
 -- ------------------------------------------------------------
-CREATE OR REPLACE FUNCTION spin_daily_wheel(p_user_id UUID)
+CREATE OR REPLACE FUNCTION spin_daily_wheel(p_user_id UUID, p_prize BIGINT)
 RETURNS TABLE (prize BIGINT) AS $$
 DECLARE
   v_last DATE;
-  v_today DATE := CURRENT_DATE;
+  v_today DATE := (now() AT TIME ZONE 'Asia/Riyadh')::date;
   v_prize BIGINT;
-  r DOUBLE PRECISION;
 BEGIN
+  -- الجوائز المسموحة فقط (كما في العميل)
+  IF p_prize NOT IN (50, 100, 200, 500, 1000, 2000, 5000) THEN
+    RAISE EXCEPTION 'INVALID_PRIZE';
+  END IF;
+  v_prize := p_prize;
+
   SELECT last_wheel_spin INTO v_last FROM profiles WHERE id = p_user_id FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION 'PROFILE_NOT_FOUND'; END IF;
 
   IF v_last = v_today THEN
     prize := 0; RETURN NEXT; RETURN;
   END IF;
-
-  r := random();
-  v_prize := CASE
-    WHEN r < 0.25 THEN 50
-    WHEN r < 0.50 THEN 100
-    WHEN r < 0.70 THEN 200
-    WHEN r < 0.85 THEN 500
-    WHEN r < 0.93 THEN 1000
-    WHEN r < 0.98 THEN 2000
-    ELSE 5000 END;
 
   UPDATE profiles
      SET last_wheel_spin = v_today,

@@ -61,17 +61,7 @@ const OFFERS = [
     title: 'استلم مكافأتك اليومية',
     desc: 'حتى 5,000 شريحة مجانية كل يوم',
     cta: 'استلم الآن',
-    ctaStyle: 'solid' as const,
     tint: 'rgba(201,169,97,0.10)' as const,
-  },
-  {
-    key: 'watch',
-    tag: 'شاهد واربح',
-    title: 'شاهد فيديو واكسب',
-    desc: '+1,000 شريحة فورًا',
-    cta: 'شاهد الآن',
-    ctaStyle: 'outline' as const,
-    tint: 'rgba(143,203,180,0.08)' as const,
   },
 ];
 
@@ -264,17 +254,11 @@ export default function LobbyScreen() {
               </View>
               <Text style={styles.offerTitle}>{o.title}</Text>
               <Text style={styles.offerDesc}>{o.desc}</Text>
-              {o.ctaStyle === 'solid' ? (
-                <GoldButton
-                  title={o.cta}
-                  onPress={() => (o.key === 'daily' ? setRewardsOpen(true) : undefined)}
-                  size="sm"
-                />
-              ) : (
-                <Pressable style={styles.offerOutlineBtn} onPress={() => {}}>
-                  <Text style={styles.offerOutlineText}>{o.cta}</Text>
-                </Pressable>
-              )}
+              <GoldButton
+                title={o.cta}
+                onPress={() => (o.key === 'daily' ? setRewardsOpen(true) : undefined)}
+                size="sm"
+              />
             </View>
           ))}
         </ScrollView>
@@ -449,19 +433,6 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.ar.regular,
     fontSize: TYPE.small.fontSize,
     color: COLORS.textDim,
-  },
-  offerOutlineBtn: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-    borderRadius: RADIUS.sm,
-    borderWidth: 1,
-    borderColor: 'rgba(143,203,180,0.4)',
-  },
-  offerOutlineText: {
-    fontFamily: FONTS.ar.semibold,
-    fontSize: TYPE.caption.fontSize,
-    color: COLORS.emerald,
   },
 
   // ===== أرضية الألعاب =====

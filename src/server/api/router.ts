@@ -201,6 +201,22 @@ router.get('/vip-status', authenticate, async (req: Request, res: Response) => {
   return res.json({ user_xp: Number(data.user_xp ?? 0), current_tier: data.current_tier ?? 'bronze' });
 });
 
+// مرتبة المستخدم الحالي في المتصدرين (عدد من يسبقه بـ XP + 1)
+router.get('/rank', authenticate, async (req: Request, res: Response) => {
+  const { data: me, error } = await getAdmin()
+    .from('profiles')
+    .select('user_xp')
+    .eq('id', req.user!.id)
+    .single();
+  if (error || !me) return res.json({ rank: null });
+
+  const { count } = await getAdmin()
+    .from('profiles')
+    .select('*', { count: 'exact', head: true })
+    .gt('user_xp', Number(me.user_xp ?? 0));
+  return res.json({ rank: (count ?? 0) + 1 });
+});
+
 // سجل معاملات المستخدم الحالي (الفلاتر: all / wins / losses / tokens)
 router.get('/transactions', authenticate, async (req: Request, res: Response) => {
   let query = getAdmin()
@@ -321,7 +337,7 @@ router.get('/rewards/status', authenticate, async (req: Request, res: Response) 
   if (error || !data) {
     return res.json({ streak: 0, claimedToday: false, wheelSpunToday: false });
   }
-  const today = new Date().toISOString().slice(0, 10);
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Riyadh' }).format(new Date());
   return res.json({
     streak: Number(data.daily_streak ?? 0),
     claimedToday: data.last_daily_claim === today,
@@ -341,9 +357,13 @@ router.post('/rewards/daily', authenticate, async (req: Request, res: Response) 
 });
 
 // تدوير عجلة الحظ (السيرفر يحسم الجائزة أولًا)
+// عجلة الحظ: الجائزة يقررها السيرفر (CSPRNG) بالأوزان 25/25/20/15/8/5/2
 router.post('/rewards/wheel', authenticate, async (req: Request, res: Response) => {
+  const r = secureRandomInt(100);
+  const prize = r < 25 ? 50 : r < 50 ? 100 : r < 70 ? 200 : r < 85 ? 500 : r < 93 ? 1000 : r < 98 ? 2000 : 5000;
   const { data, error } = await getAdmin().rpc('spin_daily_wheel', {
     p_user_id: req.user!.id,
+    p_prize: prize,
   });
   if (error) return res.status(500).json({ error: error.message });
   const row = (data as { prize: number }[])?.[0];
