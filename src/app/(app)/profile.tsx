@@ -21,6 +21,7 @@ import {
   CrownIcon,
   UsersIcon,
   CloseIcon,
+  TrophyIcon,
 } from '../../components/icons/GameIcons';
 import {
   COLORS,
@@ -97,6 +98,8 @@ export default function ProfileScreen() {
   const [allTxs, setAllTxs] = useState<TxRow[]>([]);
   const [weeklyRank, setWeeklyRank] = useState<number | null>(null);
   const [inviteCount, setInviteCount] = useState(0);
+  const [goldActive, setGoldActive] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   // بيانات حقيقية من السيرفر (مصادقة بالتوكن) عند كل زيارة للشاشة
   useFocusEffect(
@@ -140,6 +143,15 @@ export default function ProfileScreen() {
           const inv = await apiFetch<{ count?: number }>('/api/invites');
           if (!cancelled && inv && typeof inv.count === 'number') {
             setInviteCount(inv.count);
+          }
+        } catch {
+          /* وضع ضيف */
+        }
+        try {
+          const t = await apiFetch<{ goldActive?: boolean; isAdmin?: boolean }>('/api/store/status');
+          if (!cancelled && t) {
+            setGoldActive(!!t.goldActive);
+            setIsAdmin(!!t.isAdmin);
           }
         } catch {
           /* وضع ضيف */
@@ -203,11 +215,14 @@ export default function ProfileScreen() {
           <Avatar name={displayName} size={SIZES.avatarXl} showBorder />
           <Text style={styles.name}>{displayName}</Text>
           <Text style={styles.username}>{username}</Text>
-          <Badge
-            label={weeklyRank !== null ? `المركز ${weeklyRank} في المتصدرين` : 'المركز —'}
-            tone="gold"
-            icon={<CrownIcon size={13} color={COLORS.goldLight} />}
-          />
+          <View style={styles.badgeRow}>
+            <Badge
+              label={weeklyRank !== null ? `المركز ${weeklyRank} في المتصدرين` : 'المركز —'}
+              tone="gold"
+              icon={<CrownIcon size={13} color={COLORS.goldLight} />}
+            />
+            {goldActive && <Badge label="ذهبي ✨" tone="gold" />}
+          </View>
         </View>
 
         {/* ===== الرصيد ===== */}
@@ -289,6 +304,22 @@ export default function ProfileScreen() {
 
         {/* ===== القائمة ===== */}
         <GlassCard padding={SPACING.sm} style={styles.block}>
+          <MenuRow
+            icon={<CrownIcon size={19} color={COLORS.gold} />}
+            label={goldActive ? 'الاشتراك الذهبي — مفعّل 👑' : 'الاشتراك الذهبي'}
+            onPress={() => router.push('/(app)/store')}
+          />
+          <Divider />
+          {isAdmin && (
+            <>
+              <MenuRow
+                icon={<TrophyIcon size={19} color={COLORS.gold} />}
+                label="لوحة المدير — هدايا وجوائز"
+                onPress={() => router.push('/(app)/admin')}
+              />
+              <Divider />
+            </>
+          )}
           <MenuRow
             icon={<UsersIcon size={19} color={COLORS.textDim} />}
             label="الأصدقاء"
@@ -403,6 +434,13 @@ const styles = StyleSheet.create({
     color: COLORS.textDim,
     marginTop: -6,
     marginBottom: SPACING.sm,
+  },
+  badgeRow: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.sm,
+    flexWrap: 'wrap',
   },
 
   block: {

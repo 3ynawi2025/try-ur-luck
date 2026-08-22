@@ -8,6 +8,8 @@ import { getSupabaseAdmin, createSupabaseAdminClient, verifyUserToken } from '..
 import { generateAgoraToken } from '../game/agora';
 import { secureRandomInt } from '../game/deck';
 import { hashTablePassword } from '../lib/tablePassword';
+import { getTierInfo, activateGold } from '../lib/tier';
+import { applyBalanceDelta } from '../lib/playerPersistence';
 import { SupabaseClient } from '@supabase/supabase-js';
 
 const router = Router();
@@ -43,6 +45,22 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
     next();
   } catch {
     return res.status(401).json({ error: 'UNAUTHORIZED' });
+  }
+}
+
+/** مصادقة المدير: مستخدم موثّق + is_admin في قاعدة البيانات. */
+export async function requireAdmin(req: Request, res: Response, next: NextFunction) {
+  if (!req.user?.id) return res.status(401).json({ error: 'UNAUTHORIZED' });
+  try {
+    const { data } = await getAdmin()
+      .from('profiles')
+      .select('is_admin')
+      .eq('id', req.user.id)
+      .single();
+    if (!data?.is_admin) return res.status(403).json({ error: 'ADMIN_ONLY' });
+    next();
+  } catch {
+    return res.status(403).json({ error: 'ADMIN_ONLY' });
   }
 }
 
@@ -217,6 +235,72 @@ router.get('/rank', authenticate, async (req: Request, res: Response) => {
   return res.json({ rank: (count ?? 0) + 1 });
 });
 
+// ============================================================
+// المتجر والاشتراك الذهبي
+// ============================================================
+
+// حالة اشتراك المستخدم الحالي
+router.get('/store/status', authenticate, async (req: Request, res: Response) => {
+  const info = await getTierInfo(req.user!.id);
+  return res.json(info);
+});
+
+// تفعيل الاشتراك الذهبي (شهر)
+// ⚠️ نسخة تجريبية: لا يوجد مزود دفع بعد — عند الربط يجب تأكيد الدفع قبل الاستدعاء
+router.post('/store/activate', authenticate, async (req: Request, res: Response) => {
+  try {
+    const info = await activateGold(req.user!.id);
+    return res.json(info);
+  } catch (e) {
+    return res.status(500).json({ error: (e as Error).message });
+  }
+});
+
+// ============================================================
+// لوحة المدير (هدايا وجوائز من مدير اللعبة)
+// ============================================================
+
+// بحث عن لاعب بالاسم (لإرسال هدية)
+router.get('/admin/users', authenticate, requireAdmin, async (req: Request, res: Response) => {
+  const q = String(req.query.q ?? '').trim().slice(0, 30);
+  if (!q) return res.json([]);
+  const { data, error } = await getAdmin()
+    .from('profiles')
+    .select('id, username, display_name, balance, tier')
+    .or(`username.ilike.%${q}%,display_name.ilike.%${q}%`)
+    .order('created_at', { ascending: false })
+    .limit(20);
+  if (error) return res.status(500).json({ error: error.message });
+  return res.json(data ?? []);
+});
+
+// إرسال هدية رقاقات للاعب (من المدير فقط)
+router.post('/admin/gift', authenticate, requireAdmin, async (req: Request, res: Response) => {
+  const userId = String(req.body?.userId ?? '');
+  const amount = Math.round(Number(req.body?.amount ?? 0));
+  const description = String(req.body?.description ?? '').trim().slice(0, 80) || 'هدية من إدارة اللعبة 🎁';
+
+  if (!userId) return res.status(400).json({ error: 'USER_REQUIRED' });
+  if (!Number.isInteger(amount) || amount <= 0 || amount > 1_000_000) {
+    return res.status(400).json({ error: 'INVALID_AMOUNT', message: 'المبلغ يجب أن يكون بين 1 و 1,000,000' });
+  }
+
+  // تحقق من وجود اللاعب (يمنع الهدايا لمعرفات وهمية)
+  const { data: target, error: findErr } = await getAdmin()
+    .from('profiles')
+    .select('id')
+    .eq('id', userId)
+    .single();
+  if (findErr || !target) return res.status(404).json({ error: 'USER_NOT_FOUND' });
+
+  try {
+    await applyBalanceDelta(userId, amount, description, 'gift');
+    return res.json({ ok: true, amount });
+  } catch (e) {
+    return res.status(500).json({ error: (e as Error).message });
+  }
+});
+
 // سجل معاملات المستخدم الحالي (الفلاتر: all / wins / losses / tokens)
 router.get('/transactions', authenticate, async (req: Request, res: Response) => {
   let query = getAdmin()
@@ -292,6 +376,12 @@ router.get('/tables', authenticate, async (_req: Request, res: Response) => {
 // إنشاء طاولة خاصة
 router.post('/tables', authenticate, async (req: Request, res: Response) => {
   const { game_type, name, min_buy_in, is_private, password } = req.body ?? {};
+
+  // إنشاء الطاولات الخاصة حصري لأصحاب الاشتراك الذهبي
+  const tier = await getTierInfo(req.user!.id);
+  if (!tier.goldActive) {
+    return res.status(403).json({ error: 'GOLD_REQUIRED', message: 'إنشاء الطاولات الخاصة متاح للاشتراك الذهبي فقط' });
+  }
 
   if (game_type !== 'texas_holdem' && game_type !== 'blackjack') {
     return res.status(400).json({ error: 'INVALID_GAME_TYPE' });

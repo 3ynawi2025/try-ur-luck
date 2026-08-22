@@ -2,9 +2,9 @@
 // جرب حظك — الطاولات
 // ============================================================
 
-import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Animated } from 'react-native';
-import { router } from 'expo-router';
+import React, { useCallback, useRef, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, Pressable, Animated, Modal, TextInput } from 'react-native';
+import { router, useFocusEffect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import Screen from '../../components/ui/Screen';
 import GlassCard from '../../components/ui/GlassCard';
@@ -182,38 +182,106 @@ function TableRow({ table }: { table: (typeof MOCK_TABLES)[number] }) {
 export default function TablesScreen() {
   const [filter, setFilter] = useState<GameFilter>('all');
   const [serverTables, setServerTables] = useState<typeof MOCK_TABLES>(MOCK_TABLES);
+  // إنشاء طاولة خاصة — حصري للذهبي
+  const [goldActive, setGoldActive] = useState<boolean | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [tableName, setTableName] = useState('');
+  const [tablePwd, setTablePwd] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+
+  const showToast = (t: string) => {
+    setToast(t);
+    setTimeout(() => setToast(null), 4000);
+  };
 
   // جلب الطاولات الحقيقية من السيرفر، مع الاحتفاظ بالبيانات الافتراضية كاحتياط
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const data = await apiFetch<any[]>('/api/tables');
-        if (cancelled || !Array.isArray(data)) return;
-        if (data.length === 0) return; // قاعدة فارغة → أبقِ الافتراضية
+  const loadTables = useCallback(async () => {
+    try {
+      const data = await apiFetch<any[]>('/api/tables');
+      if (!Array.isArray(data) || data.length === 0) return; // قاعدة فارغة → أبقِ الافتراضية
 
-        const mapped = data.map((t: any) => ({
-          id: String(t.id ?? ''),
-          gameType: (t.game_type === 'three_card' ? 'three_card' : t.game_type) ?? 'texas_holdem',
-          name: t.name ?? 'طاولة',
-          players: t.table_players?.length ?? 0,
-          maxPlayers: t.max_players ?? 6,
-          minBuyIn: t.min_buy_in ?? 500,
-          smallBlind: t.small_blind,
-          bigBlind: t.big_blind,
-          isPrivate: !!t.is_private,
-          vip: t.name?.toLowerCase().includes('vip'),
-          seated: (t.table_players ?? []).map((p: any) => p.display_name ?? 'لاعب'),
-        }));
-        setServerTables(mapped);
-      } catch {
-        /* تبقى الافتراضية */
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+      const mapped = data.map((t: any) => ({
+        id: String(t.id ?? ''),
+        gameType: (t.game_type === 'three_card' ? 'three_card' : t.game_type) ?? 'texas_holdem',
+        name: t.name ?? 'طاولة',
+        players: t.table_players?.length ?? 0,
+        maxPlayers: t.max_players ?? 6,
+        minBuyIn: t.min_buy_in ?? 500,
+        smallBlind: t.small_blind,
+        bigBlind: t.big_blind,
+        isPrivate: !!t.is_private,
+        vip: t.name?.toLowerCase().includes('vip'),
+        seated: (t.table_players ?? []).map((p: any) => p.display_name ?? 'لاعب'),
+      }));
+      setServerTables(mapped);
+    } catch {
+      /* تبقى الافتراضية */
+    }
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadTables();
+      // تحديث حالة الاشتراك كلما عاد المستخدم من المتجر
+      apiFetch<{ goldActive: boolean }>('/api/store/status')
+        .then((s) => setGoldActive(!!s.goldActive))
+        .catch(() => setGoldActive(false));
+    }, [loadTables])
+  );
+
+  // الضغط على إنشاء طاولة: ذهبي → نافذة الإنشاء، عادي → المتجر
+  const onCreatePress = () => {
+    if (goldActive === true) {
+      setCreateOpen(true);
+    } else if (goldActive === false) {
+      showToast('إنشاء الطاولات الخاصة متاح للاشتراك الذهبي فقط 👑');
+      setTimeout(() => router.push('/(app)/store' as never), 600);
+    } else {
+      apiFetch<{ goldActive: boolean }>('/api/store/status')
+        .then((s) => {
+          setGoldActive(!!s.goldActive);
+          if (s.goldActive) setCreateOpen(true);
+          else {
+            showToast('إنشاء الطاولات الخاصة متاح للاشتراك الذهبي فقط 👑');
+            setTimeout(() => router.push('/(app)/store' as never), 600);
+          }
+        })
+        .catch(() => {
+          setGoldActive(false);
+          showToast('تعذر التحقق من الاشتراك — حاول لاحقًا');
+        });
+    }
+  };
+
+  // إرسال إنشاء الطاولة للسيرفر
+  const submitCreate = async () => {
+    const name = tableName.trim().slice(0, 40);
+    if (!name || busy) return;
+    setBusy(true);
+    try {
+      await apiFetch('/api/tables', {
+        method: 'POST',
+        body: JSON.stringify({
+          game_type: 'texas_holdem',
+          name,
+          min_buy_in: 500,
+          is_private: true,
+          password: tablePwd.trim() || undefined,
+        }),
+      });
+      setCreateOpen(false);
+      setTableName('');
+      setTablePwd('');
+      showToast('✅ أُنشئت الطاولة — شاركها مع صديقك من قائمة الطاولات');
+      loadTables();
+    } catch (e) {
+      const msg = (e as Error).message;
+      showToast(msg === 'GOLD_REQUIRED' ? 'الاشتراك الذهبي مطلوب لإنشاء طاولة خاصة' : `تعذر الإنشاء: ${msg}`);
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const tables =
     filter === 'all' ? serverTables : serverTables.filter((t) => t.gameType === filter);
@@ -258,9 +326,57 @@ export default function TablesScreen() {
         <GoldButton
           title="إنشاء طاولة خاصة"
           icon={<PlusIcon size={18} color={COLORS.onGold} />}
-          onPress={() => {}}
+          onPress={onCreatePress}
         />
       </View>
+
+      {/* ===== إشعار مؤقت ===== */}
+      {!!toast && (
+        <View style={styles.toastWrap} pointerEvents="none">
+          <Text style={styles.toastText}>{toast}</Text>
+        </View>
+      )}
+
+      {/* ===== نافذة إنشاء طاولة خاصة (ذهبي) ===== */}
+      <Modal visible={createOpen} transparent animationType="fade" onRequestClose={() => setCreateOpen(false)}>
+        <View style={styles.createOverlay}>
+          <View style={styles.createCard}>
+            <View style={styles.createHeader}>
+              <CrownIcon size={22} color={COLORS.gold} />
+              <Text style={styles.createTitle}>طاولة خاصة جديدة</Text>
+            </View>
+            <Text style={styles.createSub}>أصدقاؤك سيجدونها في قائمة الطاولات — كلمة السر اختيارية</Text>
+            <TextInput
+              value={tableName}
+              onChangeText={setTableName}
+              placeholder="اسم الطاولة"
+              placeholderTextColor={COLORS.textFaint}
+              style={styles.createInput}
+              maxLength={40}
+            />
+            <TextInput
+              value={tablePwd}
+              onChangeText={setTablePwd}
+              placeholder="كلمة سر (اختياري)"
+              placeholderTextColor={COLORS.textFaint}
+              style={styles.createInput}
+              secureTextEntry
+              maxLength={30}
+            />
+            <View style={styles.createRow}>
+              <Pressable onPress={() => setCreateOpen(false)} hitSlop={8} style={styles.createCancel}>
+                <Text style={styles.createCancelText}>إلغاء</Text>
+              </Pressable>
+              <GoldButton
+                title={busy ? 'جارٍ الإنشاء…' : 'إنشاء'}
+                onPress={submitCreate}
+                disabled={busy || !tableName.trim()}
+                style={styles.createBtn}
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
     </Screen>
   );
 }
@@ -418,5 +534,97 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     top: -SPACING.xxl,
+  },
+  // ===== إشعار مؤقت =====
+  toastWrap: {
+    position: 'absolute',
+    left: SPACING.lg,
+    right: SPACING.lg,
+    bottom: 120,
+    alignItems: 'center',
+    zIndex: 30,
+  },
+  toastText: {
+    backgroundColor: 'rgba(10,13,18,0.95)',
+    borderWidth: 1,
+    borderColor: COLORS.goldRim,
+    borderRadius: RADIUS.md,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.sm,
+    color: COLORS.goldLight,
+    fontFamily: FONTS.ar.medium,
+    fontSize: TYPE.small.fontSize,
+    textAlign: 'center',
+    overflow: 'hidden',
+  },
+  // ===== نافذة إنشاء طاولة خاصة =====
+  createOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(4,6,10,0.82)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: SPACING.lg,
+  },
+  createCard: {
+    width: '100%',
+    maxWidth: 400,
+    borderRadius: RADIUS.lg,
+    borderWidth: 1,
+    borderColor: COLORS.borderStrong,
+    backgroundColor: '#0E131B',
+    padding: SPACING.xl,
+    gap: SPACING.md,
+  },
+  createHeader: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.sm,
+  },
+  createTitle: {
+    fontFamily: FONTS.ar.bold,
+    fontSize: TYPE.h3.fontSize,
+    color: COLORS.text,
+  },
+  createSub: {
+    fontFamily: FONTS.ar.regular,
+    fontSize: TYPE.small.fontSize,
+    color: COLORS.textDim,
+    textAlign: 'center',
+    lineHeight: TYPE.small.lineHeight * 1.35,
+  },
+  createInput: {
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: RADIUS.md,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.md,
+    color: COLORS.text,
+    fontFamily: FONTS.ar.regular,
+    fontSize: TYPE.body.fontSize,
+    textAlign: 'center',
+  },
+  createRow: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: SPACING.md,
+    marginTop: SPACING.sm,
+  },
+  createCancel: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: SPACING.md,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  createCancelText: {
+    fontFamily: FONTS.ar.medium,
+    fontSize: TYPE.body.fontSize,
+    color: COLORS.textDim,
+  },
+  createBtn: {
+    flex: 1.4,
   },
 });

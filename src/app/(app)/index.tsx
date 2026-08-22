@@ -48,10 +48,10 @@ const FLOOR_GAMES = [
 
 const VIP_CARD = {
   key: 'vip',
-  en: 'PRIVATE LOUNGE',
-  title: 'طاولة VIP',
-  subtitle: 'شراء 5,000 — تجربة خاصة',
-  route: '/(app)/table/3',
+  en: 'GOLD MEMBERSHIP',
+  title: 'الاشتراك الذهبي',
+  subtitle: 'طاولات خاصة مع أصدقائك — شهريًا',
+  route: '/(app)/store',
 };
 
 const OFFERS = [

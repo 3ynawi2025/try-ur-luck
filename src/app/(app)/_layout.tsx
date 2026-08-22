@@ -24,6 +24,9 @@ export default function AppLayout() {
       <Tabs.Screen name="profile" options={{ title: 'حسابي' }} />
       {/* الأصدقاء — شاشة متاحة لكنها ليست وجهة رئيسية في الشريط */}
       <Tabs.Screen name="friends" options={{ href: null }} />
+      {/* المتجر ولوحة المدير — شاشات مخفية تُفتح من أماكنها */}
+      <Tabs.Screen name="store" options={{ href: null }} />
+      <Tabs.Screen name="admin" options={{ href: null }} />
 
       {/* شاشات اللعب — تُخفي الشريط بالكامل لتجربة غامرة */}
       <Tabs.Screen

@@ -38,7 +38,12 @@ export async function loadPlayerDisplayName(userId: string | null, fallback: str
 }
 
 /** تطبيق دلتا رصيد ذرّيًا (RPC) + تسجيل حركة. يرمي عند الفشل. */
-export async function applyBalanceDelta(userId: string, delta: number, description: string): Promise<void> {
+export async function applyBalanceDelta(
+  userId: string,
+  delta: number,
+  description: string,
+  type?: 'win' | 'loss' | 'gift'
+): Promise<void> {
   const sb = getSupabaseAdmin();
   const { error } = await sb.rpc('apply_balance_delta', {
     p_user_id: userId,
@@ -49,7 +54,7 @@ export async function applyBalanceDelta(userId: string, delta: number, descripti
   await sb.from('balance_transactions').insert({
     user_id: userId,
     amount: delta,
-    type: delta > 0 ? 'win' : 'loss',
+    type: type ?? (delta > 0 ? 'win' : 'loss'),
     description,
   });
 }

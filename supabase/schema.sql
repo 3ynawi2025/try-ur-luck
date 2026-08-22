@@ -14,6 +14,10 @@ CREATE TABLE profiles (
   weekly_refill_at TIMESTAMPTZ,
   device_fingerprint TEXT,
   status TEXT DEFAULT 'active' CHECK (status IN ('active', 'muted', 'banned')),
+  -- الاشتراك المميز: عادي/ذهبي + صلاحية الذهبي + حساب المدير
+  tier TEXT NOT NULL DEFAULT 'regular' CHECK (tier IN ('regular', 'gold')),
+  gold_until TIMESTAMPTZ,
+  is_admin BOOLEAN NOT NULL DEFAULT false,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -23,7 +27,7 @@ CREATE TABLE balance_transactions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   amount BIGINT NOT NULL,
-  type TEXT NOT NULL CHECK (type IN ('refill', 'win', 'loss', 'ad_reward', 'tournament', 'penalty')),
+  type TEXT NOT NULL CHECK (type IN ('refill', 'win', 'loss', 'ad_reward', 'tournament', 'penalty', 'gift')),
   description TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
