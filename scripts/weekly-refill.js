@@ -4,6 +4,13 @@
 // يجدد الرصيد كل جمعة 12 ظهرًا بتوقيت السعودية
 // ============================================================
 
+// تحميل .env محليًا (Node ≥ 20.12) — في Render تأتي من البيئة مباشرة
+try {
+  process.loadEnvFile?.();
+} catch {
+  /* ignore */
+}
+
 const { createClient } = require("@supabase/supabase-js");
 
 async function run() {

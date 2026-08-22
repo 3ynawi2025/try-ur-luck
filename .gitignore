@@ -27,13 +27,31 @@ yarn-error.*
 
 # macOS
 .DS_Store
+._*
 *.pem
 
 # local env files
+.env
 .env*.local
 
 # typescript
 *.tsbuildinfo
 
+# مخرجات تكرارات التصميم المؤقتة (code.html + screen.png)
+blackjack_royale*/
+lobby_midnight_royale*/
+midnight_royale*/
+roulette_royale*/
+russian_poker_royale*/
+shader_*/
+stitch_elite_casino_experience*/
+transaction_history*/
+ultimate_hold_em_royale*/
+ultimate_poker_royale*/
+ultra_premium_casino_loyalty_card*/
+vip_club_midnight_royale*/
+vip_royale*/
+
 app-example
 screenshot.png
+.supabase-pat

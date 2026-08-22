@@ -9,16 +9,17 @@
 4. أضف متغيرات البيئة في Render:
 
 ```
-SUPABASE_SERVICE_ROLE_KEY = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml5Y3VuY2ZxeGpsY3FodXB5dnlxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4NjQ4Njc0NywiZXhwIjoyMTAyMDYyNzQ3fQ.KRj7aq3gnNGsfVrd4cseCdZPptgnpAe9ZAbELfvlM3Q
+SUPABASE_SERVICE_ROLE_KEY = (من لوحة Supabase → Settings → API — ⚠️ دوّره بعد التسريب السابق)
+SUPABASE_URL = https://iycuncfqxjlcqhupyvyq.supabase.co
 
 AGORA_APP_ID = (من dashboard.agora.io)
-AGORA_APP_CERTIFICATE = (من dashboard.agora.io)
+AGORA_APP_CERTIFICATE = (من dashboard.agora.io — ⚠️ دوّره بعد التسريب السابق)
 ```
 
 5. اضغط **Apply**
 
 ### B. السيرفر بينشأ تلقائيًا:
-- **Web Service**: Node.js + Socket.io
+- **Web Service**: Node.js + Socket.io (يُبنى بـ `server:build` ويُشغَّل `node dist/index.js` مع فحص صحة على `/health`)
 - **Cron Job**: تجديد الرصيد كل جمعة 9:00 UTC
 
 ---
@@ -60,6 +61,10 @@ eas submit --platform ios
 
 ## 4. ملاحظات مهمة
 
+- **قبل النشر الأول:**
+  1. شغّل `supabase/hardening.sql` في SQL Editor (تحديث رصيد ذرّي + إصلاح التجديد + قفل RLS/الصلاحيات).
+  2. **دوّر مفتاحي `SUPABASE_SERVICE_ROLE_KEY` و`AGORA_APP_CERTIFICATE`** — كانا مكشوفين في مستودع git سابقًا (Supabase Dashboard → Settings → API، وAgora Console).
+  3. ضع المفتاحين الجديدين في Render Environment Variables (الخدمة تقرؤهما من البيئة فقط الآن).
 - **التطبيق جاهز للتجربة** بعد تشغيل السيرفر على Render
 - **EAS Build** يأخذ ~15-20 دقيقة للـ iOS
 - **Agora** يحتاج App ID حقيقي ليعمل الصوت (مجاني لـ 10,000 دقيقة)
@@ -67,9 +72,11 @@ eas submit --platform ios
 
 ---
 
-## 5. هيكل المشروع النهائي
+## 5. الفحوصات
 
 ```
-38 ملفًا | 7 commits | 0 errors
-✅ 14/16 مهمة مكتملة
+tsc --noEmit      ✅ 0 أخطاء
+اختبارات المحركات  ✅ 176/176 (5 suites)
+eslint            ✅ 0 أخطاء (تحذيرات أسلوبية فقط)
+server:build      ✅ dist/index.js
 ```

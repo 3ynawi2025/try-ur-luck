@@ -2,7 +2,7 @@
   "compilerOptions": {
     "outDir": "./dist",
     "rootDir": "./src/server",
-    "module": "commonjs",
+    "module": "node16",
     "moduleResolution": "node16",
     "target": "ES2022",
     "strict": true,
@@ -19,6 +19,7 @@
   "exclude": [
     "src/app",
     "src/components",
+    "src/server/game/__tests__",
     "node_modules"
   ]
 }
