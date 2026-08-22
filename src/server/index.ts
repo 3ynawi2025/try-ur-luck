@@ -23,13 +23,15 @@ app.set('trust proxy', 1); // خلف بروكسي Render — ليعمل تحدي
 const httpServer = createServer(app);
 
 // أصول مسموحة (قابلة للضبط عبر CORS_ORIGINS مفصولة بفواصل)
-// تطبيقات الجوال الأصلية لا ترسل Origin أصلًا.
-// يضاف أصل الخادم نفسه تلقائيًا (لصفحات التشخيص ونسخ الويب المنشورة معه).
+// تطبيقات الجوال الأصلية لا ترسل Origin عادة، لكن RN/Android قد يرسل
+// "http://localhost" في مصافحة WebSocket — لهذا ندرجهما دائمًا.
+// ملاحظة: السلسلة الفارغة تُعامل كغير مضبوطة (كانت علة سابقة: CORS_ORIGINS=""
+// كانت تفرغ القائمة وترفض كل المتصفحات).
+const rawOrigins = (process.env.CORS_ORIGINS ?? '').trim();
+const DEFAULT_ORIGINS =
+  'http://localhost,http://localhost:8081,http://localhost:19006,https://jareb-hazzak-server.onrender.com';
 const allowedOrigins = new Set(
-  (process.env.CORS_ORIGINS ?? 'http://localhost:8081,http://localhost:19006,https://jareb-hazzak-server.onrender.com')
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean)
+  (rawOrigins || DEFAULT_ORIGINS).split(',').map((s) => s.trim()).filter(Boolean)
 );
 
 const corsOptions = {
