@@ -23,6 +23,7 @@ import { useErrorToast } from '../../../hooks/useErrorToast';
 import { RussianSnapshot, RussianCategory } from '../../../server/game/russianPoker';
 import { Card } from '../../../server/game/deck';
 import { useSoloGame } from '../../../hooks/useSoloGame';
+import { useScale, scaleSize } from '../../../hooks/useScale';
 import {
   COLORS,
   FONTS,
@@ -63,6 +64,7 @@ const toPCard = (c: Card): PCard => ({ rank: c.rank, suit: c.suit });
 export default function RussianScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
+  const sc = useScale();
   const [helpOpen, setHelpOpen] = useState(false);
 
   const [ante, setAnte] = useState(100);
@@ -160,18 +162,23 @@ export default function RussianScreen() {
       </View>
 
       {/* ===== منطقة الموزع ===== */}
-      <FeltTable style={styles.dealerFelt} radius={150} railWidth={11} watermark="">
+      <FeltTable
+        style={[styles.dealerFelt, { width: scaleSize(340, sc), height: scaleSize(200, sc) }]}
+        radius={scaleSize(150, sc)}
+        railWidth={scaleSize(11, sc)}
+        watermark=""
+      >
         <Text style={styles.dealerLabel}>الموزع</Text>
         <View style={styles.dealerCards}>
           {revealDealerCards
             ? snap.dealerCards!.map((c, i) => (
-                <PlayingCard key={i} card={toPCard(c)} width={40} height={56} animate delay={i * 120} />
+                <PlayingCard key={i} card={toPCard(c)} width={scaleSize(40, sc)} height={scaleSize(56, sc)} animate delay={i * 120} />
               ))
             : [0, 1, 2, 3, 4].map((i) =>
                 i === 0 && snap.dealerUpCard ? (
-                  <PlayingCard key="up" card={toPCard(snap.dealerUpCard)} width={40} height={56} />
+                  <PlayingCard key="up" card={toPCard(snap.dealerUpCard)} width={scaleSize(40, sc)} height={scaleSize(56, sc)} />
                 ) : (
-                  <PlayingCard key={`back-${i}`} card={FACE_DOWN} faceDown width={40} height={56} />
+                  <PlayingCard key={`back-${i}`} card={FACE_DOWN} faceDown width={scaleSize(40, sc)} height={scaleSize(56, sc)} />
                 )
               )}
         </View>
@@ -197,15 +204,15 @@ export default function RussianScreen() {
           />
           <View style={styles.spotTop}>
             <View style={styles.spotWho}>
-              <Avatar name="أنت" size={36} showBorder isActive />
+              <Avatar name="أنت" size={scaleSize(36, sc)} showBorder isActive />
               <View style={styles.spotMeta}>
                 <Text style={styles.spotName}>أنت</Text>
                 <Text style={styles.spotBalance}>{formatCompact(snap.balance)}</Text>
               </View>
             </View>
             <View style={styles.spotStatus}>
-              <Chip amount={snap.wagers.ante} size={30} />
-              {snap.wagers.bet > 0 && <Chip amount={snap.wagers.bet} size={30} />}
+              <Chip amount={snap.wagers.ante} size={scaleSize(30, sc)} />
+              {snap.wagers.bet > 0 && <Chip amount={snap.wagers.bet} size={scaleSize(30, sc)} />}
             </View>
           </View>
 
@@ -221,7 +228,7 @@ export default function RussianScreen() {
                     selected.has(cardKey(c)) && styles.pressCardSelected,
                   ]}
                 >
-                  <PlayingCard card={toPCard(c)} width={52} height={74} animate delay={i * 110} />
+                  <PlayingCard card={toPCard(c)} width={scaleSize(52, sc)} height={scaleSize(74, sc)} animate delay={i * 110} />
                 </Pressable>
               ))}
             </View>
@@ -364,8 +371,6 @@ const styles = StyleSheet.create({
 
   dealerFelt: {
     alignSelf: 'center',
-    width: 340,
-    height: 200,
     marginTop: SPACING.sm,
   },
   dealerLabel: {

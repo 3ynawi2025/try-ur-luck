@@ -1,0 +1,53 @@
+# ===== بيانات تعبئة App Store Connect — جرب حظك (App ID: 6804312275) =====
+# نسخ/لصق مباشر لكل حقل
+
+[صفحة النسخة 1.0 — اللغة العربية]
+Promotional Text:
+كازينو اجتماعي بفيشات مجانية 100% — بوكر وبلاك جاك وروليت مع أصدقائك بصوت حي. لا أموال حقيقية، متعة حقيقية فقط.
+
+Description:
+(انسخ فقرة Description كاملة من metadata-ar.md)
+
+Keywords:
+بوكر,روليت,بلاك جاك,كازينو,poker,roulette,blackjack,casino,تكساس هولدم,أونلاين,أصدقاء
+
+Support URL:
+https://jareb-hazzak-server.onrender.com/support
+
+Marketing URL:
+https://jareb-hazzak-server.onrender.com/support
+
+Copyright:
+© 2026 Salem Al Yahyaee
+
+Review Notes (English):
+App name: "جرب حظك" (Try Your Luck)
+What it is: A social casino card game played entirely with virtual chips. There is no real-money wagering, no purchase of chips with real money, and no cash-out or exchange of chips for anything of value. This is a social/entertainment game only, not real-money gambling.
+How to get chips: Every new account receives a free starting balance. Additional free chips come from daily login rewards, a daily lucky wheel, and occasional admin gifts. There is no way to buy chips with real money anywhere in the app.
+Sign-in: The app registers by USERNAME ONLY (no password, no email required — the session is device-bound). To test: install the app, tap register, and type any username. The Gold membership store has a free "test activation" button to unlock private tables for testing premium features.
+Moderation (UGC): The app includes a report button (flag) on every player, a block list, and an admin panel for muting/banning offenders, plus an in-app Code of Conduct screen.
+Note: All chips are virtual and cannot be converted to anything of value.
+
+Sign-In Information: ضع علامة "Sign-in required" = NO (غير مطلوب — التسجيل باسم مستخدم فقط)، واشرح ذلك في Notes أعلاه.
+
+Contact Information (App Review):
+First name: Salem
+Last name: Al Yahyaee
+Email: al__3ynawi@hotmail.com
+Phone: (يُترك للمالك)
+
+[صفحة App Information]
+Name: جرب حظك
+Subtitle: كازينو اجتماعي بفيشات مجانية
+Privacy Policy URL: https://jareb-hazzak-server.onrender.com/privacy
+Category: Primary = Games > Casino | Secondary = Entertainment
+License Agreement: Apple Standard
+Age Rating: (أجب الاستبيان حسب compliance-checklist.md — النتيجة 17+ بسبب Simulated Gambling)
+
+[App Privacy — Nutrition Label]
+Data Linked to You: User ID, Username, Device ID, Optional Email (فقط عند ربط البريد)
+Data Used to Track You: None
+Collect Data: No (الصوت لا يُسجل)
+
+[النسخة المطلوبة للإرسال]
+- iOS: 1.0.0 (Build 1) — سيُبنى عبر eas build --platform ios --profile production ثم eas submit

@@ -10,7 +10,7 @@ import { Server, Socket } from 'socket.io';
 import { TexasHoldemEngine } from '../game/texasHoldem';
 import { generateAgoraToken, AGORA_APP_ID } from '../game/agora';
 import { getSupabaseAdmin } from '../lib/supabaseAdmin';
-import { applyBalanceDelta, loadPlayerBalance, loadPlayerDisplayName } from '../lib/playerPersistence';
+import { applyBalanceDelta, loadPlayerBalance, loadPlayerDisplayName, loadPlayerStatus } from '../lib/playerPersistence';
 import { verifyTablePassword } from '../lib/tablePassword';
 
 interface TableSeat {
@@ -229,13 +229,18 @@ export function setupGameHandlers(io: Server) {
       socket.emit('game:holeCards', { cards: holeCards });
       broadcastState(io, tableId, table);
 
-      // توكن Agora للدردشة الصوتية
-      const agoraToken = generateAgoraToken(tableId, playerId);
-      socket.emit('voice:token', {
-        appId: AGORA_APP_ID,
-        channelName: tableId,
-        token: agoraToken,
-      });
+      // توكن Agora للدردشة الصوتية (ممنوع للمكتومين/المحظورين من الإدارة)
+      const status = await loadPlayerStatus(userId);
+      if (status === 'active') {
+        const agoraToken = generateAgoraToken(tableId, playerId);
+        socket.emit('voice:token', {
+          appId: AGORA_APP_ID,
+          channelName: tableId,
+          token: agoraToken,
+        });
+      } else {
+        socket.emit('voice:muted', { code: 'VOICE_MUTED', message: 'تم كتم صوتك من الإدارة' });
+      }
 
       // بدء تلقائي عند اكتمال العدد
       if (table.engine.canStart() && !table.autoStartTimer) {

@@ -44,6 +44,7 @@ import { Card as GameCard } from '../../../server/game/deck';
 import { useGameSocket } from '../../../hooks/useGameSocket';
 import { useAgoraVoice } from '../../../hooks/useAgoraVoice';
 import { useCountUp } from '../../../hooks/useCountUp';
+import { useScale, scaleSize } from '../../../hooks/useScale';
 import { useFriendsStore } from '../../../stores/friendsStore';
 import { useAuthStore } from '../../../stores/authStore';
 import { AGORA_APP_ID } from '../../../lib/config';
@@ -123,6 +124,7 @@ function Seat({
   /** فائز باليد — حلقة شامبين نابضة */
   winner?: boolean;
 }) {
+  const sc = useScale();
   const folded = player.status === 'folded';
   const allIn = player.status === 'all_in';
 
@@ -149,7 +151,7 @@ function Seat({
 
   const bet = player.totalRoundBet > 0 && (
     <View style={[styles.seatBet, topHalf ? styles.seatBetBelow : styles.seatBetAbove]}>
-      <Chip amount={Math.min(player.totalRoundBet, 5000)} size={22} />
+      <Chip amount={Math.min(player.totalRoundBet, 5000)} size={scaleSize(22, sc)} />
       <Text style={styles.seatBetText}>{formatCompact(player.totalRoundBet)}</Text>
     </View>
   );
@@ -182,7 +184,7 @@ function Seat({
       >
         <Avatar
           name={player.name}
-          size={40}
+          size={scaleSize(40, sc)}
           showBorder
           isActive={player.isCurrentTurn}
         />
@@ -237,6 +239,7 @@ function Seat({
 export default function PokerTableScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
+  const sc = useScale();
   const { isConnected, joinTable, leaveTable, performAction, on } = useGameSocket();
   const { isMuted, joinChannel, toggleMute, destroy, joinError } = useAgoraVoice();
 
@@ -439,7 +442,7 @@ export default function PokerTableScreen() {
       <View style={styles.tableArea}>
         {/* حلقة بنسبة أبعاد ثابتة — تضمن بيضاوياً عريضاً على كل الشاشات */}
         <View style={styles.tableRing}>
-        <FeltTable style={styles.felt} radius={155} railWidth={14}>
+        <FeltTable style={styles.felt} radius={scaleSize(155, sc)} railWidth={scaleSize(14, sc)}>
           {/* أوراق المجتمع — توزيع سينمائي من يد الموزع */}
           <View style={styles.community}>
             {Array.from({ length: 5 }).map((_, i) => {
@@ -453,10 +456,10 @@ export default function PokerTableScreen() {
                   delay={i === 3 || i === 4 ? 480 : i * 140}
                   duration={i === 3 || i === 4 ? 520 : 380}
                 >
-                  <PlayingCard card={card} width={40} height={57} />
+                  <PlayingCard card={card} width={scaleSize(40, sc)} height={scaleSize(57, sc)} />
                 </FlyCard>
               ) : (
-                <View key={`slot-${i}`} style={styles.cardSlot} />
+                <View key={`slot-${i}`} style={[styles.cardSlot, { width: scaleSize(40, sc), height: scaleSize(57, sc) }]} />
               );
             })}
           </View>
@@ -472,7 +475,7 @@ export default function PokerTableScreen() {
                   delay={300 + i * 160}
                   flip
                 >
-                  <PlayingCard card={w.card} width={34} height={48} />
+                  <PlayingCard card={w.card} width={scaleSize(34, sc)} height={scaleSize(48, sc)} />
                 </FlyCard>
               ))}
             </View>
@@ -480,7 +483,7 @@ export default function PokerTableScreen() {
 
           {/* مجموع الرهان — عدّاد متدحرج + نبضة */}
           <Animated.View style={[styles.pot, { transform: [{ scale: potScale }] }]}>
-            <Chip amount={Math.min(snapshot?.pot || 0, 5000)} size={22} stacked />
+            <Chip amount={Math.min(snapshot?.pot || 0, 5000)} size={scaleSize(22, sc)} stacked />
             <View>
               <Text style={styles.potLabel}>مجموع الرهان</Text>
               <Text style={styles.potValue}>{formatNumber(potDisplay)}</Text>
@@ -590,7 +593,7 @@ export default function PokerTableScreen() {
 
         {/* أوراقي — مروحة تنساب من حذاء البطاقات ثم تُقلب عند الكشف */}
         {holeCards.length > 0 && (
-          <View style={styles.myCards}>
+          <View style={[styles.myCards, { height: scaleSize(92, sc) }]}>
             {holeCards.map((c, i) => (
               <View
                 key={`${c.rank}${c.suit}-${handKey}`}
@@ -614,7 +617,7 @@ export default function PokerTableScreen() {
                   flipKey={`${handKey}-${isShowdown ? 'show' : 'hide'}`}
                 >
                   <LiftCard>
-                    <PlayingCard card={c} width={62} height={88} />
+                    <PlayingCard card={c} width={scaleSize(62, sc)} height={scaleSize(88, sc)} />
                   </LiftCard>
                 </FlyCard>
               </View>
@@ -774,8 +777,6 @@ const styles = StyleSheet.create({
     gap: 5,
   },
   cardSlot: {
-    width: 40,
-    height: 57,
     borderRadius: 5,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.10)',
@@ -1024,7 +1025,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'flex-end',
-    height: 92,
   },
   myCard: {
     marginHorizontal: -6,

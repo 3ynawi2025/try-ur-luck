@@ -31,7 +31,7 @@ declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace Express {
     interface Request {
-      user?: { id: string; email?: string };
+      user?: { id: string; email?: string; status?: 'active' | 'muted' | 'banned' };
     }
   }
 }
@@ -45,6 +45,24 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
   try {
     const user = await verifyUserToken(token);
     req.user = { id: user.id, email: user.email };
+
+    // حالة الحساب من قاعدة البيانات (مرة واحدة لكل طلب) — كتم/حظر
+    let status: 'active' | 'muted' | 'banned' = 'active';
+    try {
+      const { data } = await getAdmin()
+        .from('profiles')
+        .select('status')
+        .eq('id', user.id)
+        .single();
+      if (data?.status === 'muted' || data?.status === 'banned') status = data.status;
+    } catch {
+      /* بدون بروفايل → نعامل الحساب كـ active */
+    }
+
+    if (status === 'banned') {
+      return res.status(403).json({ error: 'ACCOUNT_BANNED', message: 'تم حظر حسابك' });
+    }
+    req.user.status = status;
     next();
   } catch {
     return res.status(401).json({ error: 'UNAUTHORIZED' });
@@ -238,6 +256,15 @@ router.get('/rank', authenticate, async (req: Request, res: Response) => {
   return res.json({ rank: (count ?? 0) + 1 });
 });
 
+// حذف الحساب نهائيًا من داخل التطبيق (متطلب App Store 5.1.1(v))
+// حذف auth.user يحذف البروفايل وكل ما يرتبط به تلقائيًا (ON DELETE CASCADE)
+router.delete('/account', authenticate, async (req: Request, res: Response) => {
+  const admin = getAdmin();
+  const { error } = await admin.auth.admin.deleteUser(req.user!.id);
+  if (error) return res.status(500).json({ error: 'DELETE_FAILED', message: error.message });
+  return res.json({ ok: true });
+});
+
 // ============================================================
 // المتجر والاشتراك الذهبي
 // ============================================================
@@ -419,6 +446,16 @@ router.post('/friends/request', authenticate, async (req: Request, res: Response
   const { data: target } = await query.single();
   if (!target) return res.status(404).json({ error: 'USER_NOT_FOUND' });
 
+  // منع طلبات الصداقة إذا حظر أحد الطرفين الآخر (كلا الاتجاهين)
+  const { data: blocked } = await admin
+    .from('blocked_users')
+    .select('blocker_id')
+    .or(`and(blocker_id.eq.${req.user!.id},blocked_id.eq.${target.id}),and(blocker_id.eq.${target.id},blocked_id.eq.${req.user!.id})`)
+    .limit(1);
+  if (blocked && blocked.length > 0) {
+    return res.status(403).json({ error: 'BLOCKED', message: 'محظور' });
+  }
+
   const { error } = await admin.rpc('send_friend_request', { to_user: target.id });
   if (error) {
     // رسائل الدالة العربية: علاقة سابقة / إضافة النفس / طلب معلق
@@ -459,6 +496,176 @@ router.post('/friends/remove', authenticate, async (req: Request, res: Response)
     .delete()
     .or(`and(user_id.eq.${req.user!.id},friend_id.eq.${friendId}),and(user_id.eq.${friendId},friend_id.eq.${req.user!.id})`);
   if (error) return res.status(400).json({ error: 'REMOVE_FAILED', message: error.message });
+  return res.json({ ok: true });
+});
+
+// ============================================================
+// الإشراف: البلاغات والحجب (توجيه App Store 1.2 — محتوى المستخدمين)
+// ============================================================
+
+const REPORT_REASONS = ['voice_abuse', 'harassment', 'offensive_language', 'cheating', 'spam'];
+
+// إرسال بلاغ عن لاعب (إساءة صوتية/نصية/غش)
+router.post('/reports', authenticate, async (req: Request, res: Response) => {
+  const targetId = String(req.body?.target_id ?? '').trim();
+  const reason = String(req.body?.reason ?? '').trim();
+
+  if (!/^[0-9a-f-]{36}$/.test(targetId)) {
+    return res.status(400).json({ error: 'INVALID_TARGET' });
+  }
+  if (targetId === req.user!.id) {
+    return res.status(400).json({ error: 'SELF_REPORT', message: 'لا يمكنك الإبلاغ عن نفسك' });
+  }
+  if (!REPORT_REASONS.includes(reason)) {
+    return res.status(400).json({ error: 'INVALID_REASON' });
+  }
+
+  const { data: target } = await getAdmin()
+    .from('profiles')
+    .select('id')
+    .eq('id', targetId)
+    .maybeSingle();
+  if (!target) return res.status(404).json({ error: 'USER_NOT_FOUND' });
+
+  const { error } = await getAdmin().from('reports').insert({
+    reporter_id: req.user!.id,
+    reported_id: targetId,
+    reason,
+    status: 'pending',
+  });
+  if (error) {
+    console.error('[reports] insert failed:', error.message);
+    return res.status(500).json({ error: 'REPORT_FAILED' });
+  }
+  return res.json({ ok: true });
+});
+
+// حجب لاعب (يمنع طلبات الصداقة والتواصل)
+router.post('/block', authenticate, async (req: Request, res: Response) => {
+  const targetId = String(req.body?.target_id ?? '').trim();
+  if (!/^[0-9a-f-]{36}$/.test(targetId)) {
+    return res.status(400).json({ error: 'INVALID_TARGET' });
+  }
+  if (targetId === req.user!.id) {
+    return res.status(400).json({ error: 'SELF_BLOCK', message: 'لا يمكنك حجب نفسك' });
+  }
+
+  const admin = getAdmin();
+  const { data: target } = await admin
+    .from('profiles')
+    .select('id')
+    .eq('id', targetId)
+    .maybeSingle();
+  if (!target) return res.status(404).json({ error: 'USER_NOT_FOUND' });
+
+  const { error } = await admin.from('blocked_users').insert({
+    blocker_id: req.user!.id,
+    blocked_id: targetId,
+  });
+  if (error && error.code !== '23505') {
+    console.error('[block] insert failed:', error.message);
+    return res.status(500).json({ error: 'BLOCK_FAILED' });
+  }
+  return res.json({ ok: true });
+});
+
+// إلغاء حجب لاعب
+router.post('/unblock', authenticate, async (req: Request, res: Response) => {
+  const targetId = String(req.body?.target_id ?? '').trim();
+  if (!targetId) return res.status(400).json({ error: 'INVALID_TARGET' });
+
+  const { error } = await getAdmin()
+    .from('blocked_users')
+    .delete()
+    .eq('blocker_id', req.user!.id)
+    .eq('blocked_id', targetId);
+  if (error) {
+    console.error('[unblock] delete failed:', error.message);
+    return res.status(500).json({ error: 'UNBLOCK_FAILED' });
+  }
+  return res.json({ ok: true });
+});
+
+// البلاغات المفتوحة (للوحة المدير) — مقرونة بمعلومات المُبلِّغ والمُبلَّغ عنه
+router.get('/admin/reports', authenticate, requireAdmin, async (_req: Request, res: Response) => {
+  const { data, error } = await getAdmin()
+    .from('reports')
+    .select(
+      'id, reason, status, created_at, reporter_id, reported_id, ' +
+        'reporter:profiles!reports_reporter_id_fkey(username, display_name), ' +
+        'reported:profiles!reports_reported_id_fkey(username, display_name)'
+    )
+    .eq('status', 'pending')
+    .order('created_at', { ascending: false })
+    .limit(100);
+
+  if (error) {
+    console.error('[admin/reports] failed:', error.message);
+    return res.status(500).json({ error: error.message });
+  }
+
+  return res.json(
+    (data ?? []).map((r: any) => ({
+      id: r.id,
+      reason: r.reason,
+      status: r.status,
+      createdAt: r.created_at,
+      reporter: {
+        id: r.reporter_id,
+        username: r.reporter?.username ?? '',
+        displayName: r.reporter?.display_name ?? '',
+      },
+      reported: {
+        id: r.reported_id,
+        username: r.reported?.username ?? '',
+        displayName: r.reported?.display_name ?? '',
+      },
+    }))
+  );
+});
+
+// إجراء إداري على بلاغ: كتم / حظر / تجاهل
+router.post('/admin/report/action', authenticate, requireAdmin, async (req: Request, res: Response) => {
+  const reportId = String(req.body?.report_id ?? '').trim();
+  const action = String(req.body?.action ?? '').trim();
+
+  if (!/^[0-9a-f-]{36}$/.test(reportId)) {
+    return res.status(400).json({ error: 'INVALID_REPORT' });
+  }
+  if (!['mute', 'ban', 'dismiss'].includes(action)) {
+    return res.status(400).json({ error: 'INVALID_ACTION' });
+  }
+
+  const admin = getAdmin();
+  const { data: report } = await admin
+    .from('reports')
+    .select('id, reported_id')
+    .eq('id', reportId)
+    .maybeSingle();
+  if (!report) return res.status(404).json({ error: 'REPORT_NOT_FOUND' });
+  const reportedId = String(report.reported_id);
+
+  const logPenalty = (type: 'mute' | 'ban', hours: number | null, reason: string) =>
+    admin
+      .from('penalties')
+      .insert({ user_id: reportedId, type, duration_hours: hours, reason })
+      .then(
+        () => {},
+        (e: unknown) => console.error('[penalty] insert failed:', (e as Error)?.message)
+      );
+
+  if (action === 'mute') {
+    await admin.from('profiles').update({ status: 'muted' }).eq('id', reportedId);
+    await admin.from('reports').update({ status: 'actioned' }).eq('id', reportId);
+    await logPenalty('mute', 24, 'إساءة صوتية — كتم من الإدارة');
+  } else if (action === 'ban') {
+    await admin.from('profiles').update({ status: 'banned' }).eq('id', reportedId);
+    await admin.from('reports').update({ status: 'actioned' }).eq('id', reportId);
+    await logPenalty('ban', null, 'إساءة متكررة — حظر دائم من الإدارة');
+  } else {
+    await admin.from('reports').update({ status: 'dismissed' }).eq('id', reportId);
+  }
+
   return res.json({ ok: true });
 });
 

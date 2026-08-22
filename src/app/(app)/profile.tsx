@@ -22,6 +22,7 @@ import {
   UsersIcon,
   CloseIcon,
   TrophyIcon,
+  InfoIcon,
 } from '../../components/icons/GameIcons';
 import {
   COLORS,
@@ -92,8 +93,11 @@ export default function ProfileScreen() {
   const profile = useAuthStore((s) => s.profile);
   const bindEmail = useAuthStore((s) => s.bindEmail);
   const signOut = useAuthStore((s) => s.signOut);
+  const deleteAccount = useAuthStore((s) => s.deleteAccount);
   const [emailModal, setEmailModal] = useState(false);
   const [emailDraft, setEmailDraft] = useState('');
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [balance, setBalance] = useState<number | null>(null);
   const [allTxs, setAllTxs] = useState<TxRow[]>([]);
   const [weeklyRank, setWeeklyRank] = useState<number | null>(null);
@@ -183,6 +187,20 @@ export default function ProfileScreen() {
     bindEmail(v);
     setEmailModal(false);
     setEmailDraft('');
+  };
+
+  // حذف الحساب نهائيًا (متطلب App Store — من داخل التطبيق)
+  const confirmDeleteAccount = async () => {
+    if (deleting) return;
+    setDeleting(true);
+    try {
+      await deleteAccount();
+      setDeleteOpen(false);
+      router.replace('/(auth)');
+    } catch {
+      setDeleting(false);
+      setDeleteOpen(false);
+    }
   };
 
   // مشاركة رابط الدعوة — كل صديق يسجل = +2,000 لك وله
@@ -327,6 +345,12 @@ export default function ProfileScreen() {
           />
           <Divider />
           <MenuRow
+            icon={<InfoIcon size={19} color={COLORS.textDim} />}
+            label="قواعد السلوك والإبلاغ"
+            onPress={() => router.push('/(app)/rules')}
+          />
+          <Divider />
+          <MenuRow
             icon={<EditIcon size={19} color={COLORS.textDim} />}
             label={profile?.email ? `بريدك: ${profile.email}` : 'ربط البريد لتثبيت الحساب'}
             onPress={() => {
@@ -338,7 +362,14 @@ export default function ProfileScreen() {
           <MenuRow
             icon={<SettingsIcon size={19} color={COLORS.textDim} />}
             label="الإعدادات"
-            onPress={() => {}}
+            onPress={() => router.push('/(app)/settings')}
+          />
+          <Divider />
+          <MenuRow
+            icon={<LogoutIcon size={19} color={COLORS.crimson} />}
+            label="حذف الحساب نهائيًا"
+            danger
+            onPress={() => setDeleteOpen(true)}
           />
         </GlassCard>
 

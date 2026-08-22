@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>جرب حظك — المكافآت</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --bg:#0A0D12; --bg2:#111826; --bg3:#182231;
+  --gold:#C9A961; --gold-2:#e7cf94; --gold-dim:#7d6338;
+  --ivory:#F2EFE9; --muted:#8b95a6;
+  --felt:#145A43; --green:#3ecf8e;
+}
+html,body{height:100%;overflow:hidden;background:var(--bg);}
+body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Segoe UI','Noto Sans Arabic','Helvetica Neue',Arial,sans-serif;color:var(--ivory);display:flex;flex-direction:column;-webkit-font-smoothing:antialiased;}
+.screen{position:relative;flex:1;display:flex;flex-direction:column;padding:0 18px 22px;}
+.screen::before{content:'';position:absolute;inset:0;background:
+  radial-gradient(120% 60% at 50% 0%,rgba(201,169,97,.16),transparent 55%),
+  radial-gradient(90% 50% at 50% 110%,rgba(142,68,173,.18),transparent 60%);}
+
+.status{position:relative;display:flex;justify-content:space-between;align-items:center;padding:16px 6px 0;font-size:14px;font-weight:600;}
+.status .icons{display:flex;gap:6px;align-items:center;}
+.signal{width:17px;height:11px;display:flex;align-items:flex-end;gap:1.5px;}
+.signal i{display:block;width:3px;background:var(--ivory);border-radius:1px;}
+.signal i:nth-child(1){height:4px}.signal i:nth-child(2){height:6px}.signal i:nth-child(3){height:8px}.signal i:nth-child(4){height:11px}
+.battery{width:24px;height:12px;border:1.5px solid rgba(242,239,233,.7);border-radius:3px;position:relative;padding:1.5px;}
+.battery::after{content:'';position:absolute;left:-4px;top:2.5px;width:2px;height:5px;background:rgba(242,239,233,.7);border-radius:1px;}
+.battery i{display:block;height:100%;width:78%;background:var(--green);border-radius:1px;}
+
+.head{position:relative;display:flex;align-items:center;justify-content:space-between;margin-top:12px;}
+.head .back{width:38px;height:38px;border-radius:12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;font-size:18px;}
+.head h1{font-size:20px;font-weight:800;}
+.head .coins{display:flex;align-items:center;gap:7px;background:linear-gradient(160deg,#182231,#111826);border:1px solid rgba(201,169,97,.35);border-radius:999px;padding:8px 13px;}
+.head .coins .coin{width:18px;height:18px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#f5e6b8,#C9A961 55%,#8a6f3d);border:2px solid #f0dc9a;}
+.head .coins b{font-size:14px;color:var(--gold-2);}
+
+/* wheel */
+.wheel-zone{position:relative;display:flex;justify-content:center;margin-top:22px;}
+.wheel{width:190px;height:190px;border-radius:50%;position:relative;
+  background:conic-gradient(#C9A961 0 51.4deg,#e05252 51.4deg 102.8deg,#3a7bd5 102.8deg 154.2deg,#3ecf8e 154.2deg 205.6deg,#8e44ad 205.6deg 257deg,#f39c12 257deg 308.4deg,#e7cf94 308.4deg 360deg);
+  box-shadow:0 16px 36px rgba(0,0,0,.55), inset 0 0 0 7px #2a2313, inset 0 0 0 11px #C9A961;}
+.wheel .seg{position:absolute;top:50%;left:50%;transform-origin:0 0;font-size:13px;color:#fff;font-weight:900;}
+.wheel .hub{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:62px;height:62px;border-radius:50%;background:linear-gradient(160deg,#e7cf94,#C9A961 55%,#9a7c3f);display:flex;flex-direction:column;align-items:center;justify-content:center;color:#241b06;font-weight:900;box-shadow:0 4px 12px rgba(0,0,0,.5);border:3px solid #2a2313;}
+.wheel .hub b{font-size:15px;line-height:1;}
+.wheel .hub small{font-size:9px;}
+.wheel .pointer{position:absolute;top:-10px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:10px solid transparent;border-right:10px solid transparent;border-top:18px solid #e7cf94;filter:drop-shadow(0 2px 4px rgba(0,0,0,.5));}
+.wheel-zone .tag{position:absolute;bottom:-34px;font-size:12px;color:var(--muted);font-weight:600;}
+
+/* streak */
+.sec{position:relative;display:flex;align-items:center;justify-content:space-between;margin:20px 2px 12px;}
+.sec h2{font-size:17px;font-weight:800;}
+.sec span{font-size:12px;color:var(--gold);font-weight:700;}
+.streak{position:relative;display:flex;gap:7px;}
+.day{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 2px 10px;border-radius:14px;background:linear-gradient(160deg,var(--bg3),var(--bg2));border:1px solid rgba(255,255,255,.06);position:relative;}
+.day .coin{width:30px;height:30px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#f5e6b8,#C9A961 55%,#8a6f3d);border:2px dashed #8a6f3d;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:900;color:#4a3a12;}
+.day .dlbl{font-size:10px;font-weight:700;color:var(--muted);}
+.day .amt{font-size:13px;font-weight:900;color:var(--gold-2);}
+.day.claimed{opacity:.5;}
+.day.claimed .coin{background:radial-gradient(circle at 35% 30%,#37d892,#1f9d66);border-color:#0f5f38;color:#04251a;}
+.day.claimed::after{content:'✓';position:absolute;top:6px;left:7px;color:#37d892;font-weight:900;font-size:11px;}
+.day.current{background:linear-gradient(160deg,rgba(201,169,97,.22),rgba(17,24,38,.6));border:1px solid rgba(201,169,97,.65);box-shadow:0 6px 18px rgba(201,169,97,.25);}
+.day.current .dlbl{color:var(--gold-2);}
+.day .crown{position:absolute;top:-8px;font-size:12px;}
+.day.current .crown{display:block;}
+
+/* claim button */
+.claim{position:relative;margin-top:auto;border:none;border-radius:16px;padding:16px 0;font-size:17px;font-weight:800;font-family:inherit;color:#241b06;
+  background:linear-gradient(160deg,#e7cf94,#C9A961 55%,#9a7c3f);box-shadow:0 10px 26px rgba(201,169,97,.4);}
+</style>
+</head>
+<body>
+<div class="screen">
+  <div class="status">
+    <span class="time">9:41</span>
+    <span class="icons">
+      <span class="signal"><i></i><i></i><i></i><i></i></span>
+      <span class="battery"><i></i></span>
+    </span>
+  </div>
+
+  <div class="head">
+    <div class="back">‹</div>
+    <h1>المكافآت اليومية</h1>
+    <div class="coins"><span class="coin"></span><b>١٢٬٥٠٠</b></div>
+  </div>
+
+  <div class="wheel-zone">
+    <div class="wheel">
+      <div class="pointer"></div>
+      <div class="hub"><b>دور</b><small>الحظ</small></div>
+    </div>
+    <div class="tag">عجلة الحظ — أدر مرة مجاناً</div>
+  </div>
+
+  <div class="sec"><h2>مكافآت التتابع</h2><span>اليوم ٢ من ٧</span></div>
+
+  <div class="streak">
+    <div class="day claimed"><div class="coin">٥٠٠</div><div class="dlbl">يوم ١</div><div class="amt">٥٠٠</div></div>
+    <div class="day current"><span class="crown">👑</span><div class="coin">١٠٠٠</div><div class="dlbl">يوم ٢</div><div class="amt">١٠٠٠</div></div>
+    <div class="day"><div class="coin">١٥٠٠</div><div class="dlbl">يوم ٣</div><div class="amt">١٥٠٠</div></div>
+    <div class="day"><div class="coin">٢٥٠٠</div><div class="dlbl">يوم ٤</div><div class="amt">٢٥٠٠</div></div>
+    <div class="day"><div class="coin">٥٠٠٠</div><div class="dlbl">يوم ٥</div><div class="amt">٥٠٠٠</div></div>
+    <div class="day"><div class="coin">١٠٠٠٠</div><div class="dlbl">يوم ٦</div><div class="amt">١٠٬٠٠٠</div></div>
+    <div class="day"><div class="coin">٢٥٠٠٠</div><div class="dlbl">يوم ٧</div><div class="amt">٢٥٬٠٠٠</div></div>
+  </div>
+
+  <button class="claim">استلام مكافأة اليوم</button>
+</div>
+</body>
+</html>
+@media (min-width: 700px){
+  .screen{padding:0 56px 48px;}
+  .status{padding:34px 8px 0;font-size:22px;}
+  .signal{width:26px;height:16px;gap:2.5px;}
+  .signal i{width:4px;}
+  .signal i:nth-child(1){height:6px}.signal i:nth-child(2){height:9px}.signal i:nth-child(3){height:12px}.signal i:nth-child(4){height:16px}
+  .battery{width:40px;height:20px;border-radius:5px;padding:2.5px;border-width:2px;}
+  .battery::after{width:3px;height:8px;left:-6px;top:3px;}
+  .head{margin-top:26px;}
+  .head .back{width:64px;height:64px;border-radius:20px;font-size:32px;}
+  .head h1{font-size:32px;}
+  .head .coins{padding:14px 22px;}
+  .head .coins .coin{width:28px;height:28px;}
+  .head .coins b{font-size:22px;}
+  .wheel-zone{margin-top:40px;}
+  .wheel{width:320px;height:320px;}
+  .wheel .hub{width:104px;height:104px;}
+  .wheel .hub b{font-size:26px;}
+  .wheel .hub small{font-size:14px;}
+  .wheel .pointer{top:-14px;border-left-width:17px;border-right-width:17px;border-top-width:28px;}
+  .wheel-zone .tag{font-size:18px;bottom:-48px;}
+  .sec{margin:36px 4px 22px;}
+  .sec h2{font-size:28px;}
+  .sec span{font-size:18px;}
+  .streak{gap:12px;}
+  .day{border-radius:24px;padding:24px 4px 18px;gap:12px;}
+  .day .coin{width:54px;height:54px;font-size:20px;border-width:3px;}
+  .day .dlbl{font-size:17px;}
+  .day .amt{font-size:22px;}
+  .day.claimed::after{font-size:18px;top:10px;left:12px;}
+  .day .crown{font-size:22px;top:-14px;}
+  .claim{border-radius:28px;padding:26px 0;font-size:28px;}
+}

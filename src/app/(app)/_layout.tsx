@@ -27,6 +27,9 @@ export default function AppLayout() {
       {/* المتجر ولوحة المدير — شاشات مخفية تُفتح من أماكنها */}
       <Tabs.Screen name="store" options={{ href: null }} />
       <Tabs.Screen name="admin" options={{ href: null }} />
+      <Tabs.Screen name="rules" options={{ href: null }} />
+      <Tabs.Screen name="terms" options={{ href: null }} />
+      <Tabs.Screen name="settings" options={{ href: null }} />
 
       {/* شاشات اللعب — تُخفي الشريط بالكامل لتجربة غامرة */}
       <Tabs.Screen

@@ -12,7 +12,7 @@ import { ThreeCardPokerEngine } from './threeCardPoker';
 import { RussianPokerEngine } from './russianPoker';
 import { RouletteEngine, RouletteBet } from './roulette';
 import { secureRandomInt } from './deck';
-import { applyBalanceDelta, loadPlayerBalance, loadPlayerDisplayName } from '../lib/playerPersistence';
+import { applyBalanceDelta, loadPlayerBalance, loadPlayerDisplayName, loadPlayerStatus } from '../lib/playerPersistence';
 import { generateAgoraToken, AGORA_APP_ID } from './agora';
 
 export type SoloGameKind = 'blackjack' | 'three-card' | 'russian' | 'roulette';
@@ -777,13 +777,18 @@ export function setupSoloGameHandlers(io: Server) {
           }
         }
 
-        // ===== الدردشة الصوتية: نفس قناة طاولة اللعبة =====
+        // ===== الدردشة الصوتية: نفس قناة طاولة اللعبة (ممنوع للمكتومين) =====
         const voiceChannel = `solo-${game}-${cleanTableId}`;
-        socket.emit('voice:token', {
-          appId: AGORA_APP_ID,
-          channelName: voiceChannel,
-          token: generateAgoraToken(voiceChannel, playerId),
-        });
+        const status = await loadPlayerStatus(userId);
+        if (status === 'active') {
+          socket.emit('voice:token', {
+            appId: AGORA_APP_ID,
+            channelName: voiceChannel,
+            token: generateAgoraToken(voiceChannel, playerId),
+          });
+        } else {
+          socket.emit('voice:muted', { code: 'VOICE_MUTED', message: 'تم كتم صوتك من الإدارة' });
+        }
 
         console.log(`🎰 Solo join: ${game} @ ${cleanTableId} (balance=${balance}, seats=${room.size}, shared=${shared})`);
       }

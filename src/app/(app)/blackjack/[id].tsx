@@ -20,6 +20,7 @@ import WinFX from '../../../components/game/WinFX';
 import { useSoloGame } from '../../../hooks/useSoloGame';
 import { useErrorToast } from '../../../hooks/useErrorToast';
 import { useCountUp } from '../../../hooks/useCountUp';
+import { useScale, scaleSize } from '../../../hooks/useScale';
 import { BlackjackSnapshot, BlackjackHand } from '../../../server/game/blackjack';
 import { Card, getRankValue } from '../../../server/game/deck';
 import {
@@ -76,6 +77,7 @@ export default function BlackjackScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [helpOpen, setHelpOpen] = useState(false);
   const [bet, setBet] = useState(100);
+  const sc = useScale();
 
   const { showError, errorNode } = useErrorToast();
   const { snapshot, sendAction, players, isMuted, toggleMute, myPlayerId, soloCountdown } = useSoloGame('blackjack', `bj-${id ?? '1'}`, showError);
@@ -287,15 +289,20 @@ export default function BlackjackScreen() {
       <Text style={styles.phaseText}>{phaseText}</Text>
 
       {/* ===== منطقة الموزع ===== */}
-      <FeltTable style={styles.dealerFelt} radius={150} railWidth={11} watermark="">
+      <FeltTable
+        style={[styles.dealerFelt, { width: scaleSize(340, sc), height: scaleSize(200, sc) }]}
+        radius={scaleSize(150, sc)}
+        railWidth={scaleSize(11, sc)}
+        watermark=""
+      >
         <Text style={styles.dealerLabel}>الموزع</Text>
         <View style={styles.dealerCards}>
           {snap.dealerCards.map((c, i) => (
             <PlayingCard
               key={i}
               card={toPCard(c)}
-              width={46}
-              height={65}
+              width={scaleSize(46, sc)}
+              height={scaleSize(65, sc)}
               animate
               delay={i * 140}
             />
@@ -328,8 +335,8 @@ export default function BlackjackScreen() {
                     <View key={i} style={{ marginRight: i === 0 ? 0 : -12 }}>
                       <PlayingCard
                         card={toPCard(c)}
-                        width={28}
-                        height={40}
+                        width={scaleSize(28, sc)}
+                        height={scaleSize(40, sc)}
                         dimmed={hand?.status === 'bust'}
                       />
                     </View>
@@ -349,7 +356,7 @@ export default function BlackjackScreen() {
         <View style={[styles.spot, styles.spotMe]}>
           <View style={styles.spotTop}>
             <View style={styles.spotWho}>
-              <Avatar name="أنت" size={36} showBorder isActive />
+              <Avatar name="أنت" size={scaleSize(36, sc)} showBorder isActive />
               <View style={styles.spotMeta}>
                 <Text style={styles.spotName}>أنت</Text>
                 <Text style={styles.spotBalance}>{formatCompact(balanceDisplay)}</Text>
@@ -378,10 +385,10 @@ export default function BlackjackScreen() {
                       {STATUS_TONE[activeHand.status]?.label ?? 'دورك'}
                     </Text>
                   </View>
-                  <Chip amount={activeHand.bet || bet} size={30} />
+                  <Chip amount={activeHand.bet || bet} size={scaleSize(30, sc)} />
                 </>
               ) : (
-                <Chip amount={bet} size={30} />
+                <Chip amount={bet} size={scaleSize(30, sc)} />
               )}
             </View>
           </View>
@@ -393,8 +400,8 @@ export default function BlackjackScreen() {
                 <View key={i} style={{ marginRight: i === 0 ? 0 : -14 }}>
                   <PlayingCard
                     card={toPCard(c)}
-                    width={46}
-                    height={64}
+                    width={scaleSize(46, sc)}
+                    height={scaleSize(64, sc)}
                     animate
                     delay={i * 130}
                     dimmed={activeHand?.status === 'bust'}
@@ -434,8 +441,6 @@ const styles = StyleSheet.create({
 
   dealerFelt: {
     alignSelf: 'center',
-    width: 340,
-    height: 200,
     marginTop: SPACING.sm,
   },
   // ===== أيدي بقية اللاعبين (طاولة مشتركة) =====

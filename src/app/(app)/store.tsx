@@ -105,12 +105,11 @@ export default function StoreScreen() {
           <GlassCard variant="gold" padding={SPACING.xl} style={styles.block}>
             <View style={styles.priceRow}>
               <View>
-                <Text style={styles.priceLabel}>اشتراك شهري</Text>
-                <Text style={styles.price}>19.99 ر.س</Text>
+                <Text style={styles.priceLabel}>الاشتراك الذهبي — مجاني حاليًا</Text>
               </View>
               <TrophyIcon size={22} color={COLORS.gold} />
             </View>
-            <Text style={styles.priceHint}>يتجدد شهريًا — يمكنك الإلغاء في أي وقت. الدفع الحقيقي يُربط قريبًا؛ الزر أدناه تفعيل تجريبي.</Text>
+            <Text style={styles.priceHint}>نسخة تجريبية: فعّل الذهبي مجانًا الآن. سيُعلن عن سعر الاشتراك لاحقًا عند إطلاقه رسميًا.</Text>
             <GoldButton title={busy ? 'جارٍ التفعيل…' : 'فعّل الذهبي (تجريبي)'} onPress={activate} disabled={busy} />
           </GlassCard>
         )}
@@ -200,11 +199,6 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.ar.regular,
     fontSize: TYPE.caption.fontSize,
     color: COLORS.textDim,
-  },
-  price: {
-    fontFamily: FONTS.num.bold,
-    fontSize: TYPE.h2.fontSize,
-    color: COLORS.goldLight,
   },
   priceHint: {
     fontFamily: FONTS.ar.regular,

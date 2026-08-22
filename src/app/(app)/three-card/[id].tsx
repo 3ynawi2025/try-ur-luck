@@ -23,6 +23,7 @@ import { useErrorToast } from '../../../hooks/useErrorToast';
 import { ThreeCardSnapshot, ThreeCardCategory } from '../../../server/game/threeCardPoker';
 import { Card } from '../../../server/game/deck';
 import { useSoloGame } from '../../../hooks/useSoloGame';
+import { useScale, scaleSize } from '../../../hooks/useScale';
 import {
   COLORS,
   FONTS,
@@ -57,6 +58,7 @@ const toPCard = (c: Card): PCard => ({ rank: c.rank, suit: c.suit });
 export default function ThreeCardScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
+  const sc = useScale();
   const [helpOpen, setHelpOpen] = useState(false);
 
   const [ante, setAnte] = useState(100);
@@ -132,15 +134,20 @@ export default function ThreeCardScreen() {
       </View>
 
       {/* ===== منطقة الموزع ===== */}
-      <FeltTable style={styles.dealerFelt} radius={150} railWidth={11} watermark="">
+      <FeltTable
+        style={[styles.dealerFelt, { width: scaleSize(340, sc), height: scaleSize(200, sc) }]}
+        radius={scaleSize(150, sc)}
+        railWidth={scaleSize(11, sc)}
+        watermark=""
+      >
         <Text style={styles.dealerLabel}>الموزع</Text>
         <View style={styles.dealerCards}>
           {snap.dealerCards
             ? snap.dealerCards.map((c, i) => (
-                <PlayingCard key={i} card={toPCard(c)} width={46} height={65} animate delay={i * 140} />
+                <PlayingCard key={i} card={toPCard(c)} width={scaleSize(46, sc)} height={scaleSize(65, sc)} animate delay={i * 140} />
               ))
             : [0, 1, 2].map((i) => (
-                <PlayingCard key={`back-${i}`} card={FACE_DOWN} faceDown width={46} height={65} />
+                <PlayingCard key={`back-${i}`} card={FACE_DOWN} faceDown width={scaleSize(46, sc)} height={scaleSize(65, sc)} />
               ))}
         </View>
         {snap.dealerQualified !== null && (
@@ -165,14 +172,14 @@ export default function ThreeCardScreen() {
           />
           <View style={styles.spotTop}>
             <View style={styles.spotWho}>
-              <Avatar name="أنت" size={36} showBorder isActive />
+              <Avatar name="أنت" size={scaleSize(36, sc)} showBorder isActive />
               <View style={styles.spotMeta}>
                 <Text style={styles.spotName}>أنت</Text>
                 <Text style={styles.spotBalance}>{formatCompact(snap.balance)}</Text>
               </View>
             </View>
             <View style={styles.spotStatus}>
-              {snap.wagers.ante > 0 && <Chip amount={snap.wagers.ante} size={30} />}
+              {snap.wagers.ante > 0 && <Chip amount={snap.wagers.ante} size={scaleSize(30, sc)} />}
               {snap.wagers.pairPlus > 0 && (
                 <View style={styles.sideTag}>
                   <Text style={styles.sideTagText}>زوج +</Text>
@@ -190,7 +197,7 @@ export default function ThreeCardScreen() {
             <View style={styles.cardRow}>
               {(snap.playerCards ?? []).map((c, i) => (
                 <View key={i} style={{ marginRight: i === 0 ? 0 : -14 }}>
-                  <PlayingCard card={toPCard(c)} width={52} height={74} animate delay={i * 130} />
+                  <PlayingCard card={toPCard(c)} width={scaleSize(52, sc)} height={scaleSize(74, sc)} animate delay={i * 130} />
                 </View>
               ))}
             </View>
@@ -336,8 +343,6 @@ const styles = StyleSheet.create({
 
   dealerFelt: {
     alignSelf: 'center',
-    width: 340,
-    height: 200,
     marginTop: SPACING.sm,
   },
   dealerLabel: {

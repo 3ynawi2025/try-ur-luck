@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>جرب حظك — الصالة</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --bg:#0A0D12; --bg2:#111826; --bg3:#182231;
+  --gold:#C9A961; --gold-2:#e7cf94; --gold-dim:#7d6338;
+  --ivory:#F2EFE9; --muted:#8b95a6;
+  --felt:#1a5c46; --felt-2:#0e3b2e; --line:#2f8063;
+  --red:#e05252; --ink:#1c2026; --card:#f7f5ef; --green:#3ecf8e;
+}
+html,body{height:100%;overflow:hidden;background:var(--bg);}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Segoe UI','Noto Sans Arabic','Helvetica Neue',Arial,sans-serif;
+  color:var(--ivory); display:flex; flex-direction:column;
+  -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+}
+.bg{
+  position:absolute; inset:0; z-index:0;
+  background:
+    radial-gradient(120% 60% at 50% -10%, rgba(201,169,97,.14), transparent 60%),
+    radial-gradient(90% 50% at 85% 100%, rgba(26,92,70,.35), transparent 70%),
+    radial-gradient(70% 40% at 0% 100%, rgba(201,169,97,.08), transparent 60%),
+    linear-gradient(180deg,#0A0D12 0%,#0c1118 55%,#0a0d12 100%);
+}
+.screen{position:relative; z-index:1; flex:1; display:flex; flex-direction:column; padding:0 20px 22px;}
+
+/* status bar */
+.status{display:flex; justify-content:space-between; align-items:center; padding:16px 6px 0; font-size:14px; font-weight:600; color:var(--ivory);}
+.status .time{letter-spacing:.5px;}
+.status .icons{display:flex; gap:6px; align-items:center;}
+.signal{width:17px;height:11px;display:flex;align-items:flex-end;gap:1.5px;}
+.signal i{display:block;width:3px;background:var(--ivory);border-radius:1px;}
+.signal i:nth-child(1){height:4px}.signal i:nth-child(2){height:6px}.signal i:nth-child(3){height:8px}.signal i:nth-child(4){height:11px}
+.wifi{width:15px;height:11px;position:relative;}
+.wifi svg{display:block;}
+.battery{width:24px;height:12px;border:1.5px solid rgba(242,239,233,.7);border-radius:3px;position:relative;padding:1.5px;}
+.battery::after{content:'';position:absolute;left:-4px;top:2.5px;width:2px;height:5px;background:rgba(242,239,233,.7);border-radius:1px;}
+.battery i{display:block;height:100%;width:78%;background:var(--green);border-radius:1px;}
+
+/* header */
+.header{display:flex; align-items:center; justify-content:space-between; margin-top:14px;}
+.brand{display:flex; align-items:center; gap:11px;}
+.logo{width:46px;height:46px;border-radius:14px;background:linear-gradient(145deg,#e7cf94,#C9A961 45%,#8a6f3d);display:flex;align-items:center;justify-content:center;box-shadow:0 6px 18px rgba(201,169,97,.35);}
+.logo span{font-size:24px;font-weight:900;color:#1c1a12;text-shadow:0 1px 0 rgba(255,255,255,.4);}
+.brand h1{font-size:22px;font-weight:800;line-height:1;color:var(--ivory);}
+.brand p{font-size:12px;color:var(--gold);margin-top:3px;font-weight:600;}
+.coins{display:flex;align-items:center;gap:8px;background:linear-gradient(160deg,#182231,#111826);border:1px solid rgba(201,169,97,.35);border-radius:999px;padding:9px 15px;}
+.coins .coin{width:20px;height:20px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#f5e6b8,#C9A961 55%,#8a6f3d);box-shadow:0 2px 6px rgba(201,169,97,.5);border:2px solid #f0dc9a;}
+.coins b{font-size:16px;font-weight:800;color:var(--gold-2);}
+.coins small{font-size:10px;color:var(--muted);display:block;line-height:1;}
+
+/* membership card */
+.member{margin-top:16px;border-radius:20px;padding:18px 18px;position:relative;overflow:hidden;
+  background:linear-gradient(135deg,#2a2313 0%,#C9A961 55%,#e7cf94 100%);
+  box-shadow:0 12px 30px rgba(0,0,0,.45);}
+.member::after{content:'';position:absolute;inset:0;background:
+  radial-gradient(120% 120% at 100% 0%,rgba(255,255,255,.35),transparent 40%),
+  repeating-linear-gradient(115deg,rgba(255,255,255,.06) 0 2px,transparent 2px 9px);}
+.member .inner{position:relative;z-index:1;display:flex;justify-content:space-between;align-items:center;}
+.member .lbl{font-size:11px;letter-spacing:2px;color:#4a3a12;font-weight:800;text-transform:uppercase;}
+.member .tier{font-size:26px;font-weight:900;color:#241b06;margin-top:2px;}
+.member .name{font-size:13px;color:#4a3a12;font-weight:700;margin-top:6px;}
+.member .chip{width:56px;height:56px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff6da,#e7cf94 50%,#b8914a);
+  border:3px dashed #6b4f1d;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:20px;color:#4a3a12;}
+
+/* section title */
+.sec{display:flex;align-items:center;justify-content:space-between;margin:20px 2px 12px;}
+.sec h2{font-size:18px;font-weight:800;}
+.sec a{font-size:13px;color:var(--gold);font-weight:700;}
+
+/* game cards */
+.games{display:flex;flex-direction:column;gap:12px;}
+.game{display:flex;align-items:center;gap:14px;border-radius:18px;padding:14px 16px;position:relative;overflow:hidden;
+  background:linear-gradient(160deg,var(--bg3),var(--bg2));border:1px solid rgba(255,255,255,.06);}
+.game .glow{position:absolute;inset:0;opacity:.9;}
+.game.bj .glow{background:radial-gradient(120% 100% at 100% 0%,rgba(26,92,70,.55),transparent 60%);}
+.game.rou .glow{background:radial-gradient(120% 100% at 100% 0%,rgba(224,82,82,.28),transparent 60%);}
+.game.hol .glow{background:radial-gradient(120% 100% at 100% 0%,rgba(201,169,97,.25),transparent 60%);}
+.thumb{width:62px;height:62px;border-radius:14px;position:relative;z-index:1;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 18px rgba(0,0,0,.4);}
+.bj .thumb{background:radial-gradient(circle at 30% 25%,#2f8063,#0e3b2e);}
+.rou .thumb{background:radial-gradient(circle at 30% 25%,#7a2a2a,#3a1111);}
+.hol .thumb{background:radial-gradient(circle at 30% 25%,#6b5a26,#2a2313);}
+.thumb .mark{font-size:28px;line-height:1;}
+.game .info{flex:1;position:relative;z-index:1;}
+.game .info h3{font-size:17px;font-weight:800;color:var(--ivory);}
+.game .info p{font-size:12px;color:var(--muted);margin-top:4px;line-height:1.5;}
+.game .cta{position:relative;z-index:1;background:linear-gradient(160deg,#e7cf94,#C9A961 55%,#9a7c3f);color:#241b06;font-weight:800;font-size:13px;padding:9px 15px;border-radius:999px;box-shadow:0 4px 12px rgba(201,169,97,.35);white-space:nowrap;}
+.game .badge{position:relative;z-index:1;position:absolute;top:12px;right:14px;font-size:10px;font-weight:800;padding:3px 8px;border-radius:6px;background:rgba(62,207,142,.16);color:var(--green);border:1px solid rgba(62,207,142,.35);}
+
+/* bottom nav */
+.nav{margin-top:auto;display:flex;justify-content:space-around;align-items:center;background:linear-gradient(180deg,rgba(17,24,38,.6),rgba(11,16,24,.9));border:1px solid rgba(255,255,255,.06);border-radius:20px;padding:12px 8px 14px;}
+.nav .item{display:flex;flex-direction:column;align-items:center;gap:5px;color:var(--muted);font-size:11px;font-weight:600;}
+.nav .item.active{color:var(--gold-2);}
+.nav .item .ic{width:22px;height:22px;opacity:.9;}
+.nav .item.active .ic{filter:drop-shadow(0 2px 5px rgba(201,169,97,.5));}
+</style>
+</head>
+<body>
+<div class="bg"></div>
+<div class="screen">
+  <div class="status">
+    <span class="time">9:41</span>
+    <span class="icons">
+      <span class="signal"><i></i><i></i><i></i><i></i></span>
+      <span class="wifi"><svg width="15" height="11" viewBox="0 0 15 11" fill="none"><path d="M7.5 11L2.5 6.5a7 7 0 0 1 10 0L7.5 11z" fill="#F2EFE9"/><path d="M7.5 8l-2-1.8a3 3 0 0 1 4 0L7.5 8z" fill="#F2EFE9" opacity=".6"/></svg></span>
+      <span class="battery"><i></i></span>
+    </span>
+  </div>
+
+  <div class="header">
+    <div class="brand">
+      <div class="logo"><span>♣</span></div>
+      <div>
+        <h1>جرب حظك</h1>
+        <p>كازينو اجتماعي</p>
+      </div>
+    </div>
+    <div class="coins">
+      <span class="coin"></span>
+      <div><b>١٢٬٥٠٠</b><small>عملات</small></div>
+    </div>
+  </div>
+
+  <div class="member">
+    <div class="inner">
+      <div>
+        <div class="lbl">VIP • العضوية</div>
+        <div class="tier">العضوية الذهبية</div>
+        <div class="name">سالم اليحيائي</div>
+      </div>
+      <div class="chip">♛</div>
+    </div>
+  </div>
+
+  <div class="sec"><h2>ألعاب الصالة</h2><a>عرض الكل</a></div>
+
+  <div class="games">
+    <div class="game bj">
+      <div class="glow"></div>
+      <div class="thumb"><span class="mark">🂡</span></div>
+      <div class="info"><h3>بلاك جاك</h3><p>ورق ٢١ — اقترب من ٢١ وتغلب على الموزّع</p></div>
+      <span class="badge">حار 🔥</span>
+      <div class="cta">العب الآن</div>
+    </div>
+    <div class="game rou">
+      <div class="glow"></div>
+      <div class="thumb"><span class="mark">🎡</span></div>
+      <div class="info"><h3>الروليت</h3><p>راهن على رقمك المفضّل ودع العجلة تدور</p></div>
+      <div class="cta">العب الآن</div>
+    </div>
+    <div class="game hol">
+      <div class="glow"></div>
+      <div class="thumb"><span class="mark">♠</span></div>
+      <div class="info"><h3>بوكر هولدم</h3><p>تحدَّ خصومك على طاولة تكساس هولدم</p></div>
+      <span class="badge">جديد</span>
+      <div class="cta">العب الآن</div>
+    </div>
+  </div>
+
+  <div class="nav">
+    <div class="item active"><svg class="ic" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3l2.4 5.2 5.6.6-4.2 3.9 1.2 5.6L12 15.3 7 18.3l1.2-5.6L4 8.8l5.6-.6z"/></svg><span>الصالة</span></div>
+    <div class="item"><svg class="ic" viewBox="0 0 24 24" fill="currentColor"><path d="M5 4h14v13H5zM4 19h16v2H4z"/></svg><span>الألعاب</span></div>
+    <div class="item"><svg class="ic" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 2a8 8 0 1 1 0 16 8 8 0 0 1 0-16zm4 5h-8v2h8zm0 4h-8v2h8z"/></svg><span>المكافآت</span></div>
+    <div class="item"><svg class="ic" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm0 2c-3.3 0-8 1.7-8 5v1h16v-1c0-3.3-4.7-5-8-5z"/></svg><span>حسابي</span></div>
+  </div>
+</div>
+</body>
+</html>
+@media (min-width: 700px){
+  .screen{padding:0 56px 48px;}
+  .status{padding:34px 8px 0;font-size:22px;}
+  .signal{width:26px;height:16px;gap:2.5px;}
+  .signal i{width:4px;}
+  .signal i:nth-child(1){height:6px}.signal i:nth-child(2){height:9px}.signal i:nth-child(3){height:12px}.signal i:nth-child(4){height:16px}
+  .battery{width:40px;height:20px;border-radius:5px;padding:2.5px;border-width:2px;}
+  .battery::after{width:3px;height:8px;left:-6px;top:3px;}
+  .header{margin-top:28px;}
+  .logo{width:88px;height:88px;border-radius:26px;}
+  .logo span{font-size:46px;}
+  .brand h1{font-size:42px;}
+  .brand p{font-size:20px;margin-top:6px;}
+  .coins{padding:16px 26px;}
+  .coins .coin{width:32px;height:32px;}
+  .coins b{font-size:28px;}
+  .coins small{font-size:15px;}
+  .member{margin-top:32px;border-radius:34px;padding:36px;}
+  .member .lbl{font-size:18px;letter-spacing:3px;}
+  .member .tier{font-size:44px;}
+  .member .name{font-size:21px;margin-top:10px;}
+  .member .chip{width:104px;height:104px;font-size:38px;border-width:4px;}
+  .sec{margin:36px 4px 22px;}
+  .sec h2{font-size:30px;}
+  .sec a{font-size:20px;}
+  .games{gap:22px;}
+  .game{border-radius:30px;padding:26px 28px;gap:24px;}
+  .thumb{width:110px;height:110px;border-radius:24px;}
+  .thumb .mark{font-size:48px;}
+  .game .info h3{font-size:29px;}
+  .game .info p{font-size:19px;margin-top:8px;}
+  .game .cta{font-size:22px;padding:16px 28px;}
+  .game .badge{font-size:15px;padding:6px 14px;top:20px;right:24px;}
+  .nav{border-radius:34px;padding:22px 16px 26px;}
+  .nav .item{font-size:18px;gap:9px;}
+  .nav .item .ic{width:34px;height:34px;}
+}

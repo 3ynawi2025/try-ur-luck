@@ -46,6 +46,17 @@ export function useAgoraVoice() {
       if (!engineRef) {
         engineRef = createAgoraRtcEngine();
         engineCreated.current = true;
+
+        // إشعارات الأخطاء بدل الفشل الصامت
+        // تُسجَّل مرة واحدة لكل مثيل محرك جديد (بعد destroy/release يُعاد إنشاؤها معه)
+        engineRef.addListener('onError', (err: any) => {
+          setJoinError(`تعذر الاتصال الصوتي (${String(err?.code ?? err)})`);
+        });
+        engineRef.addListener('onJoinChannelSuccess', () => {
+          setJoinError(null);
+          // بعد الانضمام الناجح: أعد توجيه الصوت للسماعة الخارجية
+          engineRef?.setEnableSpeakerphone(true);
+        });
       }
 
       const engine = engineRef;
@@ -57,16 +68,6 @@ export function useAgoraVoice() {
       engine.setDefaultAudioRouteToSpeakerphone(true);
       engine.enableAudio();
       engine.enableAudioVolumeIndication(500, 3, false);
-
-      // إشعارات الأخطاء بدل الفشل الصامت
-      engine.addListener('onError', (err: any) => {
-        setJoinError(`تعذر الاتصال الصوتي (${String(err?.code ?? err)})`);
-      });
-      engine.addListener('onJoinChannelSuccess', () => {
-        setJoinError(null);
-        // بعد الانضمام الناجح: أعد توجيه الصوت للسماعة الخارجية
-        engine.setEnableSpeakerphone(true);
-      });
 
       engine.joinChannel(token, channelName, 0, {});
       // بعد أمر الانضمام مباشرة (يفعّلها SDK بعد الانضمام)
@@ -81,8 +82,9 @@ export function useAgoraVoice() {
 
   const leaveChannel = useCallback(async () => {
     if (engineRef) {
-      // إسكات المايك أولًا ثم مغادرة القناة — ضمان عدم بقاء أي إرسال
+      // إسكات المايك أولًا ثم تعطيل الصوت ثم مغادرة القناة — ضمان إغلاق جلسة الصوت على iOS
       engineRef.muteLocalAudioStream(true);
+      engineRef.disableAudio();
       engineRef.leaveChannel();
       setIsJoined(false);
       setIsMuted(true);

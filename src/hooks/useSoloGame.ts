@@ -67,7 +67,7 @@ export function useSoloGame(
   const [autoRebet, setAutoRebet] = useState(false);
 
   // الدردشة الصوتية — نفس قناة طاولة اللعبة
-  const { isMuted, toggleMute, joinChannel, joinError, leaveChannel } = useAgoraVoice();
+  const { isMuted, toggleMute, joinChannel, joinError, destroy } = useAgoraVoice();
 
   // إظهار أخطاء الصوت للمستخدم بدل الفشل الصامت
   useEffect(() => {
@@ -137,8 +137,8 @@ export function useSoloGame(
       pendingJoinRef.current = null;
       connectedRef.current = false;
       socket.disconnect();
-      // إغلاق قناة الصوت عند الخروج من اللعبة (لا يبقى المايك مفتوحًا في اللوبي)
-      leaveChannel();
+      // إغلاق قناة الصوت بالكامل عند الخروج من اللعبة (إطلاق المحرك — لا يبقى المايك مفتوحًا في اللوبي)
+      destroy();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

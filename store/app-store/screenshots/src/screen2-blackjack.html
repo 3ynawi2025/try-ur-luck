@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>جرب حظك — بلاك جاك</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --bg:#0A0D12; --bg2:#111826; --bg3:#182231;
+  --gold:#C9A961; --gold-2:#e7cf94; --gold-dim:#7d6338;
+  --ivory:#F2EFE9; --muted:#8b95a6;
+  --felt:#145A43; --felt-2:#0e3b2e; --line:#2f8063;
+  --red:#e05252; --ink:#1c2026; --card:#f7f5ef; --green:#3ecf8e;
+}
+html,body{height:100%;overflow:hidden;background:var(--bg);}
+body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Segoe UI','Noto Sans Arabic','Helvetica Neue',Arial,sans-serif;color:var(--ivory);display:flex;flex-direction:column;-webkit-font-smoothing:antialiased;}
+.screen{position:relative;flex:1;display:flex;flex-direction:column;padding:0 16px 20px;}
+.screen::before{content:'';position:absolute;inset:0;background:
+  radial-gradient(120% 70% at 50% 0%,rgba(201,169,97,.12),transparent 55%),
+  radial-gradient(100% 60% at 50% 110%,rgba(14,59,46,.7),transparent 65%);}
+
+.status{position:relative;display:flex;justify-content:space-between;align-items:center;padding:16px 6px 0;font-size:14px;font-weight:600;}
+.status .icons{display:flex;gap:6px;align-items:center;}
+.signal{width:17px;height:11px;display:flex;align-items:flex-end;gap:1.5px;}
+.signal i{display:block;width:3px;background:var(--ivory);border-radius:1px;}
+.signal i:nth-child(1){height:4px}.signal i:nth-child(2){height:6px}.signal i:nth-child(3){height:8px}.signal i:nth-child(4){height:11px}
+.battery{width:24px;height:12px;border:1.5px solid rgba(242,239,233,.7);border-radius:3px;position:relative;padding:1.5px;}
+.battery::after{content:'';position:absolute;left:-4px;top:2.5px;width:2px;height:5px;background:rgba(242,239,233,.7);border-radius:1px;}
+.battery i{display:block;height:100%;width:78%;background:var(--green);border-radius:1px;}
+
+.topbar{position:relative;display:flex;align-items:center;justify-content:space-between;margin-top:12px;}
+.topbar .back{width:38px;height:38px;border-radius:12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--ivory);}
+.topbar h1{font-size:19px;font-weight:800;}
+.topbar .lvl{font-size:12px;color:var(--gold);font-weight:700;background:rgba(201,169,97,.12);border:1px solid rgba(201,169,97,.3);padding:6px 12px;border-radius:999px;}
+.betbar{position:relative;display:flex;align-items:center;gap:8px;margin-top:12px;}
+.betbar .chip-mini{width:22px;height:22px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#f5e6b8,#C9A961 55%,#8a6f3d);border:2px solid #f0dc9a;box-shadow:0 2px 6px rgba(201,169,97,.5);}
+.betbar span{font-size:14px;color:var(--ivory);font-weight:700;}
+.betbar b{color:var(--gold-2);font-size:16px;}
+
+/* table felt */
+.table{position:relative;margin-top:14px;flex:1;border-radius:26px;padding:14px;display:flex;flex-direction:column;
+  background:radial-gradient(120% 90% at 50% 0%,#1d6a50,#0e3b2e 70%);border:3px solid #2a7d5c;
+  box-shadow:inset 0 0 60px rgba(0,0,0,.45), 0 18px 40px rgba(0,0,0,.5);}
+.table::before{content:'';position:absolute;inset:10px;border-radius:18px;border:1px solid rgba(242,239,233,.14);pointer-events:none;}
+
+/* dealer */
+.dealer{display:flex;flex-direction:column;align-items:center;gap:6px;}
+.dealer .lbl{font-size:11px;letter-spacing:1px;color:rgba(242,239,233,.75);font-weight:700;}
+.dealer .dhand{display:flex;gap:6px;}
+.dealer .tot{font-size:15px;font-weight:800;background:rgba(0,0,0,.35);padding:2px 12px;border-radius:999px;color:var(--gold-2);}
+
+/* cards */
+.card{width:48px;height:68px;border-radius:9px;background:var(--card);color:var(--ink);position:relative;box-shadow:0 6px 12px rgba(0,0,0,.45);flex-shrink:0;}
+.card .c{position:absolute;font-weight:800;line-height:1;display:flex;flex-direction:column;align-items:center;}
+.card .tl{top:5px;right:6px;font-size:14px;}
+.card .br{bottom:5px;left:6px;font-size:14px;transform:rotate(180deg);}
+.card .mid{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:24px;}
+.card.red{color:#c93b3b;}
+.card.back{background:linear-gradient(145deg,#1e2c44,#0f1624);border:2px solid #C9A961;}
+.card.back::after{content:'';position:absolute;inset:4px;border-radius:5px;background:repeating-linear-gradient(45deg,rgba(201,169,97,.28) 0 2px,transparent 2px 6px);}
+
+.divider{height:1px;margin:12px 4px;background:rgba(242,239,233,.12);}
+
+/* players */
+.players{display:flex;gap:10px;flex:1;align-items:stretch;}
+.player{flex:1;display:flex;flex-direction:column;align-items:center;gap:7px;border-radius:16px;padding:10px 6px;background:rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.07);position:relative;}
+.player.me{background:linear-gradient(160deg,rgba(201,169,97,.18),rgba(0,0,0,.25));border:1px solid rgba(201,169,97,.5);}
+.avatar{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;color:#fff;position:relative;}
+.p1 .avatar{background:linear-gradient(145deg,#5b6fe0,#3a47b0);}
+.p2 .avatar{background:linear-gradient(145deg,#e05252,#a03a3a);}
+.me .avatar{background:linear-gradient(145deg,#e7cf94,#b8914a);color:#241b06;}
+.avatar .dot{position:absolute;bottom:1px;left:1px;width:11px;height:11px;border-radius:50%;background:var(--green);border:2px solid #0e3b2e;}
+.pname{font-size:12px;font-weight:700;color:var(--ivory);}
+.hand{display:flex;gap:3px;}
+.hand .card{width:34px;height:48px;border-radius:6px;}
+.hand .card .tl,.hand .card .br{font-size:10px;}
+.hand .card .tl{top:3px;right:4px;}.hand .card .br{bottom:3px;left:4px;}
+.hand .card .mid{font-size:16px;}
+.total{font-size:26px;font-weight:900;color:var(--gold-2);line-height:1;text-shadow:0 2px 8px rgba(0,0,0,.4);}
+.total small{font-size:11px;color:var(--muted);font-weight:700;display:block;}
+
+/* actions */
+.actions{position:relative;margin-top:16px;display:flex;gap:10px;}
+.actions button{flex:1;border:none;border-radius:14px;padding:15px 0;font-size:16px;font-weight:800;font-family:inherit;color:#241b06;cursor:default;}
+.hit{background:linear-gradient(160deg,#e7cf94,#C9A961 55%,#9a7c3f);box-shadow:0 6px 16px rgba(201,169,97,.35);}
+.stand{background:linear-gradient(160deg,#37d892,#1f9d66);color:#04251a;box-shadow:0 6px 16px rgba(62,207,142,.28);}
+.double{background:rgba(255,255,255,.09);border:1px solid rgba(201,169,97,.5)!important;color:var(--gold-2);box-shadow:none;}
+</style>
+</head>
+<body>
+<div class="screen">
+  <div class="status">
+    <span class="time">9:41</span>
+    <span class="icons">
+      <span class="signal"><i></i><i></i><i></i><i></i></span>
+      <span class="battery"><i></i></span>
+    </span>
+  </div>
+
+  <div class="topbar">
+    <div class="back">‹</div>
+    <h1>بلاك جاك</h1>
+    <div class="lvl">طاولة رقم ٧</div>
+  </div>
+
+  <div class="betbar">
+    <span class="chip-mini"></span>
+    <span>الرهان الحالي:</span><b>٢٥٠</b>
+  </div>
+
+  <div class="table">
+    <div class="dealer">
+      <div class="lbl">الموزّع</div>
+      <div class="dhand">
+        <div class="card red"><span class="c tl">A<br>♥</span><span class="mid">♥</span><span class="c br">A<br>♥</span></div>
+        <div class="card back"></div>
+      </div>
+      <div class="tot">المجموع: ١١</div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="players">
+      <div class="player p1">
+        <div class="avatar">س<span class="dot"></span></div>
+        <div class="pname">سعيد</div>
+        <div class="hand">
+          <div class="card"><span class="c tl">10<br>♠</span><span class="mid">♠</span><span class="c br">10<br>♠</span></div>
+          <div class="card red"><span class="c tl">7<br>♦</span><span class="mid">♦</span><span class="c br">7<br>♦</span></div>
+        </div>
+        <div class="total">١٧<small>النقاط</small></div>
+      </div>
+      <div class="player me">
+        <div class="avatar">أنت<span class="dot"></span></div>
+        <div class="pname">أنت</div>
+        <div class="hand">
+          <div class="card red"><span class="c tl">K<br>♥</span><span class="mid">♥</span><span class="c br">K<br>♥</span></div>
+          <div class="card"><span class="c tl">9<br>♣</span><span class="mid">♣</span><span class="c br">9<br>♣</span></div>
+          <div class="card red"><span class="c tl">2<br>♦</span><span class="mid">♦</span><span class="c br">2<br>♦</span></div>
+        </div>
+        <div class="total">٢١<small>النقاط</small></div>
+      </div>
+      <div class="player p2">
+        <div class="avatar">م<span class="dot"></span></div>
+        <div class="pname">منى</div>
+        <div class="hand">
+          <div class="card"><span class="c tl">8<br>♠</span><span class="mid">♠</span><span class="c br">8<br>♠</span></div>
+          <div class="card red"><span class="c tl">A<br>♦</span><span class="mid">♦</span><span class="c br">A<br>♦</span></div>
+        </div>
+        <div class="total">١٩<small>النقاط</small></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button class="hit">سحب</button>
+    <button class="stand">وقوف</button>
+    <button class="double">مضاعفة</button>
+  </div>
+</div>
+</body>
+</html>
+@media (min-width: 700px){
+  .screen{padding:0 56px 44px;}
+  .status{padding:34px 8px 0;font-size:22px;}
+  .signal{width:26px;height:16px;gap:2.5px;}
+  .signal i{width:4px;}
+  .signal i:nth-child(1){height:6px}.signal i:nth-child(2){height:9px}.signal i:nth-child(3){height:12px}.signal i:nth-child(4){height:16px}
+  .battery{width:40px;height:20px;border-radius:5px;padding:2.5px;border-width:2px;}
+  .battery::after{width:3px;height:8px;left:-6px;top:3px;}
+  .topbar{margin-top:26px;}
+  .topbar .back{width:64px;height:64px;border-radius:20px;font-size:32px;}
+  .topbar h1{font-size:34px;}
+  .topbar .lvl{font-size:20px;padding:10px 20px;}
+  .betbar{margin-top:22px;gap:14px;}
+  .betbar .chip-mini{width:36px;height:36px;}
+  .betbar span{font-size:22px;}
+  .betbar b{font-size:26px;}
+  .table{margin-top:24px;border-radius:44px;padding:26px;border-width:4px;}
+  .dealer .lbl{font-size:18px;}
+  .dealer .dhand{gap:12px;}
+  .dealer .tot{font-size:24px;padding:6px 22px;}
+  .card{width:84px;height:118px;border-radius:16px;}
+  .card .tl,.card .br{font-size:24px;}
+  .card .tl{top:9px;right:11px;}
+  .card .br{bottom:9px;left:11px;}
+  .card .mid{font-size:42px;}
+  .divider{margin:22px 6px;}
+  .players{gap:18px;}
+  .player{border-radius:28px;padding:22px 10px;gap:14px;}
+  .avatar{width:72px;height:72px;font-size:28px;}
+  .avatar .dot{width:18px;height:18px;bottom:2px;left:2px;border-width:3px;}
+  .pname{font-size:21px;}
+  .hand{gap:7px;}
+  .hand .card{width:58px;height:82px;border-radius:11px;}
+  .hand .card .tl,.hand .card .br{font-size:17px;}
+  .hand .card .tl{top:5px;right:7px;}
+  .hand .card .br{bottom:5px;left:7px;}
+  .hand .card .mid{font-size:27px;}
+  .total{font-size:44px;}
+  .total small{font-size:17px;}
+  .actions{margin-top:26px;gap:18px;}
+  .actions button{border-radius:24px;padding:24px 0;font-size:26px;}
+}

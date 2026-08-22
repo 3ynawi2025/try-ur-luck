@@ -58,3 +58,21 @@ export async function applyBalanceDelta(
     description,
   });
 }
+
+/** تحميل حالة حساب اللاعب (active/muted/banned) — للتحكم في بث الصوت. */
+export async function loadPlayerStatus(
+  userId: string | null
+): Promise<'active' | 'muted' | 'banned'> {
+  if (!userId) return 'active';
+  try {
+    const { data } = await getSupabaseAdmin()
+      .from('profiles')
+      .select('status')
+      .eq('id', userId)
+      .single();
+    if (data?.status === 'muted' || data?.status === 'banned') return data.status;
+  } catch {
+    /* ignore */
+  }
+  return 'active';
+}

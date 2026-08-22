@@ -125,6 +125,16 @@ CREATE TABLE penalties (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- الحجب: مستخدم يحجب مستخدمًا آخر (منع طلبات الصداقة والتواصل)
+-- (السياسات و RLS في moderation.sql — السيرفر يكتب عبر service_role)
+CREATE TABLE IF NOT EXISTS blocked_users (
+  blocker_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  blocked_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  PRIMARY KEY (blocker_id, blocked_id),
+  CHECK (blocker_id <> blocked_id)
+);
+
 -- سجل الأجهزة لمكافحة multi-accounting
 CREATE TABLE devices (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

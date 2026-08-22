@@ -24,6 +24,35 @@ interface AdminUser {
 
 const QUICK_AMOUNTS = [1000, 5000, 10000, 50000];
 
+interface AdminReport {
+  id: string;
+  reason: string;
+  status: string;
+  createdAt: string;
+  reporter: { id: string; username: string; displayName: string };
+  reported: { id: string; username: string; displayName: string };
+}
+
+const REASON_LABELS: Record<string, string> = {
+  voice_abuse: 'إساءة صوتية',
+  harassment: 'تحرش',
+  offensive_language: 'سب',
+  cheating: 'غش',
+  spam: 'إزعاج',
+};
+
+/** تنسيق نسبي للوقت (منذ X دقيقة/ساعة/يوم) */
+function relativeTime(iso?: string): string {
+  if (!iso) return '';
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return '';
+  const minutes = Math.max(1, Math.round((Date.now() - t) / 60000));
+  if (minutes < 60) return `منذ ${minutes} دقيقة`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `منذ ${hours} ساعة`;
+  return `منذ ${Math.round(hours / 24)} يوم`;
+}
+
 export default function AdminScreen() {
   const [q, setQ] = useState('');
   const [results, setResults] = useState<AdminUser[]>([]);
@@ -32,6 +61,8 @@ export default function AdminScreen() {
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [stats, setStats] = useState<{ onlineUsers?: number; sockets?: number; tables?: { tables?: number; seatedPlayers?: number }; soloSessions?: number } | null>(null);
+  const [reports, setReports] = useState<AdminReport[]>([]);
+  const [reportBusy, setReportBusy] = useState<string | null>(null);
 
   // إحصاءات حية: متصلون + طاولات + جلسات (كل 10 ثوانٍ)
   useEffect(() => {
@@ -44,9 +75,38 @@ export default function AdminScreen() {
     return () => clearInterval(t);
   }, []);
 
+  // البلاغات المفتوحة: تحميل كل 15 ثانية + بعد أي إجراء
+  useEffect(() => {
+    const loadReports = () =>
+      apiFetch<AdminReport[]>('/api/admin/reports')
+        .then((r) => setReports(r ?? []))
+        .catch(() => {});
+    loadReports();
+    const t = setInterval(loadReports, 15000);
+    return () => clearInterval(t);
+  }, []);
+
   const showToast = (t: string) => {
     setToast(t);
     setTimeout(() => setToast(null), 4000);
+  };
+
+  const actOnReport = async (reportId: string, action: 'mute' | 'ban' | 'dismiss') => {
+    if (reportBusy) return;
+    setReportBusy(reportId);
+    try {
+      await apiFetch('/api/admin/report/action', {
+        method: 'POST',
+        body: JSON.stringify({ report_id: reportId, action }),
+      });
+      const labels: Record<string, string> = { mute: 'تم كتم اللاعب', ban: 'تم حظر اللاعب', dismiss: 'تم تجاهل البلاغ' };
+      showToast(labels[action]);
+      setReports((prev) => prev.filter((r) => r.id !== reportId));
+    } catch (e) {
+      showToast(`فشل الإجراء: ${(e as Error).message}`);
+    } finally {
+      setReportBusy(null);
+    }
   };
 
   const search = async () => {
@@ -117,6 +177,38 @@ export default function AdminScreen() {
             </View>
           </GlassCard>
         )}
+
+        <GlassCard padding={SPACING.lg} style={styles.block}>
+          <Text style={styles.blockTitle}>🚩 البلاغات</Text>
+          {reports.length === 0 ? (
+            <Text style={styles.userSub}>لا توجد بلاغات مفتوحة</Text>
+          ) : (
+            reports.map((r) => (
+              <View key={r.id} style={styles.reportCard}>
+                <View style={styles.reportTop}>
+                  <View style={styles.reportInfo}>
+                    <Text style={styles.reportReason}>{REASON_LABELS[r.reason] ?? r.reason}</Text>
+                    <Text style={styles.userSub}>
+                      المُبلِّغ: @{r.reporter.username} — المُبلَّغ عنه: @{r.reported.username}
+                    </Text>
+                    <Text style={styles.reportTime}>{relativeTime(r.createdAt)}</Text>
+                  </View>
+                </View>
+                <View style={styles.reportActions}>
+                  <Pressable style={[styles.actionBtn, styles.actionMute]} onPress={() => actOnReport(r.id, 'mute')} disabled={!!reportBusy}>
+                    <Text style={styles.actionMuteText}>كتم</Text>
+                  </Pressable>
+                  <Pressable style={[styles.actionBtn, styles.actionBan]} onPress={() => actOnReport(r.id, 'ban')} disabled={!!reportBusy}>
+                    <Text style={styles.actionBanText}>حظر</Text>
+                  </Pressable>
+                  <Pressable style={[styles.actionBtn, styles.actionDismiss]} onPress={() => actOnReport(r.id, 'dismiss')} disabled={!!reportBusy}>
+                    <Text style={styles.actionDismissText}>تجاهل</Text>
+                  </Pressable>
+                </View>
+              </View>
+            ))
+          )}
+        </GlassCard>
 
         <GlassCard padding={SPACING.xl} style={styles.block}>
           <Text style={styles.blockTitle}>بحث عن لاعب</Text>
@@ -306,6 +398,70 @@ const styles = StyleSheet.create({
   statLabel: {
     fontFamily: FONTS.ar.regular,
     fontSize: TYPE.micro.fontSize,
+    color: COLORS.textDim,
+  },
+  reportCard: {
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: RADIUS.md,
+    padding: SPACING.md,
+    gap: SPACING.md,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+  },
+  reportTop: {
+    flexDirection: 'row-reverse',
+    justifyContent: 'space-between',
+  },
+  reportInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  reportReason: {
+    fontFamily: FONTS.ar.bold,
+    fontSize: TYPE.body.fontSize,
+    color: COLORS.goldLight,
+  },
+  reportTime: {
+    fontFamily: FONTS.ar.regular,
+    fontSize: TYPE.caption.fontSize,
+    color: COLORS.textFaint,
+  },
+  reportActions: {
+    flexDirection: 'row-reverse',
+    gap: SPACING.sm,
+  },
+  actionBtn: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: SPACING.sm,
+    borderRadius: RADIUS.sm,
+    borderWidth: 1,
+  },
+  actionMute: {
+    borderColor: COLORS.hairlineGold,
+    backgroundColor: 'rgba(201,169,97,0.08)',
+  },
+  actionMuteText: {
+    fontFamily: FONTS.ar.semibold,
+    fontSize: TYPE.caption.fontSize,
+    color: COLORS.goldLight,
+  },
+  actionBan: {
+    borderColor: 'rgba(232,169,160,0.35)',
+    backgroundColor: 'rgba(232,169,160,0.08)',
+  },
+  actionBanText: {
+    fontFamily: FONTS.ar.semibold,
+    fontSize: TYPE.caption.fontSize,
+    color: COLORS.crimson,
+  },
+  actionDismiss: {
+    borderColor: COLORS.border,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+  },
+  actionDismissText: {
+    fontFamily: FONTS.ar.semibold,
+    fontSize: TYPE.caption.fontSize,
     color: COLORS.textDim,
   },
   toastWrap: {

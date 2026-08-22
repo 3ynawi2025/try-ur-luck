@@ -4,7 +4,7 @@
 // ============================================================
 
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, Animated, ScrollView, Easing } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Animated, ScrollView, Easing, useWindowDimensions } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -36,10 +36,8 @@ import {
 } from '../../../constants/theme';
 
 
-// حجم القرص في النافذة السينمائية + مسار الكرة المناسب له
+// حجم القرص الأساسي في النافذة السينمائية (عرض التصميم 390) — يُضبط تلقائيًا حسب عرض الشاشة
 const WHEEL_SIZE = 300;
-const BALL_START = Math.round(118 * (WHEEL_SIZE / 260));
-const BALL_END = Math.round(78 * (WHEEL_SIZE / 260));
 
 const CELL_COLOR: Record<string, string> = {
   red: COLORS.crimsonContainer,
@@ -186,6 +184,16 @@ export default function RouletteScreen() {
   const insets = useSafeAreaInsets();
   const [helpOpen, setHelpOpen] = useState(false);
 
+  // ===== تكبير/تصغير تلقائي حسب عرض الشاشة (عرض التصميم 390، حد أقصى 1.15) =====
+  const { width } = useWindowDimensions();
+  const s = Math.min(width / 390, 1.15);
+  const wheelSize = Math.round(WHEEL_SIZE * s);
+  const ballStart = Math.round(118 * (wheelSize / 260));
+  const ballEnd = Math.round(78 * (wheelSize / 260));
+  const cellH = Math.round(54 * s);
+  const zeroH = Math.round(120 * s);
+  const chipSize = Math.round(44 * s);
+
   const MIN_BET = id === '3' ? 200 : id === '2' ? 50 : 10;
   const TABLE_CHIPS = [MIN_BET, MIN_BET * 2, MIN_BET * 5, MIN_BET * 10];
   const [chip, setChip] = useState(MIN_BET);
@@ -202,7 +210,7 @@ export default function RouletteScreen() {
   const resultPop = useRef(new Animated.Value(0)).current;
   // الكرة: زاوية الدوران (عكس العجلة) + نصف القطر (من الخارج للداخل)
   const ballOrbit = useRef(new Animated.Value(0)).current;
-  const ballRadius = useRef(new Animated.Value(BALL_START)).current;
+  const ballRadius = useRef(new Animated.Value(ballStart)).current;
 
   // ===== المحرك على السيرفر =====
   const { snapshot, sendAction, players, isMuted, toggleMute, rouletteRoom, countdown, othersBets, winners, autoRebet } = useSoloGame('roulette', `ro-${id ?? '1'}`, showError);
@@ -263,7 +271,7 @@ export default function RouletteScreen() {
         useNativeDriver: true,
       }),
       Animated.timing(ballRadius, {
-        toValue: BALL_END,
+        toValue: ballEnd,
         duration: 4800,
         easing: Easing.out(Easing.cubic),
         useNativeDriver: true,
@@ -403,8 +411,8 @@ export default function RouletteScreen() {
           </View>
 
           {/* القرص في مركز الشاشة */}
-          <View style={styles.wheelStage}>
-            <Wheel spinAngle={spinAngle} size={WHEEL_SIZE} />
+          <View style={[styles.wheelStage, { width: wheelSize, height: wheelSize }]}>
+            <Wheel spinAngle={spinAngle} size={wheelSize} />
 
             {/* الكرة — تدور عكس العجلة وتستقر في المسار الداخلي */}
             <Animated.View
@@ -493,12 +501,12 @@ export default function RouletteScreen() {
           <ScrollView contentContainerStyle={styles.gridWrap} showsVerticalScrollIndicator={false}>
           {/* صف الأصفار + أول صف */}
           <View style={styles.gridRow}>
-            <BetCell label="0" numbers={[0]} type="straight" color={CELL_COLOR.green} height={120} flex={0.9} onPress={place} total={cellTotal('straight', [0])} others={othersOn('straight', [0])} crowned={!!res && res.winningNumber === 0} />
+            <BetCell label="0" numbers={[0]} type="straight" color={CELL_COLOR.green} height={zeroH} flex={0.9} onPress={place} total={cellTotal('straight', [0])} others={othersOn('straight', [0])} crowned={!!res && res.winningNumber === 0} />
             <View style={styles.gridCol}>
               {rows.map((row, ri) => (
                 <View key={ri} style={styles.gridRow}>
                   {row.map((n) => (
-                    <BetCell key={n} label={String(n)} numbers={[n]} type="straight" color={CELL_COLOR[numberColor(n)]} onPress={place} total={cellTotal('straight', [n])} others={othersOn('straight', [n])} crowned={!!res && res.winningNumber === n} />
+                    <BetCell key={n} label={String(n)} numbers={[n]} type="straight" color={CELL_COLOR[numberColor(n)]} height={cellH} onPress={place} total={cellTotal('straight', [n])} others={othersOn('straight', [n])} crowned={!!res && res.winningNumber === n} />
                   ))}
                 </View>
               ))}
@@ -508,7 +516,7 @@ export default function RouletteScreen() {
               {[3, 2, 1].map((col) => {
                 const nums = Array.from({ length: 12 }, (_, i) => col + i * 3);
                 return (
-                  <BetCell key={col} label={`2:1`} numbers={nums} type="column" color="#1B2230" height={54} onPress={place} total={cellTotal('column', nums)} others={othersOn('column', nums)} />
+                  <BetCell key={col} label={`2:1`} numbers={nums} type="column" color="#1B2230" height={cellH} onPress={place} total={cellTotal('column', nums)} others={othersOn('column', nums)} />
                 );
               })}
             </View>
@@ -521,7 +529,7 @@ export default function RouletteScreen() {
               ['2nd 12', Array.from({ length: 12 }, (_, i) => i + 13)],
               ['3rd 12', Array.from({ length: 12 }, (_, i) => i + 25)],
             ].map(([label, nums]) => (
-              <BetCell key={String(label)} label={String(label)} numbers={nums as number[]} type="dozen" color="#1B2230" height={54} onPress={place} total={cellTotal('dozen', nums as number[])} others={othersOn('dozen', nums as number[])} />
+              <BetCell key={String(label)} label={String(label)} numbers={nums as number[]} type="dozen" color="#1B2230" height={cellH} onPress={place} total={cellTotal('dozen', nums as number[])} others={othersOn('dozen', nums as number[])} />
             ))}
           </View>
 
@@ -537,7 +545,7 @@ export default function RouletteScreen() {
                 ['19-36', 'high'],
               ] as [string, RouletteBetType][]
             ).map(([label, type]) => (
-              <BetCell key={type} label={label} numbers={[]} type={type} color={type === 'red' ? CELL_COLOR.red : '#1B2230'} height={54} onPress={place} total={cellTotal(type, [])} others={othersOn(type, [])} />
+              <BetCell key={type} label={label} numbers={[]} type={type} color={type === 'red' ? CELL_COLOR.red : '#1B2230'} height={cellH} onPress={place} total={cellTotal(type, [])} others={othersOn(type, [])} />
             ))}
           </View>
           </ScrollView>
@@ -556,21 +564,29 @@ export default function RouletteScreen() {
                 setChip(v);
                 Haptics.selectionAsync().catch(() => {});
               }}
-              style={[styles.chipCircle, chip === v && styles.chipActive]}
+              style={[
+                styles.chipCircle,
+                { width: chipSize, height: chipSize, borderRadius: Math.round(chipSize / 2) },
+                chip === v && styles.chipActive,
+              ]}
             >
               <Text style={styles.chipValue}>{v}</Text>
             </Pressable>
           ))}
+          <Pressable style={styles.clearBtn} onPress={clear} disabled={snap.totalBet === 0}>
+            <Text style={[styles.clearText, snap.totalBet === 0 && { opacity: 0.4 }]}>مسح</Text>
+          </Pressable>
+        </View>
+
+        {/* إعادة الرهان التلقائي — صف مستقل أسفل الصينية لتجنب التداخل على الشاشات الضيقة */}
+        <View style={styles.rebetRow}>
           <Pressable
-            style={[styles.rebetBtn, autoRebet && styles.rebetBtnActive]}
+            style={[styles.rebetBtnFull, autoRebet && styles.rebetBtnFullActive]}
             onPress={() => sendAction('autoRebet', { enabled: !autoRebet })}
           >
             <Text style={[styles.rebetText, autoRebet && styles.rebetTextActive]}>
-              {autoRebet ? '🔄 إعادة ✓' : '🔄 إعادة'}
+              🔄 إعادة الرهان تلقائيًا{autoRebet ? ' ✓' : ''}
             </Text>
-          </Pressable>
-          <Pressable style={styles.clearBtn} onPress={clear} disabled={snap.totalBet === 0}>
-            <Text style={[styles.clearText, snap.totalBet === 0 && { opacity: 0.4 }]}>مسح</Text>
           </Pressable>
         </View>
 
@@ -662,8 +678,6 @@ const styles = StyleSheet.create({
     zIndex: 42,
   },
   wheelStage: {
-    width: WHEEL_SIZE,
-    height: WHEEL_SIZE,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1072,5 +1086,23 @@ const styles = StyleSheet.create({
   },
   rebetTextActive: {
     color: COLORS.goldLight,
+  },
+  rebetRow: {
+    paddingHorizontal: SPACING.md,
+    paddingBottom: SPACING.xs,
+  },
+  rebetBtnFull: {
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: SPACING.sm,
+    borderRadius: RADIUS.sm,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+  },
+  rebetBtnFullActive: {
+    borderColor: COLORS.gold,
+    backgroundColor: 'rgba(201,169,97,0.14)',
   },
 });

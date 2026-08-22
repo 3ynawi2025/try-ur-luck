@@ -29,33 +29,7 @@ let seq = 1;
 const mid = () => `m-${Date.now()}-${seq++}`;
 
 export const useChatStore = create<ChatState>((set, get) => ({
-  conversations: {
-    'u-friend-1': [
-      {
-        id: 'seed-1',
-        friendId: 'u-friend-1',
-        text: 'هلا! شفت اليد الأخيرة؟ 😄',
-        from: 'friend',
-        createdAt: Date.now() - 1000 * 60 * 25,
-      },
-      {
-        id: 'seed-2',
-        friendId: 'u-friend-1',
-        text: 'كانت قوية، كدت أفوز بالوعاء!',
-        from: 'me',
-        createdAt: Date.now() - 1000 * 60 * 24,
-      },
-    ],
-    'u-friend-2': [
-      {
-        id: 'seed-3',
-        friendId: 'u-friend-2',
-        text: 'متى نلعب بلاك جاك معاً؟',
-        from: 'friend',
-        createdAt: Date.now() - 1000 * 60 * 60,
-      },
-    ],
-  },
+  conversations: {},
 
   sendMessage: (friendId, text) => {
     const value = text.trim();

@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>جرب حظك — بوكر هولدم</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --bg:#0A0D12; --bg2:#111826; --bg3:#182231;
+  --gold:#C9A961; --gold-2:#e7cf94; --gold-dim:#7d6338;
+  --ivory:#F2EFE9; --muted:#8b95a6;
+  --felt:#145A43; --felt-2:#0e3b2e; --line:#2f8063;
+  --red:#e05252; --ink:#1c2026; --card:#f7f5ef; --green:#3ecf8e;
+}
+html,body{height:100%;overflow:hidden;background:var(--bg);}
+body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Segoe UI','Noto Sans Arabic','Helvetica Neue',Arial,sans-serif;color:var(--ivory);display:flex;flex-direction:column;-webkit-font-smoothing:antialiased;}
+.screen{position:relative;flex:1;display:flex;flex-direction:column;padding:0 16px 20px;}
+.screen::before{content:'';position:absolute;inset:0;background:radial-gradient(120% 70% at 50% 0%,rgba(201,169,97,.12),transparent 55%);}
+
+.status{position:relative;display:flex;justify-content:space-between;align-items:center;padding:16px 6px 0;font-size:14px;font-weight:600;}
+.status .icons{display:flex;gap:6px;align-items:center;}
+.signal{width:17px;height:11px;display:flex;align-items:flex-end;gap:1.5px;}
+.signal i{display:block;width:3px;background:var(--ivory);border-radius:1px;}
+.signal i:nth-child(1){height:4px}.signal i:nth-child(2){height:6px}.signal i:nth-child(3){height:8px}.signal i:nth-child(4){height:11px}
+.battery{width:24px;height:12px;border:1.5px solid rgba(242,239,233,.7);border-radius:3px;position:relative;padding:1.5px;}
+.battery::after{content:'';position:absolute;left:-4px;top:2.5px;width:2px;height:5px;background:rgba(242,239,233,.7);border-radius:1px;}
+.battery i{display:block;height:100%;width:78%;background:var(--green);border-radius:1px;}
+
+.topbar{position:relative;display:flex;align-items:center;justify-content:space-between;margin-top:12px;}
+.topbar .back{width:38px;height:38px;border-radius:12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;font-size:18px;}
+.topbar h1{font-size:19px;font-weight:800;}
+.topbar .lvl{font-size:12px;color:var(--gold);font-weight:700;background:rgba(201,169,97,.12);border:1px solid rgba(201,169,97,.3);padding:6px 12px;border-radius:999px;}
+
+/* table */
+.table{position:relative;margin-top:12px;flex:1;border-radius:50%;overflow:hidden;
+  background:radial-gradient(90% 70% at 50% 45%,#1d6a50,#0e3b2e 72%);border:6px solid #2a7d5c;
+  box-shadow:inset 0 0 70px rgba(0,0,0,.5), 0 18px 44px rgba(0,0,0,.55);}
+.table::before{content:'';position:absolute;inset:24px;border-radius:50%;border:2px solid rgba(242,239,233,.16);}
+.table::after{content:'';position:absolute;inset:0;background:repeating-conic-gradient(rgba(255,255,255,.02) 0 6deg,transparent 6deg 12deg);}
+
+/* cards */
+.card{width:46px;height:66px;border-radius:9px;background:var(--card);color:var(--ink);position:relative;box-shadow:0 6px 12px rgba(0,0,0,.5);flex-shrink:0;}
+.card .c{position:absolute;font-weight:800;line-height:1;display:flex;flex-direction:column;align-items:center;}
+.card .tl{top:5px;right:6px;font-size:13px;}
+.card .br{bottom:5px;left:6px;font-size:13px;transform:rotate(180deg);}
+.card .mid{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:22px;}
+.card.red{color:#c93b3b;}
+.card.back{background:linear-gradient(145deg,#1e2c44,#0f1624);border:2px solid #C9A961;}
+.card.back::after{content:'';position:absolute;inset:4px;border-radius:5px;background:repeating-linear-gradient(45deg,rgba(201,169,97,.28) 0 2px,transparent 2px 6px);}
+
+.community{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);display:flex;gap:7px;}
+.pot{position:absolute;top:calc(50% - 78px);left:50%;transform:translateX(-50%);background:rgba(0,0,0,.45);border:1px solid rgba(201,169,97,.4);border-radius:999px;padding:6px 16px;text-align:center;}
+.pot small{font-size:10px;color:var(--muted);display:block;}
+.pot b{font-size:17px;color:var(--gold-2);}
+
+/* players */
+.player{position:absolute;display:flex;align-items:center;gap:12px;}
+.player .avatar{width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:19px;color:#fff;position:relative;box-shadow:0 6px 16px rgba(0,0,0,.5);}
+.player .avatar .dot{position:absolute;bottom:2px;left:2px;width:13px;height:13px;border-radius:50%;background:var(--green);border:2.5px solid #0e3b2e;}
+.player .meta{background:rgba(0,0,0,.45);border-radius:14px;padding:8px 14px;border:1px solid rgba(255,255,255,.08);}
+.player .meta .nm{font-size:14px;font-weight:800;}
+.player .meta .stack{font-size:12px;color:var(--gold-2);font-weight:700;margin-top:2px;display:flex;align-items:center;gap:6px;}
+.chipstack{display:flex;}
+.chipstack i{width:15px;height:15px;border-radius:50%;margin-left:-5px;border:1.5px dashed rgba(255,255,255,.6);box-shadow:0 2px 4px rgba(0,0,0,.4);}
+.chipstack i:nth-child(1){background:radial-gradient(circle at 35% 30%,#f5e6b8,#C9A961 55%,#8a6f3d);}
+.chipstack i:nth-child(2){background:radial-gradient(circle at 35% 30%,#ff7b7b,#d64545 55%,#8e2b2b);}
+.chipstack i:nth-child(3){background:radial-gradient(circle at 35% 30%,#6ea8ff,#2f6bd0 55%,#1c4290);}
+
+.p-opp{top:34px;right:34px;}
+.p-opp .avatar{background:linear-gradient(145deg,#e05252,#a03a3a);}
+.p-opp .hole{position:absolute;top:-34px;right:52px;display:flex;gap:4px;}
+.p-opp .hole .card{width:30px;height:44px;border-radius:6px;}
+.p-opp .hole .card .tl,.p-opp .hole .card .br{font-size:9px;}
+.p-opp .hole .card .tl{top:3px;right:4px;}.p-opp .hole .card .br{bottom:3px;left:4px;}
+.p-opp .hole .card .mid{font-size:14px;}
+
+.p-you{bottom:34px;left:34px;flex-direction:row-reverse;}
+.p-you .avatar{background:linear-gradient(145deg,#e7cf94,#b8914a);color:#241b06;}
+.p-you .hole{position:absolute;bottom:-34px;left:52px;display:flex;gap:4px;}
+.p-you .hole .card{width:36px;height:52px;border-radius:7px;}
+.p-you .hole .card .tl,.p-you .hole .card .br{font-size:11px;}
+.p-you .hole .card .tl{top:3px;right:5px;}.p-you .hole .card .br{bottom:3px;left:5px;}
+.p-you .hole .card .mid{font-size:17px;}
+
+.dealer-chip{position:absolute;top:50%;right:50%;width:26px;height:26px;border-radius:50%;background:#e7cf94;color:#241b06;font-weight:900;font-size:13px;display:flex;align-items:center;justify-content:center;transform:translate(60px,-70px);box-shadow:0 3px 8px rgba(0,0,0,.5);}
+
+/* actions */
+.actions{position:relative;margin-top:16px;display:flex;gap:10px;}
+.actions button{flex:1;border:none;border-radius:14px;padding:14px 0;font-size:15px;font-weight:800;font-family:inherit;color:#241b06;cursor:default;}
+.fold{background:rgba(255,255,255,.09);border:1px solid rgba(224,82,82,.5)!important;color:#ffd7d7;box-shadow:none;}
+.check{background:linear-gradient(160deg,#e7cf94,#C9A961 55%,#9a7c3f);box-shadow:0 6px 16px rgba(201,169,97,.35);}
+.raise{background:linear-gradient(160deg,#37d892,#1f9d66);color:#04251a;box-shadow:0 6px 16px rgba(62,207,142,.28);}
+</style>
+</head>
+<body>
+<div class="screen">
+  <div class="status">
+    <span class="time">9:41</span>
+    <span class="icons">
+      <span class="signal"><i></i><i></i><i></i><i></i></span>
+      <span class="battery"><i></i></span>
+    </span>
+  </div>
+
+  <div class="topbar">
+    <div class="back">‹</div>
+    <h1>تكساس هولدم</h1>
+    <div class="lvl">الطاولة رقم ٣</div>
+  </div>
+
+  <div class="table">
+    <div class="player p-opp">
+      <div class="avatar">خ<span class="dot"></span></div>
+      <div class="meta">
+        <div class="nm">خالد</div>
+        <div class="stack"><span class="chipstack"><i></i><i></i><i></i></span> ٨٬٤٠٠</div>
+      </div>
+      <div class="hole">
+        <div class="card back"></div>
+        <div class="card back"></div>
+      </div>
+    </div>
+
+    <div class="community">
+      <div class="card red"><span class="c tl">A<br>♥</span><span class="mid">♥</span><span class="c br">A<br>♥</span></div>
+      <div class="card"><span class="c tl">K<br>♠</span><span class="mid">♠</span><span class="c br">K<br>♠</span></div>
+      <div class="card red"><span class="c tl">Q<br>♦</span><span class="mid">♦</span><span class="c br">Q<br>♦</span></div>
+      <div class="card"><span class="c tl">J<br>♣</span><span class="mid">♣</span><span class="c br">J<br>♣</span></div>
+      <div class="card red"><span class="c tl">10<br>♥</span><span class="mid">♥</span><span class="c br">10<br>♥</span></div>
+    </div>
+    <div class="pot"><small>الرهان الإجمالي</small><b>٢٬٤٠٠</b></div>
+    <div class="dealer-chip">D</div>
+
+    <div class="player p-you">
+      <div class="avatar">أنت<span class="dot"></span></div>
+      <div class="meta">
+        <div class="nm">أنت</div>
+        <div class="stack"><span class="chipstack"><i></i><i></i><i></i></span> ٦٬٢٠٠</div>
+      </div>
+      <div class="hole">
+        <div class="card"><span class="c tl">A<br>♠</span><span class="mid">♠</span><span class="c br">A<br>♠</span></div>
+        <div class="card red"><span class="c tl">A<br>♦</span><span class="mid">♦</span><span class="c br">A<br>♦</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button class="fold">انسحاب</button>
+    <button class="check">متابعة</button>
+    <button class="raise">رفع</button>
+  </div>
+</div>
+</body>
+</html>
+@media (min-width: 700px){
+  .screen{padding:0 56px 44px;}
+  .status{padding:34px 8px 0;font-size:22px;}
+  .signal{width:26px;height:16px;gap:2.5px;}
+  .signal i{width:4px;}
+  .signal i:nth-child(1){height:6px}.signal i:nth-child(2){height:9px}.signal i:nth-child(3){height:12px}.signal i:nth-child(4){height:16px}
+  .battery{width:40px;height:20px;border-radius:5px;padding:2.5px;border-width:2px;}
+  .battery::after{width:3px;height:8px;left:-6px;top:3px;}
+  .topbar{margin-top:26px;}
+  .topbar .back{width:64px;height:64px;border-radius:20px;font-size:32px;}
+  .topbar h1{font-size:34px;}
+  .topbar .lvl{font-size:20px;padding:10px 20px;}
+  .table{margin-top:22px;border-width:8px;}
+  .card{width:82px;height:116px;border-radius:16px;}
+  .card .tl,.card .br{font-size:23px;}
+  .card .tl{top:8px;right:11px;}
+  .card .br{bottom:8px;left:11px;}
+  .card .mid{font-size:39px;}
+  .community{gap:14px;}
+  .pot{top:calc(50% - 110px);padding:12px 30px;}
+  .pot small{font-size:16px;}
+  .pot b{font-size:28px;}
+  .player{gap:22px;}
+  .player .avatar{width:92px;height:92px;font-size:32px;}
+  .player .avatar .dot{width:20px;height:20px;border-width:4px;}
+  .player .meta{border-radius:24px;padding:14px 24px;}
+  .player .meta .nm{font-size:24px;}
+  .player .meta .stack{font-size:20px;}
+  .chipstack i{width:26px;height:26px;border-width:2px;margin-left:-8px;}
+  .p-opp{top:48px;right:56px;}
+  .p-opp .hole{top:-52px;right:88px;gap:7px;}
+  .p-opp .hole .card{width:52px;height:76px;}
+  .p-opp .hole .card .tl,.p-opp .hole .card .br{font-size:16px;}
+  .p-opp .hole .card .mid{font-size:24px;}
+  .p-you{bottom:48px;left:56px;}
+  .p-you .hole{bottom:-52px;left:88px;gap:7px;}
+  .p-you .hole .card{width:60px;height:88px;}
+  .p-you .hole .card .tl,.p-you .hole .card .br{font-size:18px;}
+  .p-you .hole .card .mid{font-size:28px;}
+  .dealer-chip{width:44px;height:44px;font-size:22px;transform:translate(104px,-120px);}
+  .actions{margin-top:26px;gap:18px;}
+  .actions button{border-radius:24px;padding:22px 0;font-size:24px;}
+}

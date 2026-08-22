@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>جرب حظك — مجلس صوتي</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --bg:#0A0D12; --bg2:#111826; --bg3:#182231;
+  --gold:#C9A961; --gold-2:#e7cf94; --gold-dim:#7d6338;
+  --ivory:#F2EFE9; --muted:#8b95a6;
+  --felt:#145A43; --green:#3ecf8e; --red:#e05252;
+}
+html,body{height:100%;overflow:hidden;background:var(--bg);}
+body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Segoe UI','Noto Sans Arabic','Helvetica Neue',Arial,sans-serif;color:var(--ivory);display:flex;flex-direction:column;-webkit-font-smoothing:antialiased;}
+.screen{position:relative;flex:1;display:flex;flex-direction:column;padding:0 18px 22px;}
+.screen::before{content:'';position:absolute;inset:0;background:
+  radial-gradient(120% 60% at 50% -5%,rgba(201,169,97,.18),transparent 55%),
+  radial-gradient(80% 50% at 100% 100%,rgba(58,123,213,.16),transparent 60%),
+  radial-gradient(80% 50% at 0% 100%,rgba(142,68,173,.16),transparent 60%);}
+
+.status{position:relative;display:flex;justify-content:space-between;align-items:center;padding:16px 6px 0;font-size:14px;font-weight:600;}
+.status .icons{display:flex;gap:6px;align-items:center;}
+.signal{width:17px;height:11px;display:flex;align-items:flex-end;gap:1.5px;}
+.signal i{display:block;width:3px;background:var(--ivory);border-radius:1px;}
+.signal i:nth-child(1){height:4px}.signal i:nth-child(2){height:6px}.signal i:nth-child(3){height:8px}.signal i:nth-child(4){height:11px}
+.battery{width:24px;height:12px;border:1.5px solid rgba(242,239,233,.7);border-radius:3px;position:relative;padding:1.5px;}
+.battery::after{content:'';position:absolute;left:-4px;top:2.5px;width:2px;height:5px;background:rgba(242,239,233,.7);border-radius:1px;}
+.battery i{display:block;height:100%;width:78%;background:var(--green);border-radius:1px;}
+
+.head{position:relative;display:flex;align-items:center;justify-content:space-between;margin-top:12px;}
+.head .back{width:38px;height:38px;border-radius:12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;font-size:18px;}
+.head .ttl{text-align:center;}
+.head h1{font-size:19px;font-weight:800;}
+.head p{font-size:12px;color:var(--green);font-weight:700;margin-top:2px;display:flex;align-items:center;gap:6px;justify-content:center;}
+.live{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 0 0 rgba(62,207,142,.6);}
+.head .invite{width:38px;height:38px;border-radius:12px;background:rgba(201,169,97,.12);border:1px solid rgba(201,169,97,.35);display:flex;align-items:center;justify-content:center;color:var(--gold-2);font-size:18px;font-weight:800;}
+
+/* glass grid */
+.grid{position:relative;flex:1;margin-top:18px;display:grid;grid-template-columns:1fr 1fr;gap:12px;align-content:start;}
+.seat{position:relative;border-radius:20px;padding:18px 12px 14px;display:flex;flex-direction:column;align-items:center;gap:8px;
+  background:linear-gradient(160deg,rgba(255,255,255,.09),rgba(255,255,255,.03));
+  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  border:1px solid rgba(255,255,255,.12);box-shadow:0 10px 26px rgba(0,0,0,.35);}
+.seat .ring{width:64px;height:64px;border-radius:50%;padding:3px;background:conic-gradient(#C9A961,#e05252,#3a7bd5,#3ecf8e,#8e44ad,#C9A961);}
+.seat .avatar{width:100%;height:100%;border-radius:50%;background:linear-gradient(145deg,#2c3444,#141820);display:flex;align-items:center;justify-content:center;font-size:23px;font-weight:900;color:#fff;position:relative;}
+.seat.speaking .ring{animation:none;box-shadow:0 0 20px rgba(62,207,142,.6);}
+.seat .nm{font-size:14px;font-weight:800;}
+.seat .role{font-size:11px;color:var(--gold);font-weight:700;}
+.seat .mic{position:absolute;top:-9px;left:50%;transform:translateX(-50%);width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.16);}
+.seat .mic svg{width:15px;height:15px;}
+.seat.on .mic{background:linear-gradient(160deg,#37d892,#1f9d66);box-shadow:0 4px 12px rgba(62,207,142,.4);}
+.seat.muted .mic{background:rgba(224,82,82,.9);box-shadow:0 4px 12px rgba(224,82,82,.35);}
+.seat.host .nm::after{content:' 👑';}
+
+/* controls */
+.controls{position:relative;margin-top:16px;display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-radius:20px;background:linear-gradient(180deg,rgba(17,24,38,.7),rgba(11,16,24,.9));border:1px solid rgba(255,255,255,.07);}
+.ctrl{width:52px;height:52px;border-radius:16px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.09);}
+.ctrl svg{width:22px;height:22px;fill:var(--ivory);}
+.ctrl.leave{background:linear-gradient(160deg,#e05252,#a03a3a);border:none;box-shadow:0 6px 16px rgba(224,82,82,.35);}
+.ctrl.leave svg{fill:#fff;}
+.ctrl.mute-on{background:linear-gradient(160deg,#37d892,#1f9d66);border:none;box-shadow:0 6px 16px rgba(62,207,142,.3);}
+.ctrl.mute-on svg{fill:#04251a;}
+</style>
+</head>
+<body>
+<div class="screen">
+  <div class="status">
+    <span class="time">9:41</span>
+    <span class="icons">
+      <span class="signal"><i></i><i></i><i></i><i></i></span>
+      <span class="battery"><i></i></span>
+    </span>
+  </div>
+
+  <div class="head">
+    <div class="back">‹</div>
+    <div class="ttl">
+      <h1>مجلس العائلة</h1>
+      <p><span class="live"></span> ٦ متصلون الآن</p>
+    </div>
+    <div class="invite">+</div>
+  </div>
+
+  <div class="grid">
+    <div class="seat host on">
+      <div class="ring"><div class="avatar">س</div></div>
+      <div class="nm">سالم</div>
+      <div class="role">المضيف</div>
+      <div class="mic"><svg viewBox="0 0 24 24" fill="#04251a"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v5a3 3 0 0 0 3 3z"/><path d="M19 11a7 7 0 0 1-14 0H3a9 9 0 0 0 8 8.94V22h2v-2.06A9 9 0 0 0 21 11z"/></svg></div>
+    </div>
+    <div class="seat speaking on">
+      <div class="ring"><div class="avatar">م</div></div>
+      <div class="nm">منى</div>
+      <div class="role">لاعبة</div>
+      <div class="mic"><svg viewBox="0 0 24 24" fill="#04251a"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v5a3 3 0 0 0 3 3z"/><path d="M19 11a7 7 0 0 1-14 0H3a9 9 0 0 0 8 8.94V22h2v-2.06A9 9 0 0 0 21 11z"/></svg></div>
+    </div>
+    <div class="seat on">
+      <div class="ring"><div class="avatar">خ</div></div>
+      <div class="nm">خالد</div>
+      <div class="role">لاعب</div>
+      <div class="mic"><svg viewBox="0 0 24 24" fill="#04251a"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v5a3 3 0 0 0 3 3z"/><path d="M19 11a7 7 0 0 1-14 0H3a9 9 0 0 0 8 8.94V22h2v-2.06A9 9 0 0 0 21 11z"/></svg></div>
+    </div>
+    <div class="seat muted">
+      <div class="ring"><div class="avatar">ن</div></div>
+      <div class="nm">نورة</div>
+      <div class="role">لاعبة</div>
+      <div class="mic"><svg viewBox="0 0 24 24" fill="#fff"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v5a3 3 0 0 0 3 3z"/><path d="M19 11a7 7 0 0 1-14 0H3a9 9 0 0 0 8 8.94V22h2v-2.06A9 9 0 0 0 21 11z"/></svg></div>
+    </div>
+    <div class="seat on">
+      <div class="ring"><div class="avatar">ر</div></div>
+      <div class="nm">راشد</div>
+      <div class="role">لاعب</div>
+      <div class="mic"><svg viewBox="0 0 24 24" fill="#04251a"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v5a3 3 0 0 0 3 3z"/><path d="M19 11a7 7 0 0 1-14 0H3a9 9 0 0 0 8 8.94V22h2v-2.06A9 9 0 0 0 21 11z"/></svg></div>
+    </div>
+    <div class="seat">
+      <div class="ring"><div class="avatar">ل</div></div>
+      <div class="nm">ليلى</div>
+      <div class="role">لاعبة</div>
+      <div class="mic"><svg viewBox="0 0 24 24" fill="#fff"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v5a3 3 0 0 0 3 3z"/><path d="M19 11a7 7 0 0 1-14 0H3a9 9 0 0 0 8 8.94V22h2v-2.06A9 9 0 0 0 21 11z"/></svg></div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="ctrl mute-on"><svg viewBox="0 0 24 24"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v5a3 3 0 0 0 3 3z"/><path d="M19 11a7 7 0 0 1-14 0H3a9 9 0 0 0 8 8.94V22h2v-2.06A9 9 0 0 0 21 11z"/></svg></div>
+    <div class="ctrl"><svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4zM14 3.2v2.1a7 7 0 0 1 0 13.4v2.1a9 9 0 0 0 0-17.6z"/></svg></div>
+    <div class="ctrl leave"><svg viewBox="0 0 24 24"><path d="M16 17v-3H7v-2h9V9l5 4-5 4z"/><path d="M3 5h13v3h2V3H3v18h15v-5h-2v3H3z"/></svg></div>
+  </div>
+</div>
+</body>
+</html>
+@media (min-width: 700px){
+  .screen{padding:0 56px 44px;}
+  .status{padding:34px 8px 0;font-size:22px;}
+  .signal{width:26px;height:16px;gap:2.5px;}
+  .signal i{width:4px;}
+  .signal i:nth-child(1){height:6px}.signal i:nth-child(2){height:9px}.signal i:nth-child(3){height:12px}.signal i:nth-child(4){height:16px}
+  .battery{width:40px;height:20px;border-radius:5px;padding:2.5px;border-width:2px;}
+  .battery::after{width:3px;height:8px;left:-6px;top:3px;}
+  .head{margin-top:26px;}
+  .head .back,.head .invite{width:64px;height:64px;border-radius:20px;font-size:30px;}
+  .head h1{font-size:32px;}
+  .head p{font-size:19px;gap:10px;}
+  .live{width:12px;height:12px;}
+  .grid{margin-top:30px;gap:22px;}
+  .seat{border-radius:34px;padding:30px 20px 24px;gap:14px;}
+  .seat .ring{width:120px;height:120px;padding:5px;}
+  .seat .avatar{font-size:44px;}
+  .seat .nm{font-size:24px;}
+  .seat .role{font-size:17px;}
+  .seat .mic{width:58px;height:58px;top:-15px;}
+  .seat .mic svg{width:26px;height:26px;}
+  .controls{margin-top:26px;padding:24px 28px;border-radius:34px;}
+  .ctrl{width:92px;height:92px;border-radius:28px;}
+  .ctrl svg{width:38px;height:38px;}
+}

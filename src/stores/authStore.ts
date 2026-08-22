@@ -9,6 +9,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_URL } from '../lib/config';
 import { getSupabase } from '../lib/supabase';
+import { apiFetch } from '../lib/api';
 
 export interface PlayerProfile {
   id: string;
@@ -30,6 +31,7 @@ interface AuthState {
   ) => Promise<{ inviteBonus?: boolean }>;
   bindEmail: (email: string) => void;
   signOut: () => Promise<void>;
+  deleteAccount: () => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -92,12 +94,25 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
+      // ملاحظة: ربط البريد محلي مؤقت فقط — ربط البريد على السيرفر معلّق حتى يُضاف لاحقًا.
       bindEmail: (email) =>
         set((state) => ({
           profile: state.profile ? { ...state.profile, email: email.trim() } : state.profile,
         })),
 
       signOut: async () => {
+        set({ profile: null, isAuthenticated: false });
+        try {
+          await getSupabase().auth.signOut();
+        } catch {
+          /* ignore */
+        }
+      },
+
+      // حذف الحساب نهائيًا: يُرسل الطلب للسيرفر ثم يمسح الجلسة محليًا
+      // (الانتقال إلى شاشة الدخول مسؤولية المُستدعي — profile).
+      deleteAccount: async () => {
+        await apiFetch('/api/account', { method: 'DELETE' });
         set({ profile: null, isAuthenticated: false });
         try {
           await getSupabase().auth.signOut();
