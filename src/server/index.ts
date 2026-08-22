@@ -62,6 +62,23 @@ app.get('/health', (_req, res) => {
   res.json({ status: 'ok', time: Date.now() });
 });
 
+// صفحة تشخيص اتصال (تُفتح من جوال اللاعب لفحص الشبكة)
+app.get('/diag', (_req, res) => {
+  res.type('html').send(`<!DOCTYPE html>
+<html dir="rtl"><head><meta charset="utf-8"><title>تشخيص الاتصال</title></head>
+<body style="background:#0A0D12;color:#F2EFE9;font-family:sans-serif;padding:24px">
+<h2>🔌 تشخيص الاتصال</h2><div id="log" style="line-height:2"></div>
+<script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
+<script>
+const log = (m) => document.getElementById('log').innerHTML += '<div>' + m + '</div>';
+fetch('/health').then(r => r.ok ? log('🌐 HTTP: ✅') : log('🌐 HTTP: ❌ ' + r.status)).catch(e => log('🌐 HTTP: ❌ ' + e.message));
+const s = io({ transports: ['websocket','polling'], timeout: 8000 });
+s.on('connect', () => log('🔌 SOCKET: ✅ متصل'));
+s.on('connect_error', e => log('🔌 SOCKET: ❌ ' + e.message));
+setTimeout(() => { if (!s.connected) log('⏳ SOCKET: مهلة'); }, 12000);
+</script></body></html>`);
+});
+
 app.use('/api', apiRouter);
 
 // Setup game handlers
