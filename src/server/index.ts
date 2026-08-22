@@ -24,14 +24,17 @@ const httpServer = createServer(app);
 
 // أصول مسموحة (قابلة للضبط عبر CORS_ORIGINS مفصولة بفواصل)
 // تطبيقات الجوال الأصلية لا ترسل Origin أصلًا.
-const allowedOrigins = (process.env.CORS_ORIGINS ?? 'http://localhost:8081,http://localhost:19006')
-  .split(',')
-  .map((s) => s.trim())
-  .filter(Boolean);
+// يضاف أصل الخادم نفسه تلقائيًا (لصفحات التشخيص ونسخ الويب المنشورة معه).
+const allowedOrigins = new Set(
+  (process.env.CORS_ORIGINS ?? 'http://localhost:8081,http://localhost:19006,https://jareb-hazzak-server.onrender.com')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+);
 
 const corsOptions = {
   origin: (origin: string | undefined, cb: (err: Error | null, ok?: boolean) => void) => {
-    if (!origin || allowedOrigins.includes(origin)) cb(null, true);
+    if (!origin || allowedOrigins.has(origin)) cb(null, true);
     else cb(new Error('Origin not allowed'));
   },
 };
@@ -40,6 +43,18 @@ const io = new Server(httpServer, { cors: corsOptions });
 
 app.use(cors(corsOptions));
 app.use(express.json({ limit: '100kb' }));
+
+// سجل اتصالات حي للتشخيص (آخر 50)
+const recentConnections: { id: string; at: number; transport: string; ip?: string }[] = [];
+io.on('connection', (socket) => {
+  recentConnections.push({
+    id: socket.id.slice(0, 8),
+    at: Date.now(),
+    transport: socket.conn.transport.name,
+    ip: socket.handshake.headers['x-forwarded-for']?.toString().split(',')[0] ?? socket.handshake.address,
+  });
+  if (recentConnections.length > 50) recentConnections.shift();
+});
 
 // ===== مصادقة السوكت: تحقق من توكن Supabase في المصافحة =====
 // المستخدمون الموثّقون يحصلون على socket.data.userId — ولا نثق بأي معرّف من العميل.
@@ -60,6 +75,15 @@ io.use(async (socket, next) => {
 // صحة الخدمة (Healthcheck)
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', time: Date.now() });
+});
+
+// إحصاء اتصالات السوكت للتشخيص
+app.get('/diag/stats', (_req, res) => {
+  res.json({
+    totalConnections: recentConnections.length,
+    recent: recentConnections.slice(-10).reverse(),
+    serverTime: new Date().toISOString(),
+  });
 });
 
 // صفحة تشخيص اتصال (تُفتح من جوال اللاعب لفحص الشبكة)
