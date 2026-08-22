@@ -9,18 +9,28 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-let supabaseAdminInstance: SupabaseClient | null = null;
-
-export function getSupabaseAdmin(): SupabaseClient {
+/** عميل جديد (غير مشترك) — للعمليات التي تغيّر جلسة العميل (تسجيل الدخول) */
+export function createSupabaseAdminClient(): SupabaseClient {
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
     throw new Error(
       'Database not configured: set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY environment variables'
     );
   }
+  return createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+}
+
+let supabaseAdminInstance: SupabaseClient | null = null;
+
+/**
+ * العميل الإداري المشترك — ⚠️ لا تستدعِ عليه signInWithPassword أبدًا:
+ * تثبيت جلسة مستخدم عليه يحوّل كل الطلبات اللاحقة إلى دور authenticated
+ * (بلا صلاحيات) بدل service_role.
+ */
+export function getSupabaseAdmin(): SupabaseClient {
   if (!supabaseAdminInstance) {
-    supabaseAdminInstance = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-      auth: { persistSession: false },
-    });
+    supabaseAdminInstance = createSupabaseAdminClient();
   }
   return supabaseAdminInstance;
 }

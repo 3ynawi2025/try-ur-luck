@@ -4,7 +4,7 @@
 
 import { Router, Request, Response, NextFunction } from 'express';
 import { randomBytes, randomUUID, createHash } from 'node:crypto';
-import { getSupabaseAdmin, verifyUserToken } from '../lib/supabaseAdmin';
+import { getSupabaseAdmin, createSupabaseAdminClient, verifyUserToken } from '../lib/supabaseAdmin';
 import { generateAgoraToken } from '../game/agora';
 import { SupabaseClient } from '@supabase/supabase-js';
 
@@ -106,8 +106,10 @@ router.post('/auth/register', async (req: Request, res: Response) => {
     return res.status(500).json({ error: 'PROFILE_CREATE_FAILED' });
   }
 
-  // إصدار جلسة حقيقية (access + refresh) — العميل يخزّنها ويرسلها كـ Bearer
-  const session = await admin.auth.signInWithPassword({ email, password });
+  // إصدار جلسة حقيقية (access + refresh) — عبر عميل مستقل حتى لا تُثبَّت جلسة
+  // المستخدم على العميل الإداري المشترك (كان يحوّل دوره إلى authenticated).
+  const authClient = createSupabaseAdminClient();
+  const session = await authClient.auth.signInWithPassword({ email, password });
   if (session.error || !session.data.session) {
     console.error('[auth/register] session mint failed:', session.error?.message);
     return res.status(500).json({ error: 'SESSION_FAILED' });
