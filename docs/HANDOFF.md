@@ -173,3 +173,12 @@ For each game:
 5. No change to the files listed in §1 as "done" unless new game state genuinely needs surfacing — and if so, reuse the existing components and tokens rather than adding new styling.
 
 **Suggested order:** Task 1 → Task 2 → Task 3 → Task 4. Task 1 first because the primary game currently cannot complete a hand.
+
+---
+
+## 9. Known technical debt (accepted after 5-agent review, 2026-08)
+
+- **Solo screen consolidation:** `src/app/(app)/blackjack/[id].tsx`, `three-card/[id].tsx`, `russian/[id].tsx` share hundreds of similar lines. A full merge into one parametrized SoloGameScreen was **deliberately deferred**: the three betting flows differ (ante/pair-plus vs side bets) and the shipped APK works — merging needs device verification before release.
+- **Screen-level hex literals:** Domain palettes (avatar, chips, suits, presence) live in `src/constants/theme.ts`. Screen-specific surface/gradient literals in `src/app/**` styles remain intentionally local until a dedicated visual pass.
+- **mulberry32 ×2:** `src/server/game/deck.ts` (test/sim RNG) and `src/components/game/WinFX.tsx` (client FX) keep separate copies on purpose — they live in different realms (server engine vs RN UI) and must not couple.
+- **Balance persistence:** load/persist/apply-delta logic is consolidated in `src/server/lib/playerPersistence.ts`. A combined single-RPC (balance + transaction in one call) is a possible future optimization, not a correctness issue.
