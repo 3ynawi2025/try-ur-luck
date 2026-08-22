@@ -64,7 +64,7 @@ export function useSoloGame(
   const [winners, setWinners] = useState<RouletteWinners | null>(null);
 
   // الدردشة الصوتية — نفس قناة طاولة اللعبة
-  const { isMuted, toggleMute, joinChannel, joinError } = useAgoraVoice();
+  const { isMuted, toggleMute, joinChannel, joinError, leaveChannel } = useAgoraVoice();
 
   // إظهار أخطاء الصوت للمستخدم بدل الفشل الصامت
   useEffect(() => {
@@ -123,6 +123,8 @@ export function useSoloGame(
       pendingJoinRef.current = null;
       connectedRef.current = false;
       socket.disconnect();
+      // إغلاق قناة الصوت عند الخروج من اللعبة (لا يبقى المايك مفتوحًا في اللوبي)
+      leaveChannel();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

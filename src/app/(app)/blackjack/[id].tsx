@@ -336,11 +336,7 @@ export default function BlackjackScreen() {
       )}
 
       {/* ===== اللاعب ===== */}
-      <ScrollView
-        style={styles.players}
-        contentContainerStyle={styles.playersContent}
-        showsVerticalScrollIndicator={false}
-      >
+      <View style={styles.players}>
         <View style={[styles.spot, styles.spotMe]}>
           <View style={styles.spotTop}>
             <View style={styles.spotWho}>
@@ -381,14 +377,15 @@ export default function BlackjackScreen() {
             </View>
           </View>
 
-          <View style={styles.spotCards}>
-            <View style={styles.cardRow}>
+          {/* ===== أوراقي في الوسط + المجموع تحتها بوضوح ===== */}
+          <View style={styles.myHandArea}>
+            <View style={styles.cardRowCentered}>
               {(activeHand?.cards ?? []).map((c, i) => (
                 <View key={i} style={{ marginRight: i === 0 ? 0 : -14 }}>
                   <PlayingCard
                     card={toPCard(c)}
-                    width={44}
-                    height={62}
+                    width={46}
+                    height={64}
                     animate
                     delay={i * 130}
                     dimmed={activeHand?.status === 'bust'}
@@ -397,14 +394,16 @@ export default function BlackjackScreen() {
               ))}
             </View>
             {!!activeHand && (
-              <ScoreBubble
-                score={myScore}
-                tone={activeHand.status === 'bust' ? COLORS.crimson : undefined}
-              />
+              <View style={styles.myTotalWrap}>
+                <Text style={styles.myTotalLabel}>مجموعك</Text>
+                <Text style={[styles.myTotalValue, activeHand.status === 'bust' && { color: COLORS.crimson }]}>
+                  {myScore}
+                </Text>
+              </View>
             )}
           </View>
         </View>
-      </ScrollView>
+      </View>
 
       <InstructionsModal
         game="blackjack"
@@ -497,10 +496,8 @@ const styles = StyleSheet.create({
   players: {
     flex: 1,
     marginTop: SPACING.md,
-  },
-  playersContent: {
+    justifyContent: 'center',
     paddingHorizontal: SPACING.lg,
-    paddingBottom: SPACING.lg,
   },
 
   spot: {
@@ -558,6 +555,33 @@ const styles = StyleSheet.create({
     flexDirection: 'row-reverse',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  // أوراقي في الوسط + المجموع الكبير تحتها
+  myHandArea: {
+    alignItems: 'center',
+    gap: SPACING.sm,
+    paddingVertical: SPACING.sm,
+  },
+  cardRowCentered: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  myTotalWrap: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: SPACING.sm,
+  },
+  myTotalLabel: {
+    fontFamily: FONTS.ar.medium,
+    fontSize: TYPE.caption.fontSize,
+    color: COLORS.textDim,
+  },
+  myTotalValue: {
+    fontFamily: FONTS.num.black,
+    fontSize: 34,
+    lineHeight: 40,
+    color: COLORS.goldLight,
   },
   cardRow: {
     flexDirection: 'row',
