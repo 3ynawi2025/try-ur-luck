@@ -165,8 +165,14 @@ export function setupGameHandlers(io: Server) {
 
       const seat: TableSeat = { id: playerId, name, userId, startBalance: stack, persisting: false };
 
-      // addPlayer يفشل إذا كان اللاعب موجودًا مسبقًا (إعادة انضمام) — نسمح بذلك
-      table.engine.addPlayer(playerId, name, stack);
+      // إعادة انضمام لاعب موجود مسموحة — أما الطاولة الممتلئة فتُرفض برسالة واضحة
+      if (!table.engine.addPlayer(playerId, name, stack)) {
+        const alreadyIn = table.engine.snapshot().players.some((p) => p.id === playerId);
+        if (!alreadyIn) {
+          socket.emit('error', { code: 'TABLE_FULL', message: 'الطاولة ممتلئة (6 لاعبين كحد أقصى) — جرّب بعد قليل' });
+          return;
+        }
+      }
       table.players.set(socket.id, seat);
       socket.join(tableId);
 
