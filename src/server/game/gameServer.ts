@@ -28,8 +28,15 @@ interface TableRoom {
 }
 
 const tables = new Map<string, TableRoom>();
-const MAX_TABLES = 200; // حماية من إنشاء غرف لا نهائي (DoS)
+const MAX_TABLES = 500; // حماية من إنشاء غرف لا نهائي (DoS) — 500 طاولة × 6 مقاعد = 3,000 لاعب
 const TABLE_BUYIN = 10_000;
+
+/** إحصاءات حية للطاولات (لمراقبة /diag). */
+export function getTableStats(): { tables: number; seatedPlayers: number } {
+  let seatedPlayers = 0;
+  for (const t of tables.values()) seatedPlayers += t.players.size;
+  return { tables: tables.size, seatedPlayers };
+}
 
 const CHAT_REPORT_REASONS = ['voice_abuse', 'cheating', 'offensive_language', 'harassment', 'spam'];
 

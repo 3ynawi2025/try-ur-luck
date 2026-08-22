@@ -14,8 +14,8 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
 import apiRouter from './api/router';
-import { setupGameHandlers } from './game/gameServer';
-import { setupSoloGameHandlers } from './game/soloGames';
+import { setupGameHandlers, getTableStats } from './game/gameServer';
+import { setupSoloGameHandlers, getSoloStats } from './game/soloGames';
 import { verifyUserToken } from './lib/supabaseAdmin';
 
 const app = express();
@@ -78,11 +78,17 @@ app.get('/health', (_req, res) => {
   res.json({ status: 'ok', time: Date.now() });
 });
 
-// إحصاء اتصالات السوكت للتشخيص
+// إحصاء اتصالات السوكت والطاولات للتشخيص
 app.get('/diag/stats', (_req, res) => {
+  const { tables, seatedPlayers } = getTableStats();
+  const { sessions } = getSoloStats();
   res.json({
     totalConnections: recentConnections.length,
     recent: recentConnections.slice(-10).reverse(),
+    tables,
+    seatedPlayers,
+    soloSessions: sessions,
+    memoryMB: Math.round(process.memoryUsage().rss / 1048576),
     serverTime: new Date().toISOString(),
   });
 });
@@ -92,15 +98,27 @@ app.get('/diag', (_req, res) => {
   res.type('html').send(`<!DOCTYPE html>
 <html dir="rtl"><head><meta charset="utf-8"><title>تشخيص الاتصال</title></head>
 <body style="background:#0A0D12;color:#F2EFE9;font-family:sans-serif;padding:24px">
-<h2>🔌 تشخيص الاتصال</h2><div id="log" style="line-height:2"></div>
+<h2>🔌 تشخيص الاتصال</h2>
+<div id="stats" style="background:#151B26;border:1px solid rgba(201,169,97,.35);border-radius:10px;padding:12px;margin:12px 0;line-height:1.9">جارٍ تحميل الإحصاءات…</div>
+<div id="log" style="line-height:2"></div>
 <script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
 <script>
 const log = (m) => document.getElementById('log').innerHTML += '<div>' + m + '</div>';
+const refresh = () => fetch('/diag/stats').then(r => r.json()).then(d => {
+  document.getElementById('stats').innerHTML =
+    '🎰 طاولات هولدم نشطة: <b>' + d.tables + '</b> / 500<br>' +
+    '🪑 لاعبون جالسون: <b>' + d.seatedPlayers + '</b><br>' +
+    '🎲 جلسات فردية: <b>' + d.soloSessions + '</b><br>' +
+    '🔌 اتصالات السوكت: <b>' + d.totalConnections + '</b><br>' +
+    '🧠 ذاكرة الخادم: <b>' + d.memoryMB + ' MB</b>';
+}).catch(() => {});
 fetch('/health').then(r => r.ok ? log('🌐 HTTP: ✅') : log('🌐 HTTP: ❌ ' + r.status)).catch(e => log('🌐 HTTP: ❌ ' + e.message));
 const s = io({ transports: ['websocket','polling'], timeout: 8000 });
 s.on('connect', () => log('🔌 SOCKET: ✅ متصل'));
 s.on('connect_error', e => log('🔌 SOCKET: ❌ ' + e.message));
 setTimeout(() => { if (!s.connected) log('⏳ SOCKET: مهلة'); }, 12000);
+refresh();
+setInterval(refresh, 5000);
 </script></body></html>`);
 });
 

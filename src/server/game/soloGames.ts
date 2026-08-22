@@ -32,6 +32,11 @@ const DEFAULT_BALANCE = 10_000;
 // جلسة واحدة لكل اتصال — اللاعب يواجه الموزع وحده
 const sessions = new Map<string, SoloSession>();
 
+/** إحصاءات حية للجلسات الفردية (لمراقبة /diag). */
+export function getSoloStats(): { sessions: number } {
+  return { sessions: sessions.size };
+}
+
 function isBlackjack(e: SoloEngine): e is BlackjackEngine {
   return e instanceof BlackjackEngine;
 }
