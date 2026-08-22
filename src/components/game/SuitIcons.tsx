@@ -5,6 +5,8 @@
 
 import React from 'react';
 import Svg, { Path } from 'react-native-svg';
+// ألوان الرموز موحّدة في theme (لا hex محلي)
+import { SUIT_COLORS } from '../../constants/theme';
 
 export type Suit = 'spades' | 'hearts' | 'diamonds' | 'clubs';
 
@@ -24,13 +26,8 @@ const PATHS: Record<Suit, string> = {
     'M12 2.6a4.1 4.1 0 0 0-3.3 6.6 4.1 4.1 0 1 0-1.5 7.7c1.2 0 2.3-.5 3-1.4-.2 2-1 3.6-2.3 4.7h8.2c-1.3-1.1-2.1-2.7-2.3-4.7.7.9 1.8 1.4 3 1.4a4.1 4.1 0 1 0-1.5-7.7A4.1 4.1 0 0 0 12 2.6z',
 };
 
-/** أحمر دافئ للكوبة/الديناري، فحمي للبستوني/السباتي */
-export const SUIT_COLORS = {
-  spades: '#16161A',
-  hearts: '#C1272D',
-  diamonds: '#C1272D',
-  clubs: '#16161A',
-} as const;
+// ألوان الرموز موحّدة في theme (لا hex محلي)
+export { SUIT_COLORS };
 
 export default function SuitIcon({ suit, size = 24, color }: SuitProps) {
   return (

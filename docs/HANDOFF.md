@@ -156,7 +156,7 @@ Make each one a config value, not a hard-coded constant.
 - **`npx tsc --noEmit -p tsconfig.json` must pass.** It passes clean today — keep it that way.
 - Engines must be **pure and testable** — no timers, no I/O, no randomness outside an injectable RNG seed. Jest with `jest-expo` is already configured.
 - Shuffle: Fisher–Yates over the full shoe, CSPRNG-seeded, server-side.
-- **Do not add dependencies without justification.** Note that several existing packages are already version-mismatched against Expo SDK 52 (`expo-linear-gradient@57` vs expected `~14.0.2`, `react-native-svg@15.15.5` vs `15.8.0`, `expo-asset`, `expo-secure-store`, `@react-native-async-storage/async-storage`). These are pre-existing and currently work; fixing them is a separate task from this one.
+- **Do not add dependencies without justification.** Note that several packages are already version-mismatched against the current Expo SDK 57 (`react-native-svg`, `expo-asset`, `expo-secure-store`, `@react-native-async-storage/async-storage`). These are pre-existing and currently work; fixing them is a separate task from this one.
 - There is **no `babel.config.js`**, so the Reanimated plugin is not guaranteed. The UI deliberately uses React Native's built-in `Animated` API throughout. Do not introduce `react-native-reanimated` worklets without first adding and testing the babel config.
 - Existing config precedent: `TexasHoldemEngine` takes a `TableConfig`. Follow that shape for `BlackjackConfig`, `ThreeCardConfig`, `RussianPokerConfig`.
 

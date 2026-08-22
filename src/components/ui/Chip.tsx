@@ -14,7 +14,7 @@ import Svg, {
   Stop,
   G,
 } from 'react-native-svg';
-import { SIZES, FONTS, SHADOWS, formatCompact } from '../../constants/theme';
+import { CHIP_SKINS, SIZES, FONTS, SHADOWS, formatCompact } from '../../constants/theme';
 
 interface ChipProps {
   amount: number;
@@ -30,13 +30,13 @@ interface ChipSkin {
   ink: string;
 }
 
-/** ألوان الرقاقات تتبع أعراف الكازينو (بتناغم Dark Luxe): أبيض < أحمر < أخضر < أسود/شامبين < بنفسجي */
+/** ألوان الرقاقات من theme (أعراف الكازينو بتناغم Dark Luxe) */
 function getSkin(amount: number): ChipSkin {
-  if (amount >= 5000) return { face: '#5B3FA8', faceDark: '#2E1F5E', edge: '#E8E2F5', ink: '#FFFFFF' };
-  if (amount >= 1000) return { face: '#15161A', faceDark: '#050506', edge: '#C9A961', ink: '#E3C98A' };
-  if (amount >= 500) return { face: '#0A3D2E', faceDark: '#062A20', edge: '#DFF2EA', ink: '#FFFFFF' };
-  if (amount >= 100) return { face: '#8E2430', faceDark: '#4A1018', edge: '#F6E3E5', ink: '#FFFFFF' };
-  return { face: '#E8E4DA', faceDark: '#B3ADA0', edge: '#3A3630', ink: '#26231E' };
+  if (amount >= 5000) return CHIP_SKINS.violet;
+  if (amount >= 1000) return CHIP_SKINS.black;
+  if (amount >= 500) return CHIP_SKINS.green;
+  if (amount >= 100) return CHIP_SKINS.red;
+  return CHIP_SKINS.white;
 }
 
 /** ستة شقوق على المحيط — علامة الرقاقة الحقيقية */

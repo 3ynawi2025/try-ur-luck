@@ -11,7 +11,7 @@ import { BlackjackEngine, DEFAULT_BLACKJACK_CONFIG } from './blackjack';
 import { ThreeCardPokerEngine } from './threeCardPoker';
 import { RussianPokerEngine } from './russianPoker';
 import { RouletteEngine } from './roulette';
-import { getSupabaseAdmin } from '../lib/supabaseAdmin';
+import { applyBalanceDelta, loadPlayerBalance, loadPlayerDisplayName } from '../lib/playerPersistence';
 
 export type SoloGameKind = 'blackjack' | 'three-card' | 'russian' | 'roulette';
 
@@ -79,7 +79,7 @@ function isSettled(session: SoloSession): boolean {
   return false;
 }
 
-// ===== حفظ الرصيد في Supabase (ذرّي عبر RPC) =====
+// ===== حفظ الرصيد في Supabase (ذرّي عبر RPC — مساعد مشترك) =====
 async function persistBalance(session: SoloSession): Promise<void> {
   if (!session.userId || session.settled) return; // وضع ضيف بدون حفظ + منع الازدواج
   // منع إعادة الدخول: يُضبط العلم فورًا قبل أي await (كان يُضبط بعده — سباق إيداع مزدوج)
@@ -94,20 +94,7 @@ async function persistBalance(session: SoloSession): Promise<void> {
 
   try {
     if (delta !== 0) {
-      const sb = getSupabaseAdmin();
-      // تحديث ذرّي: balance = GREATEST(balance + delta, 0) في عبارة واحدة
-      const { error } = await sb.rpc('apply_balance_delta', {
-        p_user_id: session.userId,
-        p_delta: delta,
-      });
-      if (error) throw error;
-
-      await sb.from('balance_transactions').insert({
-        user_id: session.userId,
-        amount: delta,
-        type: delta > 0 ? 'win' : 'loss',
-        description: `جولة ${session.game}`,
-      });
+      await applyBalanceDelta(session.userId, delta, `جولة ${session.game}`);
     }
     session.startBalance = newBalance;
   } catch (e) {
@@ -115,35 +102,6 @@ async function persistBalance(session: SoloSession): Promise<void> {
     console.error('[solo] persistBalance failed:', (e as Error).message);
     session.settled = false;
   }
-}
-
-async function loadBalance(userId: string | null, fallback: number): Promise<number> {
-  if (!userId) return fallback;
-  try {
-    const { data } = await getSupabaseAdmin()
-      .from('profiles')
-      .select('balance')
-      .eq('id', userId)
-      .single();
-    if (data && typeof data.balance === 'number') return Math.max(0, data.balance);
-  } catch {
-    /* ignore */
-  }
-  return fallback;
-}
-
-async function loadDisplayName(userId: string, fallback: string): Promise<string> {
-  try {
-    const { data } = await getSupabaseAdmin()
-      .from('profiles')
-      .select('display_name')
-      .eq('id', userId)
-      .single();
-    if (data?.display_name) return String(data.display_name).slice(0, 40);
-  } catch {
-    /* ignore */
-  }
-  return fallback;
 }
 
 // ===== تطبيق إجراء حسب نوع اللعبة =====
@@ -325,12 +283,12 @@ export function setupSoloGameHandlers(io: Server) {
         const guestId = String(data.playerId ?? '').trim().slice(0, 60);
         const playerId = userId ?? (guestId || socket.id);
         const fallbackName = String(data.name ?? '').trim().slice(0, 40) || 'أنت';
-        const name = userId ? await loadDisplayName(userId, fallbackName) : fallbackName;
+        const name = userId ? await loadPlayerDisplayName(userId, fallbackName) : fallbackName;
 
         const prev = sessions.get(socket.id);
         if (prev) sessions.delete(socket.id);
 
-        const balance = await loadBalance(userId, DEFAULT_BALANCE);
+        const balance = await loadPlayerBalance(userId, DEFAULT_BALANCE);
         const engine = createEngine(game, balance);
         if (isBlackjack(engine)) {
           engine.addPlayer(playerId, name, balance);

@@ -10,6 +10,7 @@ import { Server, Socket } from 'socket.io';
 import { TexasHoldemEngine } from '../game/texasHoldem';
 import { generateAgoraToken, AGORA_APP_ID } from '../game/agora';
 import { getSupabaseAdmin } from '../lib/supabaseAdmin';
+import { applyBalanceDelta, loadPlayerBalance, loadPlayerDisplayName } from '../lib/playerPersistence';
 
 interface TableSeat {
   id: string; // معرّف اللاعب داخل المحرك
@@ -58,37 +59,7 @@ function removeRoomIfEmpty(tableId: string, table: TableRoom) {
   }
 }
 
-async function loadBalanceFor(userId: string | null, fallback: number): Promise<number> {
-  if (!userId) return fallback;
-  try {
-    const { data } = await getSupabaseAdmin()
-      .from('profiles')
-      .select('balance')
-      .eq('id', userId)
-      .single();
-    if (data && typeof data.balance === 'number') return Math.max(0, data.balance);
-  } catch {
-    /* ignore */
-  }
-  return fallback;
-}
-
-async function loadDisplayName(userId: string | null, fallback: string): Promise<string> {
-  if (!userId) return fallback;
-  try {
-    const { data } = await getSupabaseAdmin()
-      .from('profiles')
-      .select('display_name')
-      .eq('id', userId)
-      .single();
-    if (data?.display_name) return String(data.display_name).slice(0, 40);
-  } catch {
-    /* ignore */
-  }
-  return fallback;
-}
-
-/** حفظ دلتا رصيد اللاعب في Supabase بذرّية (عبارة واحدة). يعيد true عند النجاح فقط. */
+/** حفظ دلتا رصيد اللاعب في Supabase بذرّية (عبارة واحدة — مساعد مشترك). يعيد true عند النجاح فقط. */
 async function persistSeatDelta(seat: TableSeat, engineBalance: number): Promise<boolean> {
   if (!seat.userId) return true;
   // منع التسوية المزدوجة لنفس اللحظة (كانت startBalance تتحدث بعد await فقط)
@@ -97,18 +68,7 @@ async function persistSeatDelta(seat: TableSeat, engineBalance: number): Promise
   if (delta === 0) return true;
   seat.persisting = true;
   try {
-    const sb = getSupabaseAdmin();
-    const { error } = await sb.rpc('apply_balance_delta', {
-      p_user_id: seat.userId,
-      p_delta: delta,
-    });
-    if (error) throw error;
-    await sb.from('balance_transactions').insert({
-      user_id: seat.userId,
-      amount: delta,
-      type: delta > 0 ? 'win' : 'loss',
-      description: 'طاولة بوكر',
-    });
+    await applyBalanceDelta(seat.userId, delta, 'طاولة بوكر');
     seat.startBalance = engineBalance; // يحدَّث فورًا — الدلتا التالية تبدأ من هنا
     return true;
   } catch (e) {
@@ -164,12 +124,12 @@ export function setupGameHandlers(io: Server) {
       const userId: string | null = socket.data.userId ?? null;
       const playerId = userId ?? socket.id;
       const fallbackName = String(data?.name ?? '').trim().slice(0, 40) || 'لاعب';
-      const name = await loadDisplayName(userId, fallbackName);
+      const name = await loadPlayerDisplayName(userId, fallbackName);
 
       // منع انضمام نفس السوكت مرتين لنفس الطاولة
       if (table.players.has(socket.id)) return;
 
-      const dbBalance = await loadBalanceFor(userId, TABLE_BUYIN);
+      const dbBalance = await loadPlayerBalance(userId, TABLE_BUYIN);
       const stack = Math.min(dbBalance, TABLE_BUYIN);
       if (stack < 500) {
         socket.emit('error', { message: 'رصيدك غير كافٍ للجلوس (الحد الأدنى 500)' });

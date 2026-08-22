@@ -8,6 +8,7 @@
 
 import { create } from 'zustand';
 import { apiFetch } from '../lib/api';
+import { PRESENCE_COLORS } from '../constants/theme';
 
 export type FriendStatus = 'online' | 'in_game' | 'offline';
 export type FriendRequestStatus = 'pending' | 'accepted' | 'declined';
@@ -50,8 +51,7 @@ const STATUS_LABEL: Record<FriendStatus, string> = {
 };
 
 export const friendStatusLabel = (s: FriendStatus) => STATUS_LABEL[s];
-export const friendStatusColor = (s: FriendStatus) =>
-  s === 'online' ? '#8FCBB4' : s === 'in_game' ? '#C9A961' : '#89938D';
+export const friendStatusColor = (s: FriendStatus) => PRESENCE_COLORS[s];
 
 interface FriendsState {
   friends: FriendProfile[];

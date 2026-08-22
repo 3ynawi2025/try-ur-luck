@@ -6,7 +6,7 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Image, Text, StyleSheet, Animated, Easing } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { COLORS, FONTS, SIZES, SHADOWS } from '../../constants/theme';
+import { AVATAR_OVERLAYS, AVATAR_PALETTES, COLORS, FONTS, SIZES, SHADOWS } from '../../constants/theme';
 import { MicIcon, MicOffIcon } from '../icons/GameIcons';
 
 interface AvatarProps {
@@ -20,18 +20,6 @@ interface AvatarProps {
   showMuteBadge?: boolean;
   isMuted?: boolean;
 }
-
-/** أزواج ألوان هادئة تنسجم مع الذهب */
-const PALETTES: [string, string][] = [
-  ['#1E5E48', '#0B3227'],
-  ['#4A2E6B', '#241338'],
-  ['#7A3B22', '#3A1A0E'],
-  ['#1D4E7A', '#0C2740'],
-  ['#6B2B3C', '#33121C'],
-  ['#2C5C2E', '#123014'],
-  ['#5A4A1E', '#2B220B'],
-  ['#28525C', '#0F2B31'],
-];
 
 function hash(str: string): number {
   let h = 0;
@@ -78,7 +66,7 @@ export default function Avatar({
     return () => loop.stop();
   }, [isActive]);
 
-  const palette = PALETTES[hash(name || '?') % PALETTES.length];
+  const palette = AVATAR_PALETTES[hash(name || '?') % AVATAR_PALETTES.length];
   const initial = name ? name.trim().charAt(0).toUpperCase() : '؟';
   const ring = size * 0.055;
   const badge = Math.max(16, size * 0.34);
@@ -145,7 +133,7 @@ export default function Avatar({
               width: badge,
               height: badge,
               borderRadius: badge / 2,
-              backgroundColor: isMuted ? 'rgba(30,16,18,0.95)' : 'rgba(10,32,22,0.95)',
+              backgroundColor: isMuted ? AVATAR_OVERLAYS.muted : AVATAR_OVERLAYS.speaking,
               borderColor: isMuted ? COLORS.crimson : COLORS.emerald,
             },
           ]}

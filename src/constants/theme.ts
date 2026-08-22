@@ -291,6 +291,52 @@ export const ANIMATION = {
 } as const;
 
 // ============================================================
+// لوحات ألوان المجال (Domain palettes) — أي لون حرفي في التطبيق يمر من هنا
+// ============================================================
+
+/** أزواج تدرّج الصور الرمزية — هادئة ومتناغمة مع الذهب */
+export const AVATAR_PALETTES: [string, string][] = [
+  ['#1E5E48', '#0B3227'],
+  ['#4A2E6B', '#241338'],
+  ['#7A3B22', '#3A1A0E'],
+  ['#1D4E7A', '#0C2740'],
+  ['#6B2B3C', '#33121C'],
+  ['#2C5C2E', '#123014'],
+  ['#5A4A1E', '#2B220B'],
+  ['#28525C', '#0F2B31'],
+];
+
+/** تراكبات حالة الصورة الرمزية (كتم / يتحدث) */
+export const AVATAR_OVERLAYS = {
+  muted: 'rgba(30,16,18,0.95)',
+  speaking: 'rgba(10,32,22,0.95)',
+} as const;
+
+/** رقاقات الكازينو حسب القيمة: أبيض < أحمر < أخضر < أسود/شامبين < بنفسجي */
+export const CHIP_SKINS = {
+  white: { face: '#E8E4DA', faceDark: '#B3ADA0', edge: '#3A3630', ink: '#26231E' },
+  red: { face: '#8E2430', faceDark: '#4A1018', edge: '#F6E3E5', ink: '#FFFFFF' },
+  green: { face: '#0A3D2E', faceDark: '#062A20', edge: '#DFF2EA', ink: '#FFFFFF' },
+  black: { face: '#15161A', faceDark: '#050506', edge: '#C9A961', ink: '#E3C98A' },
+  violet: { face: '#5B3FA8', faceDark: '#2E1F5E', edge: '#E8E2F5', ink: '#FFFFFF' },
+} as const;
+
+/** ألوان رموز الأوراق: أحمر دافئ للكوبة/الديناري، فحمي للبستوني/السباتي */
+export const SUIT_COLORS = {
+  spades: '#16161A',
+  hearts: '#C1272D',
+  diamonds: '#C1272D',
+  clubs: '#16161A',
+} as const;
+
+/** ألوان حالات حضور الأصدقاء */
+export const PRESENCE_COLORS = {
+  online: '#8FCBB4',
+  in_game: '#C9A961',
+  offline: '#89938D',
+} as const;
+
+// ============================================================
 // ثوابت التطبيق
 // ============================================================
 
