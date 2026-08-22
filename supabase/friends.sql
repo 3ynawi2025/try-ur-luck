@@ -33,6 +33,7 @@ CREATE INDEX idx_friendships_friend ON friendships(friend_id);
 
 -- ============================================================
 -- دالة قبول طلب صداقة (تنشئ علاقتين متبادلتين تلقائياً)
+-- SECURITY DEFINER + فحص auth.uid(): لا يمكن قبول طلب نيابة عن غيره (IDOR)
 -- ============================================================
 CREATE OR REPLACE FUNCTION accept_friend_request(request_id UUID)
 RETURNS void AS $$
@@ -43,7 +44,9 @@ BEGIN
   SELECT sender_id, receiver_id
     INTO v_sender, v_receiver
     FROM friend_requests
-   WHERE id = request_id AND status = 'pending'
+   WHERE id = request_id
+     AND status = 'pending'
+     AND receiver_id = auth.uid()
    FOR UPDATE;
 
   IF v_sender IS NULL THEN
@@ -60,36 +63,43 @@ BEGIN
   VALUES (v_sender, v_receiver), (v_receiver, v_sender)
   ON CONFLICT (user_id, friend_id) DO NOTHING;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- ============================================================
 -- دالة إرسال طلب صداقة (تتحقق من عدم وجود علاقة/طلب سابق)
+-- المرسِل يُشتق من auth.uid() — لا يمكن إرسال طلب باسم مستخدم آخر (IDOR)
 -- ============================================================
-CREATE OR REPLACE FUNCTION send_friend_request(from_user UUID, to_user UUID)
+CREATE OR REPLACE FUNCTION send_friend_request(to_user UUID)
 RETURNS void AS $$
+DECLARE
+  v_from UUID := auth.uid();
 BEGIN
-  IF from_user = to_user THEN
+  IF v_from IS NULL THEN
+    RAISE EXCEPTION 'مصادقة مطلوبة';
+  END IF;
+
+  IF v_from = to_user THEN
     RAISE EXCEPTION 'لا يمكنك إضافة نفسك';
   END IF;
 
   -- لو كانوا أصدقاء مسبقاً
-  IF EXISTS (SELECT 1 FROM friendships WHERE user_id = from_user AND friend_id = to_user) THEN
+  IF EXISTS (SELECT 1 FROM friendships WHERE user_id = v_from AND friend_id = to_user) THEN
     RAISE EXCEPTION 'أنتما صديقان بالفعل';
   END IF;
 
   -- لو يوجد طلب معلق من الطرف الآخر -> قبول فوري
-  IF EXISTS (SELECT 1 FROM friend_requests WHERE sender_id = to_user AND receiver_id = from_user AND status = 'pending') THEN
+  IF EXISTS (SELECT 1 FROM friend_requests WHERE sender_id = to_user AND receiver_id = v_from AND status = 'pending') THEN
     PERFORM accept_friend_request(
-      (SELECT id FROM friend_requests WHERE sender_id = to_user AND receiver_id = from_user AND status = 'pending' LIMIT 1)
+      (SELECT id FROM friend_requests WHERE sender_id = to_user AND receiver_id = v_from AND status = 'pending' LIMIT 1)
     );
     RETURN;
   END IF;
 
   INSERT INTO friend_requests (sender_id, receiver_id)
-  VALUES (from_user, to_user)
+  VALUES (v_from, to_user)
   ON CONFLICT (sender_id, receiver_id) DO NOTHING;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- ============================================================
 -- سياسات RLS

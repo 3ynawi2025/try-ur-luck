@@ -3,10 +3,11 @@
 // ============================================================
 
 import { Router, Request, Response, NextFunction } from 'express';
-import { randomBytes, randomUUID, createHash } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { getSupabaseAdmin, createSupabaseAdminClient, verifyUserToken } from '../lib/supabaseAdmin';
 import { generateAgoraToken } from '../game/agora';
 import { secureRandomInt } from '../game/deck';
+import { hashTablePassword } from '../lib/tablePassword';
 import { SupabaseClient } from '@supabase/supabase-js';
 
 const router = Router();
@@ -286,10 +287,8 @@ router.post('/tables', authenticate, async (req: Request, res: Response) => {
     return res.status(400).json({ error: 'INVALID_MIN_BUY_IN' });
   }
 
-  // كلمة السر تُخزَّن مجزّأة لا نصًا صريحًا
-  const hashedPassword = password
-    ? createHash('sha256').update(String(password)).digest('hex')
-    : null;
+  // كلمة السر تُخزَّن مجزّأة (HMAC+pepper) لا نصًا صريحًا
+  const hashedPassword = password ? hashTablePassword(String(password)) : null;
 
   const { data, error } = await getAdmin()
     .from('tables')

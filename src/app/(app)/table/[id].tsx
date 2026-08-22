@@ -10,6 +10,8 @@ import {
   Pressable,
   Animated,
   Easing,
+  Modal,
+  TextInput,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -253,6 +255,9 @@ export default function PokerTableScreen() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
+  // طاولة خاصة: طلب كلمة السر عند الرفض من السيرفر
+  const [pwPrompt, setPwPrompt] = useState(false);
+  const [pwText, setPwText] = useState('');
 
   const errorAnim = useRef(new Animated.Value(0)).current;
   const noticeAnim = useRef(new Animated.Value(0)).current;
@@ -272,6 +277,14 @@ export default function PokerTableScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tableId, myId]);
 
+  // --- دخول طاولة خاصة بكلمة السر (يعيد الانضمام بكلمة السر) ---
+  const submitPassword = useCallback(() => {
+    const pwd = pwText.trim();
+    setPwPrompt(false);
+    setPwText('');
+    if (pwd) joinTable(tableId, myId, myName, pwd);
+  }, [pwText, tableId, myId, myName, joinTable]);
+
   // --- الاستماع لحالة الطاولة وقناة الصوت من السيرفر ---
   useEffect(() => {
     const offState = on<GameSnapshot>('table:state', (s) => setSnapshot(s));
@@ -279,7 +292,14 @@ export default function PokerTableScreen() {
     const offSeat = on<{ playerId: string }>('table:seat', (d) => {
       if (d?.playerId) setSeatId(d.playerId);
     });
-    const offError = on<{ message: string }>('error', (d) => setError(d.message));
+    const offError = on<{ message: string; code?: string }>('error', (d) => {
+      if (d?.code === 'PASSWORD_WRONG') {
+        setPwPrompt(true);
+        setError(null);
+      } else {
+        setError(d.message);
+      }
+    });
     const offNotice = on<{ text: string }>('table:notice', (d) => setNotice(d.text));
     const offVoice = on<{ appId: string; channelName: string; token: string }>(
       'voice:token',
@@ -505,6 +525,33 @@ export default function PokerTableScreen() {
           <Text style={styles.toastText}>{error}</Text>
         </Animated.View>
       )}
+
+      {/* ===== طلب كلمة سر الطاولة الخاصة ===== */}
+      <Modal visible={pwPrompt} transparent animationType="fade" onRequestClose={() => setPwPrompt(false)}>
+        <View style={styles.pwOverlay}>
+          <View style={styles.pwCard}>
+            <Text style={styles.pwTitle}>طاولة خاصة 🔒</Text>
+            <Text style={styles.pwSubtitle}>هذه الطاولة محمية — أدخل كلمة السر للدخول</Text>
+            <TextInput
+              value={pwText}
+              onChangeText={setPwText}
+              placeholder="كلمة السر"
+              placeholderTextColor={COLORS.textFaint}
+              secureTextEntry
+              autoFocus
+              style={styles.pwInput}
+              onSubmitEditing={submitPassword}
+              returnKeyType="done"
+            />
+            <View style={styles.pwRow}>
+              <Pressable onPress={() => setPwPrompt(false)} hitSlop={8} style={styles.pwCancel}>
+                <Text style={styles.pwCancelText}>إلغاء</Text>
+              </Pressable>
+              <GoldButton title="دخول" onPress={submitPassword} disabled={!pwText.trim()} style={styles.pwBtn} />
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* ===== شريط الإشعار ===== */}
       {!!notice && (
@@ -1048,5 +1095,71 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.ar.medium,
     fontSize: TYPE.small.fontSize,
     color: COLORS.textDim,
+  },
+  // ===== نافذة كلمة سر الطاولة الخاصة =====
+  pwOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(4,6,10,0.82)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: SPACING.lg,
+  },
+  pwCard: {
+    width: '100%',
+    maxWidth: 380,
+    borderRadius: RADIUS.lg,
+    borderWidth: 1,
+    borderColor: COLORS.borderStrong,
+    backgroundColor: '#0E131B',
+    padding: SPACING.xl,
+    gap: SPACING.md,
+    ...SHADOWS.e3,
+  },
+  pwTitle: {
+    fontFamily: FONTS.ar.bold,
+    fontSize: TYPE.h3.fontSize,
+    color: COLORS.text,
+    textAlign: 'center',
+  },
+  pwSubtitle: {
+    fontFamily: FONTS.ar.regular,
+    fontSize: TYPE.small.fontSize,
+    color: COLORS.textDim,
+    textAlign: 'center',
+    lineHeight: TYPE.small.lineHeight * 1.35,
+  },
+  pwInput: {
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: RADIUS.md,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.md,
+    color: COLORS.text,
+    fontFamily: FONTS.ar.regular,
+    fontSize: TYPE.body.fontSize,
+    textAlign: 'center',
+  },
+  pwRow: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: SPACING.md,
+    marginTop: SPACING.sm,
+  },
+  pwCancel: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: SPACING.md,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  pwCancelText: {
+    fontFamily: FONTS.ar.medium,
+    fontSize: TYPE.body.fontSize,
+    color: COLORS.textDim,
+  },
+  pwBtn: {
+    flex: 1.4,
   },
 });

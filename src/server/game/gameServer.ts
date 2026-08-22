@@ -11,6 +11,7 @@ import { TexasHoldemEngine } from '../game/texasHoldem';
 import { generateAgoraToken, AGORA_APP_ID } from '../game/agora';
 import { getSupabaseAdmin } from '../lib/supabaseAdmin';
 import { applyBalanceDelta, loadPlayerBalance, loadPlayerDisplayName } from '../lib/playerPersistence';
+import { verifyTablePassword } from '../lib/tablePassword';
 
 interface TableSeat {
   id: string; // معرّف اللاعب داخل المحرك
@@ -112,11 +113,30 @@ export function setupGameHandlers(io: Server) {
     console.log('🎮 Player connected:', socket.id);
 
     // ===== Join Table =====
-    socket.on('table:join', async (data: { tableId?: string; name?: string } | undefined) => {
+    socket.on('table:join', async (data: { tableId?: string; name?: string; password?: string } | undefined) => {
       const tableId = String(data?.tableId ?? '').trim();
+      if (!tableId || tableId.length > 64) {
+        socket.emit('error', { code: 'INVALID_TABLE', message: 'طاولة غير صالحة' });
+        return;
+      }
+
+      // فحص كلمة سر الطاولات الخاصة — من قاعدة البيانات (لا نثق بأي شيء من العميل)
+      const { data: dbTable } = await getSupabaseAdmin()
+        .from('tables')
+        .select('password')
+        .eq('id', tableId)
+        .maybeSingle();
+      const storedPassword = dbTable?.password ?? null;
+      if (storedPassword) {
+        if (!verifyTablePassword(data?.password, storedPassword)) {
+          socket.emit('error', { code: 'PASSWORD_WRONG', message: 'كلمة سر الطاولة غير صحيحة' });
+          return;
+        }
+      }
+
       const table = getOrCreateTable(tableId);
       if (!table) {
-        socket.emit('error', { message: 'طاولة غير صالحة' });
+        socket.emit('error', { code: 'INVALID_TABLE', message: 'طاولة غير صالحة' });
         return;
       }
 

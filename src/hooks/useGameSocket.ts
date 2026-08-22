@@ -12,6 +12,7 @@ interface JoinPayload {
   tableId: string;
   playerId: string;
   name: string;
+  password?: string;
 }
 
 export function useGameSocket() {
@@ -57,8 +58,8 @@ export function useGameSocket() {
   // ===== Emit =====
 
   const joinTable = useCallback(
-    (tableId: string, playerId: string, name: string) => {
-      const payload = { tableId, playerId, name };
+    (tableId: string, playerId: string, name: string, password?: string) => {
+      const payload: JoinPayload = password ? { tableId, playerId, name, password } : { tableId, playerId, name };
       pendingJoinRef.current = payload;
       // لو لم نتصل بعد، سيُرسل الطلب تلقائياً عند حدوث connect (انظر أعلاه)
       // حتى لا يتكرر الانضمام مرتين.
