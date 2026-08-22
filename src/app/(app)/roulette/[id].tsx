@@ -544,13 +544,7 @@ export default function RouletteScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg },
 
-  header: {
-    flexDirection: 'row-reverse',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: SPACING.lg,
-    paddingBottom: SPACING.md,
-  },
+
   headerSide: { flexDirection: 'row-reverse', alignItems: 'center', gap: SPACING.sm },
   headerCenter: { alignItems: 'center', flex: 1 },
   tableTitle: {
@@ -918,15 +912,7 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
 
-  toast: {
-    position: 'absolute',
-    alignSelf: 'center',
-    zIndex: 50,
-    backgroundColor: 'rgba(142,0,11,0.95)',
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.sm,
-    borderRadius: RADIUS.full,
-  },
+
   toastText: {
     fontFamily: FONTS.ar.semibold,
     fontSize: TYPE.small.fontSize,

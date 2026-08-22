@@ -588,11 +588,7 @@ const styles = StyleSheet.create({
     fontSize: TYPE.small.fontSize,
     color: '#ffdad6',
   },
-  removeText: {
-    fontFamily: FONTS.ar.semibold,
-    fontSize: TYPE.small.fontSize,
-    color: COLORS.textDim,
-  },
+
 
   requestTop: {
     flexDirection: 'row-reverse',

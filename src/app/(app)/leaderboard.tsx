@@ -316,12 +316,7 @@ const styles = StyleSheet.create({
     fontSize: TYPE.small.fontSize,
     color: COLORS.textDim,
   },
-  metaDot: {
-    width: 3,
-    height: 3,
-    borderRadius: 2,
-    backgroundColor: COLORS.textFaint,
-  },
+
 
   scroll: { flex: 1 },
   scrollContent: {

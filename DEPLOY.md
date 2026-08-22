@@ -34,7 +34,7 @@ eas login
 
 ### B. تهيئة المشروع
 ```bash
-cd ~/projects/try-ur-luck
+cd /path/to/try-ur-luck   # مجلد المشروع محليًا
 eas init
 # اختر المشروع أو أنشئ جديد
 ```
@@ -76,7 +76,7 @@ eas submit --platform ios
 
 ```
 tsc --noEmit      ✅ 0 أخطاء
-اختبارات المحركات  ✅ 176/176 (5 suites)
+اختبارات المحركات  ✅ 181/181 (6 suites)
 eslint            ✅ 0 أخطاء (تحذيرات أسلوبية فقط)
 server:build      ✅ dist/index.js
 ```

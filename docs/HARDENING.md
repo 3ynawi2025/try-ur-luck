@@ -50,5 +50,5 @@
 
 1. **تدوير المفاتيح** (أعلاه) ووضعها في Render + `.env` المحلي.
 2. تشغيل `supabase/hardening.sql` في Supabase SQL Editor.
-3. تعبئة `extra.eas.projectId` في `app.json` (لبناءات EAS).
+3. ~~تعبئة `extra.eas.projectId` في `app.json`~~ ✅ مكتمل (`6013a7ae-9cd7-4676-98d4-a6f05dcb2229`).
 4. إن أردت XP/درجات VIP حقيقية: لا يوجد حتى الآن مسار كتابة لها في السيرفر (تُعرض أصفارًا) — هذه ميزة جديدة تحتاج تسوية XP عند نهاية كل يد.

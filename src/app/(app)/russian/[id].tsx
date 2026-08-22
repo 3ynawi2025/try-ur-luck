@@ -321,13 +321,7 @@ export default function RussianScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#070A0F' },
 
-  header: {
-    flexDirection: 'row-reverse',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: SPACING.lg,
-    paddingBottom: SPACING.md,
-  },
+
   headerSide: {
     flexDirection: 'row-reverse',
     alignItems: 'center',
@@ -534,14 +528,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row-reverse',
     gap: SPACING.sm,
   },
-  actionBtn: {
-    borderRadius: RADIUS.lg,
-    paddingVertical: SPACING.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-    gap: 2,
-  },
+
   actionGloss: {
     position: 'absolute',
     top: 0,
@@ -587,15 +574,7 @@ const styles = StyleSheet.create({
     color: '#9CC2FF',
   },
 
-  toast: {
-    position: 'absolute',
-    alignSelf: 'center',
-    zIndex: 50,
-    backgroundColor: 'rgba(255,180,171,0.95)',
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.sm,
-    borderRadius: RADIUS.full,
-  },
+
   toastText: {
     fontFamily: FONTS.ar.semibold,
     fontSize: TYPE.small.fontSize,

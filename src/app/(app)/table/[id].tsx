@@ -1024,15 +1024,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row-reverse',
     gap: SPACING.sm,
   },
-  actionBtn: {
-    height: 56,
-    borderRadius: RADIUS.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.14)',
-  },
+
   actionGloss: {
     position: 'absolute',
     top: 0,

@@ -69,17 +69,6 @@ export const COLORS = {
 
   // --- توافق خلفي (لا تستخدمها في كود جديد) ---
   bgPrimary: '#0A0D12',
-  bgSurface: '#151B26',
-  bgSurfaceLight: '#1B2230',
-  primary: '#C9A961',
-  primaryLight: '#E3C98A',
-  primaryDark: '#8C6D2F',
-  secondary: '#8FCBB4',
-  accent: '#8FCBB4',
-  textPrimary: '#F2EFE9',
-  textMuted: '#B5B7B2',
-  textDark: '#010D09',
-  tableGreen: '#0A3D2E',
 } as const;
 
 export const GRADIENTS = {
@@ -122,25 +111,6 @@ export const FONTS = {
     bold: 'Inter-Bold',
     black: 'Inter-Black',
   },
-  /** عناوين العرض — Cairo بوزن ثقيل (أُزيل Playfair من النظام) */
-  display: {
-    medium: 'Cairo-Medium',
-    semibold: 'Cairo-SemiBold',
-    bold: 'Cairo-Bold',
-  },
-
-  // --- توافق خلفي ---
-  arabic: {
-    light: 'Cairo-Regular',
-    regular: 'Cairo-Regular',
-    medium: 'Cairo-Medium',
-    bold: 'Cairo-Bold',
-  },
-  english: {
-    regular: 'Inter-Medium',
-    semibold: 'Inter-SemiBold',
-    bold: 'Inter-Bold',
-  },
 } as const;
 
 /** مقياس طباعي متناسق (مكبّر للهوية الفاخرة) */
@@ -153,16 +123,6 @@ export const TYPE = {
   small: { fontSize: 14, lineHeight: 22 },
   caption: { fontSize: 12, lineHeight: 18 },
   micro: { fontSize: 11, lineHeight: 15 },
-} as const;
-
-export const FONT_SIZES = {
-  hero: 40,
-  h1: 30,
-  h2: 24,
-  h3: 19,
-  body: 16,
-  small: 14,
-  caption: 12,
 } as const;
 
 /** مسافات بمقياس 4pt */
