@@ -51,6 +51,25 @@ eas submit --platform ios
 
 ---
 
+## 2ب. التحديث الهوائي OTA (بعد أول تثبيت)
+
+التطبيق مفعّل بـ `expo-updates` (قناة `preview` للتجربة، `production` للنشر). بعد تثبيت النسخة الأساسية مرة واحدة:
+
+```bash
+# كل تغيير كود (JS/TS/أصول) — يصل للجهازين تلقائيًا عند فتح التطبيق:
+eas update --branch preview --message "وصف مختصر للتحديث"
+
+# للنسخة الإنتاجية:
+eas update --branch production --message "..."
+
+# عرض آخر التحديثات:
+eas update:list
+```
+
+**متى تحتاج بناء جديد بدل OTA؟** فقط عندما يتغير كود أصلي: إضافة/إزالة حزم native، تعديل `app.json` (أذونات/plugins)، ترقية SDK، أو تغيير `runtimeVersion` (ارفع الرقم في `app.json` ثم ابنِ من جديد — الأجهزة ذات الرقم القديم تتجاهل تحديثات الرقم الجديد).
+
+---
+
 ## 3. Agora (الصوت)
 
 1. سجل في https://console.agora.io
