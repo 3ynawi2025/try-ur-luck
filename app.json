@@ -8,6 +8,13 @@
     "scheme": "jareb-hazzak",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
+    "runtimeVersion": "1.0.0",
+    "updates": {
+      "url": "https://u.expo.dev/6013a7ae-9cd7-4676-98d4-a6f05dcb2229",
+      "enabled": true,
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0
+    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.al3ynawi.jarebhazzak",
