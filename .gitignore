@@ -55,3 +55,7 @@ vip_royale*/
 app-example
 screenshot.png
 .supabase-pat
+
+# أرشيف تكرارات التصميم القديمة (محلي — لا يُرفع)
+_design_archive/
+ios_local_backup/

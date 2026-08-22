@@ -82,6 +82,8 @@ function isSettled(session: SoloSession): boolean {
 // ===== حفظ الرصيد في Supabase (ذرّي عبر RPC) =====
 async function persistBalance(session: SoloSession): Promise<void> {
   if (!session.userId || session.settled) return; // وضع ضيف بدون حفظ + منع الازدواج
+  // منع إعادة الدخول: يُضبط العلم فورًا قبل أي await (كان يُضبط بعده — سباق إيداع مزدوج)
+  session.settled = true;
   const raw = currentBalance(session);
   if (!Number.isFinite(raw)) {
     console.error('[solo] persistBalance skipped: non-finite balance');
@@ -107,11 +109,11 @@ async function persistBalance(session: SoloSession): Promise<void> {
         description: `جولة ${session.game}`,
       });
     }
-    session.settled = true;
     session.startBalance = newBalance;
   } catch (e) {
-    // لا نخسر الرصيد في الذاكرة — نجرب الحفظ في الجولة القادمة
+    // لا نخسر الرصيد في الذاكرة — نعيد فتح العلم ليُعاد الحساب التراكمي في الجولة القادمة
     console.error('[solo] persistBalance failed:', (e as Error).message);
+    session.settled = false;
   }
 }
 

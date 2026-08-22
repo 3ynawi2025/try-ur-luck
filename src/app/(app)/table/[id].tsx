@@ -20,6 +20,7 @@ import Chip from '../../../components/ui/Chip';
 import PlayingCard from '../../../components/game/PlayingCard';
 import FlyCard from '../../../components/game/FlyCard';
 import WinFX from '../../../components/game/WinFX';
+import ActionButton from '../../../components/game/ActionButton';
 import FeltTable from '../../../components/game/FeltTable';
 import InstructionsModal from '../../../components/game/InstructionsModal';
 import { Badge } from '../../../components/ui/Bits';
@@ -69,53 +70,8 @@ const PHASE_LABEL: Record<string, string> = {
 };
 
 // ------------------------------------------------------------
-// زر إجراء
+// (ActionButton مشترك من components/game — أُزيلت النسخة المحلية المكررة)
 // ------------------------------------------------------------
-function ActionButton({
-  label,
-  sub,
-  colors,
-  onPress,
-  flex = 1,
-  darkText = false,
-}: {
-  label: string;
-  sub?: string;
-  colors: readonly [string, string];
-  onPress: () => void;
-  flex?: number;
-  /** نص داكن — للأزرار الذهبية الفاتحة */
-  darkText?: boolean;
-}) {
-  const scale = useRef(new Animated.Value(1)).current;
-  const to = (v: number) =>
-    Animated.spring(scale, { toValue: v, useNativeDriver: true, speed: 50, bounciness: 6 }).start();
-
-  return (
-    <Animated.View style={{ flex, transform: [{ scale }] }}>
-      <Pressable
-        onPress={() => {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-          onPress();
-        }}
-        onPressIn={() => to(0.95)}
-        onPressOut={() => to(1)}
-      >
-        <LinearGradient
-          colors={['#1B2230', '#0A0D12']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 0, y: 1 }}
-          style={[styles.actionBtn, SHADOWS.e2, { borderWidth: 1.5, borderColor: colors[0] }, darkText && SHADOWS.goldSoft]}
-        >
-          <Text style={[styles.actionLabel, { color: colors[0] }]}>{label}</Text>
-          {!!sub && (
-            <Text style={[styles.actionSub, { color: colors[0] }]}>{sub}</Text>
-          )}
-        </LinearGradient>
-      </Pressable>
-    </Animated.View>
-  );
-}
 
 // ------------------------------------------------------------
 // مقعد لاعب

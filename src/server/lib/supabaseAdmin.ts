@@ -41,24 +41,3 @@ export async function verifyUserToken(token: string) {
   if (error) throw new Error('Invalid token');
   return data.user;
 }
-
-export async function checkUserReports(userId: string): Promise<number> {
-  const sb = getSupabaseAdmin();
-  const { count, error } = await sb
-    .from('reports')
-    .select('*', { count: 'exact', head: true })
-    .eq('reported_id', userId)
-    .eq('status', 'pending');
-  if (error) return 0;
-  return count || 0;
-}
-
-export async function applyPenalty(userId: string, type: 'mute' | 'ban' | 'delete', reason: string) {
-  const sb = getSupabaseAdmin();
-  await sb.from('penalties').insert({
-    user_id: userId,
-    type,
-    reason,
-    expires_at: type === 'mute' ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() : null,
-  });
-}

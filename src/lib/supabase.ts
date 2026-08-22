@@ -33,14 +33,3 @@ export async function getAccessToken(): Promise<string | null> {
   const { data } = await sb.auth.getSession();
   return data.session?.access_token ?? null;
 }
-
-export async function signOut() {
-  const sb = getSupabase();
-  await sb.auth.signOut();
-}
-
-export async function getSession() {
-  const sb = getSupabase();
-  const { data } = await sb.auth.getSession();
-  return data.session;
-}

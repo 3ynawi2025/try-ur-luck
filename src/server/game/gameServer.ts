@@ -16,6 +16,7 @@ interface TableSeat {
   name: string;
   userId: string | null; // معرف Supabase الموثّق (null = ضيف)
   startBalance: number; // الرصيد عند الانضمام — أساس حساب دلتا اليد
+  persisting: boolean; // منع تسوية مزدوجة لنفس اللحظة (سباق إيداع متكرر)
 }
 
 interface TableRoom {
@@ -90,8 +91,11 @@ async function loadDisplayName(userId: string | null, fallback: string): Promise
 /** حفظ دلتا رصيد اللاعب في Supabase بذرّية (عبارة واحدة). يعيد true عند النجاح فقط. */
 async function persistSeatDelta(seat: TableSeat, engineBalance: number): Promise<boolean> {
   if (!seat.userId) return true;
+  // منع التسوية المزدوجة لنفس اللحظة (كانت startBalance تتحدث بعد await فقط)
+  if (seat.persisting) return false;
   const delta = Math.round(engineBalance) - Math.round(seat.startBalance);
   if (delta === 0) return true;
+  seat.persisting = true;
   try {
     const sb = getSupabaseAdmin();
     const { error } = await sb.rpc('apply_balance_delta', {
@@ -105,10 +109,13 @@ async function persistSeatDelta(seat: TableSeat, engineBalance: number): Promise
       type: delta > 0 ? 'win' : 'loss',
       description: 'طاولة بوكر',
     });
+    seat.startBalance = engineBalance; // يحدَّث فورًا — الدلتا التالية تبدأ من هنا
     return true;
   } catch (e) {
     console.error('[poker] persistSeatDelta failed:', (e as Error).message);
     return false; // يبقى startBalance كما هو ليُعاد حساب الدلتا المتراكمة لاحقًا
+  } finally {
+    seat.persisting = false;
   }
 }
 
@@ -117,11 +124,7 @@ function settleRoom(io: Server, tableId: string, table: TableRoom) {
   const snapshot = table.engine.snapshot();
   for (const [, seat] of table.players) {
     const p = snapshot.players.find((sp) => sp.id === seat.id);
-    if (p) {
-      void persistSeatDelta(seat, p.balance).then((ok) => {
-        if (ok) seat.startBalance = p.balance;
-      });
-    }
+    if (p) void persistSeatDelta(seat, p.balance);
   }
 }
 
@@ -173,7 +176,7 @@ export function setupGameHandlers(io: Server) {
         return;
       }
 
-      const seat: TableSeat = { id: playerId, name, userId, startBalance: stack };
+      const seat: TableSeat = { id: playerId, name, userId, startBalance: stack, persisting: false };
 
       // addPlayer يفشل إذا كان اللاعب موجودًا مسبقًا (إعادة انضمام) — نسمح بذلك
       table.engine.addPlayer(playerId, name, stack);

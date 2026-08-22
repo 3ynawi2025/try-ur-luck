@@ -4,7 +4,7 @@
 
 ## المكدس
 
-- **Mobile**: React Native + Expo SDK 52
+- **Mobile**: React Native + Expo SDK 57
 - **Backend**: Node.js + Express + Socket.io
 - **Database**: Supabase (PostgreSQL)
 - **Voice**: Agora.io

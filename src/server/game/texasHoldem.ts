@@ -578,7 +578,7 @@ export class TexasHoldemEngine {
 
       case 'bet': {
         if (this.currentBet !== 0) return { error: 'استخدم زيادة', code: 'MUST_RAISE' };
-        const minOpen = structure === 'fixed-limit' ? this.config.bigBlind : this.config.bigBlind;
+        const minOpen = this.config.bigBlind;
         if (amount === undefined || !Number.isInteger(amount) || amount <= 0) return { error: 'حدد مبلغ الرهان', code: 'INVALID_AMOUNT' };
         const maxLegal = player.committedThisStreet + player.balance;
         if (amount > maxLegal) return { error: 'رصيد غير كاف', code: 'INSUFFICIENT_STACK' };

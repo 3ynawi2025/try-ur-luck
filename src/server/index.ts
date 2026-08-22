@@ -46,14 +46,13 @@ const io = new Server(httpServer, { cors: corsOptions });
 app.use(cors(corsOptions));
 app.use(express.json({ limit: '100kb' }));
 
-// سجل اتصالات حي للتشخيص (آخر 50)
-const recentConnections: { id: string; at: number; transport: string; ip?: string }[] = [];
+// سجل اتصالات حي للتشخيص (آخر 50) — بلا عناوين IP (خصوصية)
+const recentConnections: { id: string; at: number; transport: string }[] = [];
 io.on('connection', (socket) => {
   recentConnections.push({
     id: socket.id.slice(0, 8),
     at: Date.now(),
     transport: socket.conn.transport.name,
-    ip: socket.handshake.headers['x-forwarded-for']?.toString().split(',')[0] ?? socket.handshake.address,
   });
   if (recentConnections.length > 50) recentConnections.shift();
 });

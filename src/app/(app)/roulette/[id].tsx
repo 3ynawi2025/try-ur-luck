@@ -22,7 +22,6 @@ import {
   RouletteBetType,
   EUROPEAN_WHEEL,
   numberColor,
-  ROULETTE_PAYOUTS,
 } from '../../../server/game/roulette';
 import { useSoloGame } from '../../../hooks/useSoloGame';
 import {

@@ -152,9 +152,8 @@ CREATE POLICY "Users can read own profile"
   ON profiles FOR SELECT
   USING (auth.uid() = id);
 
-CREATE POLICY "Users can update own profile"
-  ON profiles FOR UPDATE
-  USING (auth.uid() = id);
+-- ⚠️ لا سياسة UPDATE عمومية: الرصيد/XP/الحالة تُعدَّل عبر السيرفر فقط (service_role)
+-- (كانت سياسة "Users can update own profile" تسمح بتعديل الرصيد ذاتيًا عند وجود منح قديمة)
 
 CREATE POLICY "Users can read own transactions"
   ON balance_transactions FOR SELECT
@@ -165,20 +164,27 @@ CREATE POLICY "Users can read table players"
   TO authenticated
   USING (true);
 
--- دالة تجديد الرصيد الأسبوعي
+-- دالة تجديد الرصيد الأسبوعي (نسخة صحيحة — مطابقة لـ hardening.sql):
+-- لا تخفيض للأرصدة العالية + مهلة 7 أيام حقيقية + تسجيل المعاملة فعليًا
 CREATE OR REPLACE FUNCTION weekly_refill()
 RETURNS void AS $$
+DECLARE
+  r RECORD;
+  v_credit BIGINT;
 BEGIN
-  UPDATE profiles
-  SET balance = 10000,
-      weekly_refill_at = NOW()
-  WHERE balance < 10000
-     OR weekly_refill_at IS NULL
-     OR weekly_refill_at < NOW() - INTERVAL '7 days';
-
-  INSERT INTO balance_transactions (user_id, amount, type, description)
-  SELECT id, 10000 - balance, 'refill', 'التجديد الأسبوعي'
-  FROM profiles
-  WHERE balance < 10000;
+  FOR r IN
+    SELECT id, balance
+      FROM profiles
+     WHERE balance < 10000
+       AND (weekly_refill_at IS NULL OR weekly_refill_at < NOW() - INTERVAL '7 days')
+     FOR UPDATE
+  LOOP
+    v_credit := 10000 - r.balance;
+    UPDATE profiles
+       SET balance = 10000, weekly_refill_at = NOW(), updated_at = NOW()
+     WHERE id = r.id;
+    INSERT INTO balance_transactions (user_id, amount, type, description)
+    VALUES (r.id, v_credit, 'refill', 'التجديد الأسبوعي');
+  END LOOP;
 END;
 $$ LANGUAGE plpgsql;

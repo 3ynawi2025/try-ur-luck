@@ -1,6 +1,6 @@
 # Implementation Handoff — Game Engine Rewrite
 
-**Project:** `try-ur-luck` (جرب حظك) — Arabic-first social card game, Expo SDK 52 / React Native 0.76 / expo-router 4, TypeScript.
+**Project:** `try-ur-luck` (جرب حظك) — Arabic-first social card game, Expo SDK 57 / React Native 0.86 / expo-router 4 (الجيل الحالي), TypeScript.
 **Money is virtual only.** No real gambling, no purchases, no cash-out. Rules must match real casino play ~99%; the *only* intended difference is that chips have no monetary value.
 
 ---

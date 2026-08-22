@@ -6,6 +6,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { randomBytes, randomUUID, createHash } from 'node:crypto';
 import { getSupabaseAdmin, createSupabaseAdminClient, verifyUserToken } from '../lib/supabaseAdmin';
 import { generateAgoraToken } from '../game/agora';
+import { secureRandomInt } from '../game/deck';
 import { SupabaseClient } from '@supabase/supabase-js';
 
 const router = Router();
@@ -372,7 +373,8 @@ router.get('/invites', authenticate, async (req: Request, res: Response) => {
 // المجالس الصوتية
 // ============================================================
 
-const genCode = () => String(Math.floor(100000 + Math.random() * 900000));
+// رمز مجلس خاص آمن (CSPRNG) — لا Math.random لأسرار الوصول
+const genCode = () => String(100000 + secureRandomInt(900000));
 
 // قائمة المجالس العامة النشطة (+ عدد الحضور)، أو البحث برمز غرفة خاصة
 router.get('/majlis', authenticate, async (req: Request, res: Response) => {
