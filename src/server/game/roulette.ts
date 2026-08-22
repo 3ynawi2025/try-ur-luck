@@ -228,8 +228,24 @@ export class RouletteEngine {
       // يُسمح بالتدوير بلا رهانات؟ لا — يتطلب رهانًا
       return -1;
     }
-    this.phase = 'SPINNING';
     const num = this.rng ? Math.floor(this.rng() * 37) : secureRandomInt(37);
+    return this.settle(num);
+  }
+
+  /**
+   * تدوير العجلة بنتيجة يحددها السيرفر (طاولة مشتركة — رقم واحد للجميع).
+   * يُسمح بلا رهانات: كل الجالسين يشاهدون الدورة حتى لو لم يراهنوا.
+   */
+  spinWithResult(num: number): boolean {
+    if (this.phase !== 'BETTING') return false;
+    if (!Number.isInteger(num) || num < 0 || num > 36) return false;
+    this.settle(num);
+    return true;
+  }
+
+  /** التسوية الفعلية برقم معلوم (مشتركة بين spin وspinWithResult). */
+  private settle(num: number): number {
+    this.phase = 'SPINNING';
     this.winningNumber = num;
     this.history = [num, ...this.history].slice(0, 12);
 

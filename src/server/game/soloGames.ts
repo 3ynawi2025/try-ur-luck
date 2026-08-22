@@ -7,10 +7,11 @@
 // ============================================================
 
 import { Server, Socket } from 'socket.io';
-import { BlackjackEngine, DEFAULT_BLACKJACK_CONFIG } from './blackjack';
+import { BlackjackEngine, BlackjackSnapshot, DEFAULT_BLACKJACK_CONFIG } from './blackjack';
 import { ThreeCardPokerEngine } from './threeCardPoker';
 import { RussianPokerEngine } from './russianPoker';
-import { RouletteEngine } from './roulette';
+import { RouletteEngine, RouletteBet } from './roulette';
+import { secureRandomInt } from './deck';
 import { applyBalanceDelta, loadPlayerBalance, loadPlayerDisplayName } from '../lib/playerPersistence';
 import { generateAgoraToken, AGORA_APP_ID } from './agora';
 
@@ -26,6 +27,8 @@ interface SoloSession {
   startBalance: number;
   settled: boolean; // يُمنع حفظ الرصيد مرتين لنفس الجولة
   engine: SoloEngine;
+  roomKey: string; // غرفة السوكت المشتركة
+  shared: boolean; // بلاك جاك مشترك: محرك واحد لكل الطاولة
 }
 
 const DEFAULT_BALANCE = 10_000;
@@ -38,18 +41,63 @@ export function getSoloStats(): { sessions: number } {
   return { sessions: sessions.size };
 }
 
-// ===== طاولات فردية مشتركة: حتى 6 لاعبين على نفس الطاولة (كلٌّ ضد الديلر) =====
+// ===== طاولات فردية مشتركة: حتى 6 لاعبين على نفس الطاولة =====
+// البلاك جاك: محرك مشترك لكل الطاولة — ديلر واحد وكل اللاعبين يرون بعضهم.
+// باقي الألعاب: مقاعد مشتركة (حضور + صوت) مع محرك مستقل لكل لاعب.
 interface SoloSeat {
   id: string;
   name: string;
   userId: string | null;
+  startBalance: number;
+  leaving?: boolean;
+}
+
+interface SoloRoomMeta {
+  lastPhase: string;
+  insuranceResponded: Set<string>;
 }
 
 const soloTables = new Map<string, Map<string, SoloSeat>>(); // solo:<game>:<tableId> -> socketId -> مقعد
+const blackjackRooms = new Map<string, BlackjackEngine>(); // محرك البلاك جاك المشترك لكل طاولة
+const soloRoomMeta = new Map<string, SoloRoomMeta>();
 const MAX_SOLO_SEATS = 6;
+const MAX_ROULETTE_SEATS = 50; // طاولة الروليت مفتوحة لأكثر من 20 لاعبًا
+
+// ===== الروليت المشترك: دوران تلقائي كل 30 ثانية مع عدّاد تنازلي =====
+const ROULETTE_BET_SECONDS = 30;
+const ROULETTE_RESULT_SECONDS = 10;
+// ثلاث طاولات حسب الحد الأدنى للرهان (آخر حرف من tableId يحدد الفئة)
+const ROULETTE_STAKES: Record<string, number> = { '1': 10, '2': 50, '3': 200 };
+
+interface RouletteRoomState {
+  phase: 'betting' | 'spinning' | 'result';
+  endsAt: number;
+  countdown: number;
+  winningNumber: number | null;
+  timer: NodeJS.Timeout | null;
+}
+const rouletteRooms = new Map<string, RouletteRoomState>();
+
+function rouletteMinBet(tableId: string): number {
+  const last = tableId.slice(-1);
+  return ROULETTE_STAKES[last] ?? 10;
+}
+
+function seatCapFor(game: SoloGameKind): number {
+  return game === 'roulette' ? MAX_ROULETTE_SEATS : MAX_SOLO_SEATS;
+}
 
 function soloRoomKey(game: SoloGameKind, tableId: string): string {
   return `solo:${game}:${tableId}`;
+}
+
+function getRoomMeta(key: string): SoloRoomMeta {
+  let meta = soloRoomMeta.get(key);
+  if (!meta) {
+    meta = { lastPhase: 'betting', insuranceResponded: new Set() };
+    soloRoomMeta.set(key, meta);
+  }
+  return meta;
 }
 
 function broadcastSoloPlayers(io: Server, key: string, room: Map<string, SoloSeat>) {
@@ -58,6 +106,154 @@ function broadcastSoloPlayers(io: Server, key: string, room: Map<string, SoloSea
     count: room.size,
     max: MAX_SOLO_SEATS,
   });
+}
+
+/** تسوية أرصدة كل الجالسين على طاولة بلاك جاك مشتركة بعد نهاية الجولة. */
+async function settleSharedBlackjack(io: Server, key: string, engine: BlackjackEngine): Promise<void> {
+  const room = soloTables.get(key);
+  if (!room || room.size === 0) return;
+  const snap = engine.snapshot();
+
+  for (const seat of room.values()) {
+    const p = snap.players.find((x) => x.id === seat.id);
+    const newBalance = p ? Math.max(0, Math.round(p.balance)) : Math.round(seat.startBalance);
+    if (seat.userId && p && newBalance !== Math.round(seat.startBalance)) {
+      const delta = newBalance - Math.round(seat.startBalance);
+      try {
+        await applyBalanceDelta(seat.userId, delta, 'بلاك جاك — طاولة مشتركة');
+      } catch (err) {
+        console.error('[solo] shared settle failed:', (err as Error).message);
+      }
+    }
+    seat.startBalance = newBalance;
+  }
+
+  // حذف المغادرين خلال الجولة بعد تسوية أرصدتهم
+  const leaving = Array.from(room.entries()).filter(([, s]) => s.leaving);
+  for (const [sid, seat] of leaving) {
+    engine.removePlayer(seat.id);
+    room.delete(sid);
+  }
+  if (room.size === 0) {
+    soloTables.delete(key);
+    blackjackRooms.delete(key);
+    soloRoomMeta.delete(key);
+    return;
+  }
+  broadcastSoloPlayers(io, key, room);
+}
+
+// ===== الروليت المشترك: دورة موقّتة (رهان 30 ثانية → دوران → نتيجة) =====
+
+function broadcastRouletteRoom(io: Server, key: string, state: RouletteRoomState) {
+  io.to(key).emit('roulette:room', {
+    phase: state.phase,
+    endsAt: state.endsAt,
+    winningNumber: state.winningNumber,
+  });
+}
+
+function startRouletteBetting(io: Server, key: string, state: RouletteRoomState) {
+  state.phase = 'betting';
+  state.countdown = 0;
+  state.winningNumber = null;
+  state.endsAt = Date.now() + ROULETTE_BET_SECONDS * 1000;
+  broadcastRouletteRoom(io, key, state);
+
+  // إعادة فتح محركات كل الجالسين لجولة رهان جديدة
+  const room = soloTables.get(key);
+  if (room) {
+    for (const [sid] of room) {
+      const session = sessions.get(sid);
+      if (session && isRoulette(session.engine)) {
+        session.engine.newRound();
+        io.sockets.sockets.get(sid)?.emit('solo:state', session.engine.snapshot());
+      }
+    }
+  }
+
+  if (state.timer) clearInterval(state.timer);
+  state.timer = setInterval(() => {
+    const remain = state.endsAt - Date.now();
+    if (remain <= 0) {
+      if (state.timer) clearInterval(state.timer);
+      state.timer = null;
+      void settleRouletteRound(io, key, state);
+      return;
+    }
+    const c = Math.ceil(remain / 1000);
+    if (c <= 10 && c !== state.countdown) {
+      state.countdown = c;
+      io.to(key).emit('roulette:countdown', { seconds: c, endsAt: state.endsAt });
+    }
+  }, 250);
+}
+
+async function settleRouletteRound(io: Server, key: string, state: RouletteRoomState): Promise<void> {
+  const room = soloTables.get(key);
+  if (!room || room.size === 0) {
+    rouletteRooms.delete(key);
+    return;
+  }
+  state.phase = 'spinning';
+  state.countdown = 0;
+  const num = secureRandomInt(37);
+  state.winningNumber = num;
+  state.endsAt = Date.now() + ROULETTE_RESULT_SECONDS * 1000;
+  broadcastRouletteRoom(io, key, state);
+
+  const winners: { name: string; netWin: number }[] = [];
+  for (const [sid, seat] of room) {
+    const session = sessions.get(sid);
+    if (!session || !isRoulette(session.engine)) continue;
+    const e = session.engine;
+    const didSpin = e.spinWithResult(num);
+    if (!didSpin) continue;
+    const after = e.snapshot();
+    if (seat.userId) {
+      const delta = Math.round(after.balance) - Math.round(seat.startBalance);
+      if (delta !== 0) {
+        try {
+          await applyBalanceDelta(seat.userId, delta, 'روليت — طاولة مشتركة');
+        } catch (err) {
+          console.error('[roulette] settle failed:', (err as Error).message);
+        }
+      }
+    }
+    seat.startBalance = after.balance;
+    if (after.result) winners.push({ name: seat.name, netWin: after.result.netWin });
+    const sock = io.sockets.sockets.get(sid);
+    sock?.emit('solo:state', after);
+    sock?.emit('roulette:result', {
+      number: num,
+      netWin: after.result?.netWin ?? 0,
+      endsAt: state.endsAt,
+    });
+  }
+
+  // إعلان عام للطاولة (الفائزون + الرقم)
+  io.to(key).emit('roulette:winners', { number: num, winners });
+
+  // بعد عرض النتيجة: دورة رهان جديدة
+  if (state.timer) clearTimeout(state.timer);
+  state.timer = setTimeout(() => {
+    if (soloTables.get(key)?.size) startRouletteBetting(io, key, state);
+    else rouletteRooms.delete(key);
+  }, ROULETTE_RESULT_SECONDS * 1000);
+}
+
+/** جمع رهانات كل الجالسين (لإظهارها على الطاولة المشتركة). */
+function broadcastRouletteBets(io: Server, key: string, room: Map<string, SoloSeat>) {
+  const all: { name: string; bets: RouletteBet[] }[] = [];
+  for (const [sid, seat] of room) {
+    const session = sessions.get(sid);
+    if (!session || !isRoulette(session.engine)) continue;
+    const snap = session.engine.snapshot();
+    if (snap.bets.length > 0) {
+      all.push({ name: seat.name, bets: snap.bets.map((b) => ({ ...b, numbers: [...b.numbers] })) });
+    }
+  }
+  io.to(key).emit('roulette:bets', { players: all });
 }
 
 function isBlackjack(e: SoloEngine): e is BlackjackEngine {
@@ -73,7 +269,7 @@ function isRoulette(e: SoloEngine): e is RouletteEngine {
   return e instanceof RouletteEngine;
 }
 
-function createEngine(game: SoloGameKind, balance: number): SoloEngine {
+function createEngine(game: SoloGameKind, balance: number, rouletteMinBet = 10): SoloEngine {
   switch (game) {
     case 'blackjack':
       return new BlackjackEngine({ ...DEFAULT_BLACKJACK_CONFIG });
@@ -82,7 +278,7 @@ function createEngine(game: SoloGameKind, balance: number): SoloEngine {
     case 'russian':
       return new RussianPokerEngine(balance);
     case 'roulette':
-      return new RouletteEngine(balance);
+      return new RouletteEngine(balance, { minBet: rouletteMinBet });
   }
 }
 
@@ -93,7 +289,8 @@ function snapshotOf(session: SoloSession): unknown {
 function currentBalance(session: SoloSession): number {
   const snap: any = session.engine.snapshot();
   if (isBlackjack(session.engine)) {
-    return snap.players?.[0]?.balance ?? session.startBalance;
+    const mine = snap.players?.find((p: any) => p.id === session.playerId);
+    return mine?.balance ?? session.startBalance;
   }
   return typeof snap.balance === 'number' ? snap.balance : session.startBalance;
 }
@@ -308,9 +505,8 @@ export function setupSoloGameHandlers(io: Server) {
         const cleanTableId = String(tableId ?? '').trim().slice(0, 40) || '1';
 
         const userId: string | null = socket.data.userId ?? null;
-        // الهوية الموثّقة أولًا، وللضيف معرّف فريد لكل اتصال (لا guest-* مشترك)
-        const guestId = String(data.playerId ?? '').trim().slice(0, 60);
-        const playerId = userId ?? (guestId || socket.id);
+        // الهوية الموثّقة أولًا، وللضيف معرّف فريد لكل اتصال (socket.id — لا guest-* مشترك)
+        const playerId = userId ?? socket.id;
         const fallbackName = String(data.name ?? '').trim().slice(0, 40) || 'أنت';
         const name = userId ? await loadPlayerDisplayName(userId, fallbackName) : fallbackName;
 
@@ -321,20 +517,40 @@ export function setupSoloGameHandlers(io: Server) {
           room = new Map();
           soloTables.set(key, room);
         }
-        if (!room.has(socket.id) && room.size >= MAX_SOLO_SEATS) {
-          socket.emit('error', { code: 'SOLO_TABLE_FULL', message: 'الطاولة ممتلئة (6 لاعبين كحد أقصى)' });
+        if (!room.has(socket.id) && room.size >= seatCapFor(game)) {
+          socket.emit('error', { code: 'SOLO_TABLE_FULL', message: 'الطاولة ممتلئة' });
           return;
         }
-        room.set(socket.id, { id: playerId, name, userId });
 
         const prev = sessions.get(socket.id);
         if (prev) sessions.delete(socket.id);
 
         const balance = await loadPlayerBalance(userId, DEFAULT_BALANCE);
-        const engine = createEngine(game, balance);
-        if (isBlackjack(engine)) {
-          engine.addPlayer(playerId, name, balance);
+        const shared = game === 'blackjack';
+
+        let engine: SoloEngine;
+        if (shared) {
+          // بلاك جاك: محرك واحد مشترك لكل الطاولة — ديلر واحد وكل الأيدي ظاهرة
+          let bj = blackjackRooms.get(key);
+          if (!bj) {
+            bj = new BlackjackEngine({ ...DEFAULT_BLACKJACK_CONFIG });
+            blackjackRooms.set(key, bj);
+          }
+          if (!bj.addPlayer(playerId, name, balance)) {
+            // إعادة انضمام لنفس المعرّف: مسموح فقط إذا كان جالسًا أصلًا
+            const exists = bj.snapshot().players.some((p) => p.id === playerId);
+            if (!exists) {
+              socket.emit('error', { code: 'SOLO_TABLE_FULL', message: 'الطاولة ممتلئة (6 لاعبين كحد أقصى)' });
+              return;
+            }
+          }
+          engine = bj;
+        } else {
+          engine = createEngine(game, balance, game === 'roulette' ? rouletteMinBet(cleanTableId) : undefined);
+          if (isBlackjack(engine)) engine.addPlayer(playerId, name, balance);
         }
+
+        room.set(socket.id, { id: playerId, name, userId, startBalance: balance });
 
         const session: SoloSession = {
           game,
@@ -344,12 +560,33 @@ export function setupSoloGameHandlers(io: Server) {
           startBalance: balance,
           settled: false,
           engine,
+          roomKey: key,
+          shared,
         };
         sessions.set(socket.id, session);
 
         socket.join(key);
         broadcastSoloPlayers(io, key, room);
+        // معرّف المقعد من السيرفر — يستخدمه العميل لتمييز يده
+        socket.emit('solo:seat', { playerId });
         socket.emit('solo:state', snapshotOf(session));
+
+        // ===== الروليت: دورة موقّتة مشتركة (تبدأ مع أول لاعب) =====
+        if (game === 'roulette') {
+          let rState = rouletteRooms.get(key);
+          if (!rState) {
+            rState = { phase: 'betting', endsAt: 0, countdown: 0, winningNumber: null, timer: null };
+            rouletteRooms.set(key, rState);
+            startRouletteBetting(io, key, rState);
+          } else {
+            socket.emit('roulette:room', {
+              phase: rState.phase,
+              endsAt: rState.endsAt,
+              winningNumber: rState.winningNumber,
+            });
+            broadcastRouletteBets(io, key, room);
+          }
+        }
 
         // ===== الدردشة الصوتية: نفس قناة طاولة اللعبة =====
         const voiceChannel = `solo-${game}-${cleanTableId}`;
@@ -359,7 +596,7 @@ export function setupSoloGameHandlers(io: Server) {
           token: generateAgoraToken(voiceChannel, playerId),
         });
 
-        console.log(`🎰 Solo join: ${game} @ ${cleanTableId} (balance=${balance}, seats=${room.size})`);
+        console.log(`🎰 Solo join: ${game} @ ${cleanTableId} (balance=${balance}, seats=${room.size}, shared=${shared})`);
       }
     );
 
@@ -371,6 +608,80 @@ export function setupSoloGameHandlers(io: Server) {
         const action = String(data?.action ?? '').slice(0, 30);
         if (!action) return;
 
+        // ===== روليت مشترك: رهان مقفول خارج النافذة، والدوران تلقائي =====
+        if (isRoulette(session.engine)) {
+          const rState = rouletteRooms.get(session.roomKey);
+          if (action === 'spin') {
+            socket.emit('error', { message: 'الدوران تلقائي كل ٣٠ ثانية — لا زر يدوي' });
+            return;
+          }
+          if (rState && rState.phase !== 'betting') {
+            socket.emit('error', { message: 'الرهانات مغلقة — انتظر الدورة القادمة' });
+            return;
+          }
+          const result = applyAction(session, action, data ?? {});
+          if (result.error) {
+            socket.emit('error', { message: result.error });
+            return;
+          }
+          socket.emit('solo:state', snapshotOf(session));
+          const room = soloTables.get(session.roomKey);
+          if (room) broadcastRouletteBets(io, session.roomKey, room);
+          return;
+        }
+
+        // ===== بلاك جاك مشترك: معالجة خاصة للتأمين (ينتظر رد الجميع) =====
+        if (session.shared && isBlackjack(session.engine)) {
+          const e = session.engine;
+          const room = soloTables.get(session.roomKey);
+          const meta = getRoomMeta(session.roomKey);
+
+          if (action === 'insurance' || action === 'even-money') {
+            let err: string | null = null;
+            if (action === 'insurance' && !Boolean(data.wants)) {
+              err = e.declineInsurance(session.playerId);
+            } else if (action === 'insurance') {
+              const mainBet = Number(data.mainBet ?? 0);
+              const maxInsurance = Math.floor(mainBet / 2);
+              err = e.takeInsurance(session.playerId, Math.min(Number(data.amount) || maxInsurance, maxInsurance));
+            } else {
+              err = e.takeEvenMoney(session.playerId);
+            }
+            if (err) {
+              socket.emit('error', { message: err });
+              return;
+            }
+            meta.insuranceResponded.add(session.playerId);
+            // الجميع ردّوا؟ → أنهِ التأمين وواصل الجولة
+            if (room && meta.insuranceResponded.size >= room.size) {
+              const r = e.finishInsurance();
+              if ('error' in r) {
+                socket.emit('error', { message: r.error });
+                return;
+              }
+            }
+          } else {
+            const result = applyAction(session, action, data ?? {});
+            if (result.error) {
+              socket.emit('error', { message: result.error });
+              return;
+            }
+          }
+
+          const snap = snapshotOf(session) as BlackjackSnapshot;
+          io.to(session.roomKey).emit('solo:state', snap);
+          // نهاية الجولة (عادت لمرحلة الرهان) → تسوية أرصدة الجميع
+          if (snap.phase === 'betting' && meta.lastPhase !== 'betting') {
+            meta.lastPhase = 'betting';
+            meta.insuranceResponded.clear();
+            void settleSharedBlackjack(io, session.roomKey, e);
+          } else {
+            meta.lastPhase = snap.phase;
+          }
+          return;
+        }
+
+        // ===== الألعاب الأخرى: تدفق فردي كما كان =====
         const result = applyAction(session, action, data ?? {});
 
         if (result.error) {
@@ -388,25 +699,68 @@ export function setupSoloGameHandlers(io: Server) {
 
     // مغادرة/انقطاع: إزالة المقعد + إشعار الباقين
     const removeSoloSeat = (sid: string) => {
-      for (const [key, room] of soloTables) {
-        if (room.has(sid)) {
-          room.delete(sid);
-          broadcastSoloPlayers(io, key, room);
-          if (room.size === 0) soloTables.delete(key);
-          break;
+      const session = sessions.get(sid);
+      sessions.delete(sid);
+      if (!session) return;
+
+      const room = soloTables.get(session.roomKey);
+      const seat = room?.get(sid);
+      if (!room || !seat) return;
+
+      // بلاك جاك مشترك: لا تكسر الجولة الجارية
+      if (session.shared && isBlackjack(session.engine)) {
+        const e = session.engine;
+        const snap = e.snapshot();
+        if (snap.phase === 'playing') {
+          if (snap.currentPlayerId === seat.id) e.performAction(seat.id, 'stand', 0);
+          // يؤجَّل حذفه من المحرك حتى نهاية الجولة (تسوية أرصدة الجميع)
+          seat.leaving = true;
+          seat.startBalance = snap.players.find((p) => p.id === seat.id)?.balance ?? seat.startBalance;
+          broadcastSoloPlayers(io, session.roomKey, room);
+          return;
+        }
+        if (snap.phase === 'insurance') {
+          e.declineInsurance(seat.id);
+          const meta = getRoomMeta(session.roomKey);
+          meta.insuranceResponded.add(seat.id);
+          if (meta.insuranceResponded.size >= room.size) {
+            e.finishInsurance();
+            const s2 = e.snapshot();
+            io.to(session.roomKey).emit('solo:state', s2);
+            if (s2.phase === 'betting') {
+              meta.lastPhase = 'betting';
+              void settleSharedBlackjack(io, session.roomKey, e);
+              return;
+            }
+          }
+          // يكمل حذفه بعد الجولة
+          seat.leaving = true;
+          broadcastSoloPlayers(io, session.roomKey, room);
+          return;
+        }
+        // بين الجولات: حذف فوري آمن
+        e.removePlayer(seat.id);
+      }
+
+      room.delete(sid);
+      broadcastSoloPlayers(io, session.roomKey, room);
+      if (room.size === 0) {
+        soloTables.delete(session.roomKey);
+        blackjackRooms.delete(session.roomKey);
+        soloRoomMeta.delete(session.roomKey);
+        const rState = rouletteRooms.get(session.roomKey);
+        if (rState) {
+          if (rState.timer) clearInterval(rState.timer);
+          rouletteRooms.delete(session.roomKey);
         }
       }
     };
 
-    socket.on('solo:leave', () => {
-      sessions.delete(socket.id);
-      removeSoloSeat(socket.id);
-    });
+    socket.on('solo:leave', () => removeSoloSeat(socket.id));
 
     socket.on('disconnect', () => {
-      sessions.delete(socket.id);
-      removeSoloSeat(socket.id);
       console.log('🎰 Solo player disconnected:', socket.id);
+      removeSoloSeat(socket.id);
     });
   });
 }

@@ -19,6 +19,22 @@ export interface SoloPlayer {
   name: string;
 }
 
+export interface RouletteRoomState {
+  phase: 'betting' | 'spinning' | 'result';
+  endsAt: number;
+  winningNumber: number | null;
+}
+
+export interface RouletteOtherBets {
+  name: string;
+  bets: { id: string; type: string; numbers: number[]; amount: number }[];
+}
+
+export interface RouletteWinners {
+  number: number;
+  winners: { name: string; netWin: number }[];
+}
+
 interface JoinPayload {
   game: SoloGameKind;
   tableId: string;
@@ -40,6 +56,12 @@ export function useSoloGame(
   const [isConnected, setIsConnected] = useState(false);
   const [snapshot, setSnapshot] = useState<any>(null);
   const [players, setPlayers] = useState<SoloPlayer[]>([]);
+  const [myPlayerId, setMyPlayerId] = useState<string | null>(null);
+  // الروليت المشترك: دورة موقّتة + رهانات الآخرين + النتائج
+  const [rouletteRoom, setRouletteRoom] = useState<RouletteRoomState | null>(null);
+  const [countdown, setCountdown] = useState<number | null>(null);
+  const [othersBets, setOthersBets] = useState<RouletteOtherBets[]>([]);
+  const [winners, setWinners] = useState<RouletteWinners | null>(null);
 
   // الدردشة الصوتية — نفس قناة طاولة اللعبة
   const { isMuted, toggleMute, joinChannel, joinError } = useAgoraVoice();
@@ -77,6 +99,9 @@ export function useSoloGame(
       setIsConnected(false);
     });
     socket.on('solo:state', (s: any) => setSnapshot(s));
+    socket.on('solo:seat', (d: any) => {
+      if (typeof d?.playerId === 'string') setMyPlayerId(d.playerId);
+    });
     socket.on('error', (d: any) => onErrorRef.current?.(d?.message ?? 'حدث خطأ'));
     socket.on('solo:players', (d: any) => {
       if (Array.isArray(d?.players)) setPlayers(d.players);
@@ -87,6 +112,11 @@ export function useSoloGame(
         joinChannel(d.appId || FALLBACK_AGORA_APP_ID, d.channelName, d.token ?? '');
       }
     });
+    // الروليت المشترك
+    socket.on('roulette:room', (d: any) => setRouletteRoom({ phase: d?.phase, endsAt: d?.endsAt ?? 0, winningNumber: d?.winningNumber ?? null }));
+    socket.on('roulette:countdown', (d: any) => setCountdown(typeof d?.seconds === 'number' ? d.seconds : null));
+    socket.on('roulette:bets', (d: any) => setOthersBets(Array.isArray(d?.players) ? d.players : []));
+    socket.on('roulette:winners', (d: any) => setWinners(d ?? null));
 
     socketRef.current = socket;
     return () => {
@@ -120,5 +150,17 @@ export function useSoloGame(
     [game, userId]
   );
 
-  return { isConnected, snapshot, sendAction, players, isMuted, toggleMute };
+  return {
+    isConnected,
+    snapshot,
+    sendAction,
+    players,
+    isMuted,
+    toggleMute,
+    myPlayerId,
+    rouletteRoom,
+    countdown,
+    othersBets,
+    winners,
+  };
 }

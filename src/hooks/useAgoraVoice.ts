@@ -54,6 +54,8 @@ export function useAgoraVoice() {
       engine.setChannelProfile(ChannelProfileType.ChannelProfileCommunication);
       engine.setClientRole(ClientRoleType.ClientRoleBroadcaster);
       engine.enableAudio();
+      // الصوت عبر السماعة الخارجية (Speaker) لا سماعة الأذن
+      engine.setEnableSpeakerphone(true);
       engine.enableAudioVolumeIndication(500, 3, false);
 
       // إشعارات الأخطاء بدل الفشل الصامت

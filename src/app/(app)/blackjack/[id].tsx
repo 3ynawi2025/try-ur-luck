@@ -78,7 +78,7 @@ export default function BlackjackScreen() {
   const [bet, setBet] = useState(100);
 
   const { showError, errorNode } = useErrorToast();
-  const { snapshot, sendAction, players, isMuted, toggleMute } = useSoloGame('blackjack', `bj-${id ?? '1'}`, showError);
+  const { snapshot, sendAction, players, isMuted, toggleMute, myPlayerId } = useSoloGame('blackjack', `bj-${id ?? '1'}`, showError);
 
   const EMPTY_SNAP: BlackjackSnapshot = {
     phase: 'betting',
@@ -94,7 +94,10 @@ export default function BlackjackScreen() {
   };
   const snap: BlackjackSnapshot = (snapshot as BlackjackSnapshot) ?? EMPTY_SNAP;
 
-  const me = snap.players[0];
+  const me = snap.players.find((p) => p.id === myPlayerId) ?? snap.players[0];
+  const others = snap.players.filter((p) => p.id !== (me?.id ?? '__me__'));
+  const myTurn = !!me && snap.currentPlayerId === me.id;
+  const currentName = snap.players.find((p) => p.id === snap.currentPlayerId)?.name;
   const activeHand: BlackjackHand | undefined = me?.hands[me.activeHandIndex] ?? me?.hands[0];
   const dealerScore = snap.dealerScore?.total ?? 0;
   const myScore = activeHand ? handTotal(activeHand.cards) : 0;
@@ -117,6 +120,7 @@ export default function BlackjackScreen() {
 
   const canDouble =
     snap.phase === 'playing' &&
+    myTurn &&
     !!activeHand &&
     activeHand.cards.length === 2 &&
     !activeHand.isSplitAces &&
@@ -124,6 +128,7 @@ export default function BlackjackScreen() {
 
   const canSplit =
     snap.phase === 'playing' &&
+    myTurn &&
     !!activeHand &&
     activeHand.cards.length === 2 &&
     activeHand.cards[0].rank === activeHand.cards[1].rank &&
@@ -131,6 +136,7 @@ export default function BlackjackScreen() {
 
   const canSurrender =
     snap.phase === 'playing' &&
+    myTurn &&
     !!activeHand &&
     activeHand.cards.length === 2 &&
     !activeHand.doubled;
@@ -140,27 +146,32 @@ export default function BlackjackScreen() {
   // ===== لحظة الفوز السينمائية =====
   const bjWin = useMemo(() => {
     if (snap.phase !== 'complete' || !snap.results?.length) return null;
-    const wins = snap.results.filter(
+    const mine = snap.results.filter((r) => r.playerId === me?.id);
+    const wins = mine.filter(
       (r) => r.result === 'win' || r.result === 'blackjack' || r.result === 'charlie'
     );
     if (wins.length === 0) return null;
-    const isNatural = snap.results.some((r) => r.result === 'blackjack');
+    const isNatural = mine.some((r) => r.result === 'blackjack');
     return {
       key: `bj-${snap.roundNumber}`,
       magnitude: (isNatural ? 3 : 2) as 1 | 2 | 3,
     };
-  }, [snap.phase, snap.roundNumber, snap.results]);
+  }, [snap.phase, snap.roundNumber, snap.results, me?.id]);
 
   // عدّاد رصيد متدحرج
   const balanceDisplay = useCountUp(Math.round(me?.balance ?? 0));
 
   const phaseText =
     snap.phase === 'betting'
-      ? 'ضع رهانك'
+      ? me && me.currentBet > 0 && snap.players.length > 1
+        ? 'بانتظار بقية اللاعبين…'
+        : 'ضع رهانك'
       : snap.phase === 'insurance'
       ? 'الموزع يُظهر آص — تأمين؟'
       : snap.phase === 'playing'
-      ? 'الموزع يقف على ١٧'
+      ? myTurn
+        ? 'دورك — الموزع يقف على ١٧'
+        : `دور ${currentName ?? 'لاعب آخر'}…`
       : 'انتهت الجولة';
 
   // ===== شريط الإجراءات حسب المرحلة =====
@@ -195,7 +206,14 @@ export default function BlackjackScreen() {
       )}
 
       {/* مرحلة اللعب */}
-      {snap.phase === 'playing' && !!activeHand && (
+      {snap.phase === 'playing' && !!activeHand && !myTurn && (
+        <View style={styles.betArea}>
+          <Text style={styles.turnLabel}>
+            ⏳ بانتظار <Text style={styles.turnScore}>{currentName ?? 'لاعب آخر'}</Text> — يلعب الآن
+          </Text>
+        </View>
+      )}
+      {snap.phase === 'playing' && !!activeHand && myTurn && (
         <View style={styles.betArea}>
           <Text style={styles.turnLabel}>
             دورك — مجموعك <Text style={styles.turnScore}>{myScore}</Text>
@@ -226,12 +244,13 @@ export default function BlackjackScreen() {
         </View>
       )}
 
-      {/* نتائج الجولة */}
+      {/* نتائج الجولة — للجميع على الطاولة المشتركة */}
       {snap.phase === 'complete' && !!snap.results?.length && (
         <View style={styles.resultsRow}>
           {snap.results.map((r, i) => (
             <Text key={i} style={styles.resultText}>
-              {r.result === 'lose' ? 'خسرت ' : r.result === 'push' ? 'تعادل — ' : 'ربحت '}
+              {r.name}:{' '}
+              {r.result === 'lose' ? 'خسر ' : r.result === 'push' ? 'تعادل — ' : 'ربح '}
               <Text style={styles.resultAmount}>{formatCompact(r.payout)}</Text>
               {r.result === 'blackjack' ? ' (٣:٢)' : r.result === 'charlie' ? ' (خمس أوراق)' : ''}
             </Text>
@@ -275,6 +294,46 @@ export default function BlackjackScreen() {
         </View>
         {snap.dealerRevealed && <ScoreBubble score={dealerScore} />}
       </FeltTable>
+
+      {/* ===== أيدي بقية اللاعبين (مشكوفة — الجميع يرى الجميع) ===== */}
+      {others.length > 0 && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.othersStrip}
+          contentContainerStyle={styles.othersContent}
+        >
+          {others.map((p) => {
+            const hand = p.hands[p.activeHandIndex] ?? p.hands[0];
+            const isTurn = snap.currentPlayerId === p.id;
+            return (
+              <View key={p.id} style={[styles.otherSpot, isTurn && styles.otherSpotTurn]}>
+                <View style={styles.otherTop}>
+                  <Text style={styles.otherName} numberOfLines={1}>
+                    {p.name}
+                  </Text>
+                  {p.currentBet > 0 && <Chip amount={p.currentBet} size={18} />}
+                </View>
+                <View style={styles.otherCards}>
+                  {(hand?.cards ?? []).map((c, i) => (
+                    <View key={i} style={{ marginRight: i === 0 ? 0 : -12 }}>
+                      <PlayingCard
+                        card={toPCard(c)}
+                        width={28}
+                        height={40}
+                        dimmed={hand?.status === 'bust'}
+                      />
+                    </View>
+                  ))}
+                </View>
+                <Text style={[styles.otherScore, isTurn && { color: COLORS.goldLight }]}>
+                  {hand ? handTotal(hand.cards) : '—'}
+                </Text>
+              </View>
+            );
+          })}
+        </ScrollView>
+      )}
 
       {/* ===== اللاعب ===== */}
       <ScrollView
@@ -370,6 +429,54 @@ const styles = StyleSheet.create({
     width: 340,
     height: 200,
     marginTop: SPACING.sm,
+  },
+  // ===== أيدي بقية اللاعبين (طاولة مشتركة) =====
+  othersStrip: {
+    marginTop: SPACING.sm,
+    maxHeight: 104,
+  },
+  othersContent: {
+    flexDirection: 'row-reverse',
+    gap: SPACING.sm,
+    paddingHorizontal: SPACING.lg,
+    alignItems: 'flex-start',
+  },
+  otherSpot: {
+    minWidth: 96,
+    maxWidth: 130,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: RADIUS.md,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    padding: SPACING.sm,
+    gap: 4,
+    alignItems: 'center',
+  },
+  otherSpotTurn: {
+    borderColor: COLORS.gold,
+    backgroundColor: 'rgba(201,169,97,0.10)',
+  },
+  otherTop: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: SPACING.xs,
+  },
+  otherName: {
+    fontFamily: FONTS.ar.medium,
+    fontSize: TYPE.micro.fontSize,
+    color: COLORS.text,
+    maxWidth: 72,
+  },
+  otherCards: {
+    flexDirection: 'row-reverse',
+    paddingRight: 12,
+    minHeight: 40,
+    alignItems: 'center',
+  },
+  otherScore: {
+    fontFamily: FONTS.num.bold,
+    fontSize: TYPE.micro.fontSize,
+    color: COLORS.textDim,
   },
   dealerLabel: {
     fontFamily: FONTS.ar.semibold,

@@ -35,7 +35,6 @@ import {
   formatCompact,
 } from '../../../constants/theme';
 
-const CHIP_VALUES = [10, 50, 100, 500];
 
 // حجم القرص في النافذة السينمائية + مسار الكرة المناسب له
 const WHEEL_SIZE = 300;
@@ -137,6 +136,7 @@ function BetCell({
   onPress,
   total,
   crowned = false,
+  others = 0,
 }: {
   label: string;
   numbers: number[];
@@ -147,6 +147,8 @@ function BetCell({
   onPress: (type: RouletteBetType, numbers: number[]) => void;
   total: number;
   crowned?: boolean;
+  /** إجمالي رهانات بقية اللاعبين على هذه الخلية */
+  others?: number;
 }) {
   const scale = useRef(new Animated.Value(1)).current;
   return (
@@ -169,6 +171,11 @@ function BetCell({
         )}
         <Text style={[styles.cellText, color === CELL_COLOR.black && { color: '#F2EFE9' }]}>{label}</Text>
         {total > 0 && <View style={styles.cellChip}><Text style={styles.cellChipText}>{total}</Text></View>}
+        {others > 0 && (
+          <View style={styles.cellOthers} pointerEvents="none">
+            <Text style={styles.cellOthersText}>+{others >= 1000 ? `${Math.round(others / 1000)}K` : others}</Text>
+          </View>
+        )}
       </Pressable>
     </Animated.View>
   );
@@ -179,13 +186,16 @@ export default function RouletteScreen() {
   const insets = useSafeAreaInsets();
   const [helpOpen, setHelpOpen] = useState(false);
 
-  const [chip, setChip] = useState(100);
+  const MIN_BET = id === '3' ? 200 : id === '2' ? 50 : 10;
+  const TABLE_CHIPS = [MIN_BET, MIN_BET * 2, MIN_BET * 5, MIN_BET * 10];
+  const [chip, setChip] = useState(MIN_BET);
   const { showError, errorNode } = useErrorToast();
   const [spinning, setSpinning] = useState(false);
-  // القرص يظهر كعنصر أساسي وحيد عند الدوران فقط
-  const [wheelVisible, setWheelVisible] = useState(false);
+  // إغلاق يدوي لنافذة القرص (تظهر تلقائيًا في الدورة القادمة)
+  const [wheelDismissedAt, setWheelDismissedAt] = useState(0);
   const spinAngle = useRef(new Animated.Value(0)).current;
   const lastResultRef = useRef<number | null>(null);
+  const lastRoundRef = useRef(0);
   // إجمالي زاوية الدوران المتراكمة — نضمن إضافة لفات كاملة كل جولة
   const rotationRef = useRef(0);
   // حركة لافتة الرقم الفائز
@@ -195,7 +205,7 @@ export default function RouletteScreen() {
   const ballRadius = useRef(new Animated.Value(BALL_START)).current;
 
   // ===== المحرك على السيرفر =====
-  const { snapshot, sendAction, players, isMuted, toggleMute } = useSoloGame('roulette', `ro-${id ?? '1'}`, showError);
+  const { snapshot, sendAction, players, isMuted, toggleMute, rouletteRoom, countdown, othersBets, winners } = useSoloGame('roulette', `ro-${id ?? '1'}`, showError);
 
   const EMPTY_SNAP: RouletteSnapshot = {
     phase: 'BETTING',
@@ -209,33 +219,22 @@ export default function RouletteScreen() {
   };
   const snap: RouletteSnapshot = (snapshot as RouletteSnapshot) ?? EMPTY_SNAP;
 
+  const roomBetting = rouletteRoom ? rouletteRoom.phase === 'betting' : snap.phase === 'BETTING';
   const place = (type: RouletteBetType, numbers: number[]) => {
-    if (spinning || snap.phase !== 'BETTING') return;
+    if (spinning || !roomBetting) return;
     sendAction('placeBet', { type, numbers, amount: chip });
   };
 
   const clear = () => sendAction('clearBets');
 
-  const spin = () => {
-    if (spinning || snap.phase !== 'BETTING' || snap.totalBet === 0) return;
-    setWheelVisible(true);
-    sendAction('spin');
-  };
-
-  const newRound = () => {
-    setSpinning(false);
-    setWheelVisible(false);
-    lastResultRef.current = null;
-    resultPop.setValue(0);
-    ballRadius.setValue(BALL_START);
-    sendAction('next');
-  };
 
   // عند وصول النتيجة من السيرفر: حرّك العجلة إلى القطاع الفائز
   useEffect(() => {
     const num = snap.result?.winningNumber ?? null;
-    if (num === null || num === lastResultRef.current) return;
+    if (num === null) return;
+    if (num === lastResultRef.current && snap.roundNumber === lastRoundRef.current) return;
     lastResultRef.current = num;
+    lastRoundRef.current = snap.roundNumber;
 
     const idx = EUROPEAN_WHEEL.indexOf(num);
     const sectorMid = idx * (360 / 37) + 360 / 74;
@@ -274,7 +273,7 @@ export default function RouletteScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [snap.result?.winningNumber]);
+  }, [snap.result?.winningNumber, snap.roundNumber]);
 
   // ظهور لافتة الرقم الفائز بعد استقرار الكرة
   useEffect(() => {
@@ -285,14 +284,30 @@ export default function RouletteScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [snap.result?.winningNumber, spinning]);
 
-  // ===== حساب إجمالي كل خلية (للعرض) =====
+  // ===== حساب إجمالي كل خلية (للعرض: رهاناتي + رهانات الآخرين) =====
+  const sameNumbers = (a: number[], b: number[]) =>
+    JSON.stringify([...a].sort((x, y) => x - y)) === JSON.stringify([...b].sort((x, y) => x - y));
   const cellTotal = (type: RouletteBetType, numbers: number[]) =>
     snap.bets
-      .filter((b) => b.type === type && JSON.stringify(b.numbers) === JSON.stringify([...numbers].sort((a, b) => a - b)))
+      .filter((b) => b.type === type && sameNumbers(b.numbers, numbers))
       .reduce((s, b) => s + b.amount, 0);
+  // إجمالي رهانات بقية اللاعبين على نفس الخلية (لإظهارها على الطاولة)
+  const othersOn = (type: RouletteBetType, numbers: number[]) => {
+    let sum = 0;
+    for (const p of othersBets) {
+      for (const b of p.bets) {
+        if (b.type === type && sameNumbers(b.numbers, numbers)) sum += b.amount;
+      }
+    }
+    return sum;
+  };
 
   const isBETTING = snap.phase === 'BETTING';
   const res = snap.result;
+
+  // القرص يظهر خلال دوران/نتيجة الغرفة المشتركة (إلا إذا أُغلق يدويًا هذه الدورة)
+  const showOverlay = rouletteRoom?.phase === 'spinning' || rouletteRoom?.phase === 'result';
+  const wheelVisible = showOverlay && (rouletteRoom?.endsAt ?? Infinity) > wheelDismissedAt;
 
   // ===== لحظة الفوز السينمائية =====
   const roWin =
@@ -319,13 +334,52 @@ export default function RouletteScreen() {
         <View style={{ paddingHorizontal: SPACING.lg, marginBottom: SPACING.xs }}>
           <SoloTableBar players={players} isMuted={isMuted} onToggleMute={toggleMute} />
         </View>
+        {/* ثلاث طاولات حسب الحد الأدنى للرهان */}
+        <View style={styles.stakeRow}>
+          {[
+            { tid: '1', label: 'منخفضة', min: 10 },
+            { tid: '2', label: 'متوسطة', min: 50 },
+            { tid: '3', label: 'عالية', min: 200 },
+          ].map((t) => {
+            const active = (id ?? '1') === t.tid;
+            return (
+              <Pressable
+                key={t.tid}
+                onPress={() => router.push(`/(app)/roulette/${t.tid}` as never)}
+                style={[styles.stakeTab, active && styles.stakeTabActive]}
+              >
+                <Text style={[styles.stakeTabText, active && styles.stakeTabTextActive]}>
+                  {t.label} {t.min}+
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {/* عدّاد الدورة المشتركة */}
+        {rouletteRoom?.phase === 'betting' && (
+          <Text style={styles.countdownText}>
+            ⏱️ {countdown !== null ? `أغلق رهاناتك — ${countdown}` : 'نافذة الرهان مفتوحة'}
+          </Text>
+        )}
+        {rouletteRoom?.phase === 'spinning' && <Text style={styles.spinNotice}>🎡 العجلة تدور…</Text>}
+        {rouletteRoom?.phase === 'result' && winners && (
+          <Text style={styles.winnersLine}>
+            🏆 الرقم {winners.number} —{' '}
+            {winners.winners.length > 0
+              ? winners.winners.slice(0, 3).map((w) => `${w.name} +${formatCompact(w.netWin)}`).join(' · ') +
+                (winners.winners.length > 3 ? ` وآخرون (${winners.winners.length})` : '')
+              : 'لا فائزين هذه الدورة'}
+          </Text>
+        )}
+
         <Text style={styles.phaseText}>
-          {spinning ? 'العجلة تدور…' : isBETTING ? 'ضع رهاناتك' : 'انتهت الجولة'}
+          {spinning ? 'العجلة تدور…' : roomBetting ? 'ضع رهاناتك' : 'انتهت الجولة'}
         </Text>
       </View>
 
       {/* ===== النافذة السينمائية للقرص — العنصر الأساسي الوحيد عند الدوران ===== */}
-      {wheelVisible && !isBETTING && (
+      {wheelVisible && (
         <View style={styles.wheelOverlay}>
           <LinearGradient colors={['rgba(7,10,15,0.97)', 'rgba(10,13,18,0.99)']} style={StyleSheet.absoluteFill} />
 
@@ -396,7 +450,7 @@ export default function RouletteScreen() {
                   {formatCompact(Math.abs(res.netWin))}
                 </Text>
               </Text>
-              <GoldButton title="متابعة" onPress={() => setWheelVisible(false)} />
+              <GoldButton title="متابعة" onPress={() => setWheelDismissedAt(Date.now())} />
             </View>
           ) : null}
         </View>
@@ -439,12 +493,12 @@ export default function RouletteScreen() {
           <ScrollView contentContainerStyle={styles.gridWrap} showsVerticalScrollIndicator={false}>
           {/* صف الأصفار + أول صف */}
           <View style={styles.gridRow}>
-            <BetCell label="0" numbers={[0]} type="straight" color={CELL_COLOR.green} height={120} flex={0.9} onPress={place} total={cellTotal('straight', [0])} crowned={!!res && res.winningNumber === 0} />
+            <BetCell label="0" numbers={[0]} type="straight" color={CELL_COLOR.green} height={120} flex={0.9} onPress={place} total={cellTotal('straight', [0])} others={othersOn('straight', [0])} crowned={!!res && res.winningNumber === 0} />
             <View style={styles.gridCol}>
               {rows.map((row, ri) => (
                 <View key={ri} style={styles.gridRow}>
                   {row.map((n) => (
-                    <BetCell key={n} label={String(n)} numbers={[n]} type="straight" color={CELL_COLOR[numberColor(n)]} onPress={place} total={cellTotal('straight', [n])} crowned={!!res && res.winningNumber === n} />
+                    <BetCell key={n} label={String(n)} numbers={[n]} type="straight" color={CELL_COLOR[numberColor(n)]} onPress={place} total={cellTotal('straight', [n])} others={othersOn('straight', [n])} crowned={!!res && res.winningNumber === n} />
                   ))}
                 </View>
               ))}
@@ -454,7 +508,7 @@ export default function RouletteScreen() {
               {[3, 2, 1].map((col) => {
                 const nums = Array.from({ length: 12 }, (_, i) => col + i * 3);
                 return (
-                  <BetCell key={col} label={`2:1`} numbers={nums} type="column" color="#1B2230" height={54} onPress={place} total={cellTotal('column', nums)} />
+                  <BetCell key={col} label={`2:1`} numbers={nums} type="column" color="#1B2230" height={54} onPress={place} total={cellTotal('column', nums)} others={othersOn('column', nums)} />
                 );
               })}
             </View>
@@ -467,7 +521,7 @@ export default function RouletteScreen() {
               ['2nd 12', Array.from({ length: 12 }, (_, i) => i + 13)],
               ['3rd 12', Array.from({ length: 12 }, (_, i) => i + 25)],
             ].map(([label, nums]) => (
-              <BetCell key={String(label)} label={String(label)} numbers={nums as number[]} type="dozen" color="#1B2230" height={54} onPress={place} total={cellTotal('dozen', nums as number[])} />
+              <BetCell key={String(label)} label={String(label)} numbers={nums as number[]} type="dozen" color="#1B2230" height={54} onPress={place} total={cellTotal('dozen', nums as number[])} others={othersOn('dozen', nums as number[])} />
             ))}
           </View>
 
@@ -483,7 +537,7 @@ export default function RouletteScreen() {
                 ['19-36', 'high'],
               ] as [string, RouletteBetType][]
             ).map(([label, type]) => (
-              <BetCell key={type} label={label} numbers={[]} type={type} color={type === 'red' ? CELL_COLOR.red : '#1B2230'} height={54} onPress={place} total={cellTotal(type, [])} />
+              <BetCell key={type} label={label} numbers={[]} type={type} color={type === 'red' ? CELL_COLOR.red : '#1B2230'} height={54} onPress={place} total={cellTotal(type, [])} others={othersOn(type, [])} />
             ))}
           </View>
           </ScrollView>
@@ -495,7 +549,7 @@ export default function RouletteScreen() {
             <Text style={styles.totalLabel}>إجمالي الرهان</Text>
             <Text style={styles.totalValue}>{snap.totalBet}</Text>
           </View>
-          {CHIP_VALUES.map((v) => (
+          {TABLE_CHIPS.map((v) => (
             <Pressable
               key={v}
               onPress={() => {
@@ -512,10 +566,10 @@ export default function RouletteScreen() {
           </Pressable>
         </View>
 
-        {/* زر الدوران / النتيجة */}
+        {/* حالة الدورة المشتركة — الدوران تلقائي كل ٣٠ ثانية */}
         <View style={styles.actionRow}>
-          {isBETTING ? (
-            <GoldButton title={spinning ? 'تدور…' : 'SPIN — دور العجلة'} onPress={spin} disabled={spinning || snap.totalBet === 0} />
+          {rouletteRoom?.phase === 'betting' ? (
+            <Text style={styles.autoText}>⚙️ الدوران تلقائي — الرهان يُغلق مع انتهاء العداد</Text>
           ) : (
             <>
               {!!res && (
@@ -528,7 +582,7 @@ export default function RouletteScreen() {
                   </Text>
                 </View>
               )}
-              <GoldButton title="جولة جديدة" onPress={newRound} />
+              {rouletteRoom?.phase === 'result' && <Text style={styles.autoText}>جولة جديدة خلال ثوانٍ…</Text>}
             </>
           )}
         </View>
@@ -921,5 +975,75 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.ar.semibold,
     fontSize: TYPE.small.fontSize,
     color: '#FFFFFF',
+  },
+
+  stakeRow: {
+    flexDirection: 'row-reverse',
+    gap: SPACING.sm,
+    paddingHorizontal: SPACING.lg,
+    marginTop: SPACING.xs,
+  },
+  stakeTab: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: SPACING.sm,
+    borderRadius: RADIUS.sm,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+  },
+  stakeTabActive: {
+    borderColor: COLORS.gold,
+    backgroundColor: 'rgba(201,169,97,0.10)',
+  },
+  stakeTabText: {
+    fontFamily: FONTS.ar.medium,
+    fontSize: TYPE.caption.fontSize,
+    color: COLORS.textDim,
+  },
+  stakeTabTextActive: {
+    color: COLORS.goldLight,
+  },
+  countdownText: {
+    fontFamily: FONTS.num.bold,
+    fontSize: TYPE.body.fontSize,
+    color: COLORS.goldLight,
+    textAlign: 'center',
+    marginTop: SPACING.sm,
+  },
+  spinNotice: {
+    fontFamily: FONTS.ar.bold,
+    fontSize: TYPE.body.fontSize,
+    color: COLORS.goldLight,
+    textAlign: 'center',
+    marginTop: SPACING.sm,
+  },
+  winnersLine: {
+    fontFamily: FONTS.ar.medium,
+    fontSize: TYPE.caption.fontSize,
+    color: COLORS.emerald,
+    textAlign: 'center',
+    marginTop: SPACING.sm,
+    paddingHorizontal: SPACING.lg,
+  },
+  autoText: {
+    fontFamily: FONTS.ar.regular,
+    fontSize: TYPE.small.fontSize,
+    color: COLORS.textDim,
+    textAlign: 'center',
+  },
+  cellOthers: {
+    position: 'absolute',
+    bottom: 3,
+    right: 3,
+    backgroundColor: 'rgba(201,169,97,0.92)',
+    borderRadius: 6,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+  },
+  cellOthersText: {
+    fontFamily: FONTS.num.bold,
+    fontSize: 9,
+    color: '#1A1206',
   },
 });
