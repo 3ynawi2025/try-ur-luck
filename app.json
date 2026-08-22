@@ -10,7 +10,7 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.jarebhazzak.app",
+      "bundleIdentifier": "com.al3ynawi.jarebhazzak",
       "infoPlist": {
         "NSMicrophoneUsageDescription": "يحتاج التطبيق إذن المايك للدردشة الصوتية داخل الطاولات",
         "NSLocalNetworkUsageDescription": "يحتاج التطبيق الوصول إلى الشبكة المحلية للاتصال بخادم اللعبة",
