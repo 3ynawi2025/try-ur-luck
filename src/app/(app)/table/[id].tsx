@@ -127,7 +127,7 @@ function Seat({
   const allIn = player.status === 'all_in';
 
   const isFriend = useFriendsStore((s) => s.isFriend(player.id));
-  const addFriend = useFriendsStore((s) => s.addFriendDirectly);
+  const sendFriendRequest = useFriendsStore((s) => s.sendRequest);
 
   // نبض حلقة الفائز
   const winPulse = useRef(new Animated.Value(0)).current;
@@ -206,11 +206,8 @@ function Seat({
           onPress={() => {
             if (isFriend) return;
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-            addFriend({
-              id: player.id,
-              username: player.id,
-              displayName: player.name,
-              status: 'in_game',
+            sendFriendRequest(player.id, player.name).catch(() => {
+              /* تجاهل — قد يكونون أصدقاء بالفعل */
             });
           }}
           hitSlop={6}
@@ -306,6 +303,12 @@ export default function PokerTableScreen() {
       }
     });
     const offNotice = on<{ text: string }>('table:notice', (d) => setNotice(d.text));
+    const offClosed = on<{ message?: string }>('table:closed', (d) => {
+      setNotice(d?.message ?? 'أُغلقت الطاولة من قبل منشئها');
+      setTimeout(() => {
+        router.back();
+      }, 2000);
+    });
     const offVoice = on<{ appId: string; channelName: string; token: string }>(
       'voice:token',
       (d) => joinChannel(d.appId || AGORA_APP_ID, d.channelName, d.token)
@@ -316,6 +319,7 @@ export default function PokerTableScreen() {
       offSeat();
       offError();
       offNotice();
+      offClosed();
       offVoice();
     };
   }, [on, joinChannel]);

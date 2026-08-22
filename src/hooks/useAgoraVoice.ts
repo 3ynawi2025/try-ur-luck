@@ -53,18 +53,24 @@ export function useAgoraVoice() {
       engine.initialize({ appId });
       engine.setChannelProfile(ChannelProfileType.ChannelProfileCommunication);
       engine.setClientRole(ClientRoleType.ClientRoleBroadcaster);
+      // المسار الافتراضي: السماعة الخارجية (قبل تمكين الصوت)
+      engine.setDefaultAudioRouteToSpeakerphone(true);
       engine.enableAudio();
-      // الصوت عبر السماعة الخارجية (Speaker) لا سماعة الأذن
-      engine.setEnableSpeakerphone(true);
       engine.enableAudioVolumeIndication(500, 3, false);
 
       // إشعارات الأخطاء بدل الفشل الصامت
       engine.addListener('onError', (err: any) => {
         setJoinError(`تعذر الاتصال الصوتي (${String(err?.code ?? err)})`);
       });
-      engine.addListener('onJoinChannelSuccess', () => setJoinError(null));
+      engine.addListener('onJoinChannelSuccess', () => {
+        setJoinError(null);
+        // بعد الانضمام الناجح: أعد توجيه الصوت للسماعة الخارجية
+        engine.setEnableSpeakerphone(true);
+      });
 
       engine.joinChannel(token, channelName, 0, {});
+      // بعد أمر الانضمام مباشرة (يفعّلها SDK بعد الانضمام)
+      engine.setEnableSpeakerphone(true);
       engine.muteLocalAudioStream(true); // mute افتراضيًا
 
       setIsJoined(true);
@@ -75,8 +81,11 @@ export function useAgoraVoice() {
 
   const leaveChannel = useCallback(async () => {
     if (engineRef) {
+      // إسكات المايك أولًا ثم مغادرة القناة — ضمان عدم بقاء أي إرسال
+      engineRef.muteLocalAudioStream(true);
       engineRef.leaveChannel();
       setIsJoined(false);
+      setIsMuted(true);
     }
   }, []);
 

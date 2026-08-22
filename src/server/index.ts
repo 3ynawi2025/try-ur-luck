@@ -16,6 +16,12 @@ import cors from 'cors';
 import apiRouter from './api/router';
 import { setupGameHandlers, getTableStats } from './game/gameServer';
 import { setupSoloGameHandlers, getSoloStats } from './game/soloGames';
+import {
+  markUserOnline,
+  markUserOffline,
+  markSocketConnected,
+  markSocketDisconnected,
+} from './lib/presence';
 import { verifyUserToken } from './lib/supabaseAdmin';
 
 const app = express();
@@ -135,6 +141,17 @@ app.use('/api', apiRouter);
 // Setup game handlers
 setupGameHandlers(io);
 setupSoloGameHandlers(io);
+
+// ===== تتبع الحضور الحي (من متصل) =====
+io.on('connection', (socket) => {
+  markSocketConnected();
+  const uid = socket.data.userId as string | undefined;
+  if (uid) markUserOnline(uid);
+  socket.on('disconnect', () => {
+    markSocketDisconnected();
+    if (uid) markUserOffline(uid);
+  });
+});
 
 // 404 بتنسيق JSON + معالج أخطاء
 app.use((_req, res) => {

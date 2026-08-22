@@ -10,6 +10,9 @@ import { secureRandomInt } from '../game/deck';
 import { hashTablePassword } from '../lib/tablePassword';
 import { getTierInfo, activateGold } from '../lib/tier';
 import { applyBalanceDelta } from '../lib/playerPersistence';
+import { getLiveSoloCounts, getSoloStats } from '../game/soloGames';
+import { getHoldemCounts, getTableStats } from '../game/gameServer';
+import { isUserOnline, onlineUsersCount, totalSocketCount } from '../lib/presence';
 import { SupabaseClient } from '@supabase/supabase-js';
 
 const router = Router();
@@ -344,7 +347,129 @@ router.get('/users/search', authenticate, async (req: Request, res: Response) =>
     return res.status(500).json({ error: 'SEARCH_FAILED' });
   }
 
-  return res.json(data ?? []);
+  // حالة الاتصال الحية لكل نتيجة
+  const withPresence = (data ?? []).map((u: any) => ({
+    ...u,
+    online: isUserOnline(String(u.id)),
+  }));
+  return res.json(withPresence);
+});
+
+// ============================================================
+// الأصدقاء (طلبات وعلاقات حقيقية عبر قاعدة البيانات)
+// ============================================================
+
+// قائمة أصدقائي مع حالة الاتصال
+router.get('/friends', authenticate, async (req: Request, res: Response) => {
+  const admin = getAdmin();
+  const { data, error } = await admin
+    .from('friendships')
+    .select('friend_id, profiles!friendships_friend_id_fkey(id, username, display_name, avatar_url, tier)')
+    .eq('user_id', req.user!.id);
+
+  if (error) return res.status(500).json({ error: error.message });
+  const friends = (data ?? []).map((f: any) => {
+    const p = f.profiles;
+    return {
+      id: p?.id,
+      username: p?.username ?? '',
+      displayName: p?.display_name ?? '',
+      avatarUrl: p?.avatar_url ?? null,
+      tier: p?.tier ?? 'regular',
+      online: isUserOnline(String(p?.id ?? '')),
+    };
+  });
+  return res.json(friends);
+});
+
+// طلبات الصداقة الواردة (معلقة)
+router.get('/friends/requests', authenticate, async (req: Request, res: Response) => {
+  const admin = getAdmin();
+  const { data, error } = await admin
+    .from('friend_requests')
+    .select('id, sender_id, created_at, profiles!friend_requests_sender_id_fkey(username, display_name, avatar_url)')
+    .eq('receiver_id', req.user!.id)
+    .eq('status', 'pending')
+    .order('created_at', { ascending: false });
+
+  if (error) return res.status(500).json({ error: error.message });
+  return res.json(
+    (data ?? []).map((r: any) => ({
+      id: r.id,
+      username: r.profiles?.username ?? '',
+      displayName: r.profiles?.display_name ?? '',
+      avatarUrl: r.profiles?.avatar_url ?? null,
+    }))
+  );
+});
+
+// إرسال طلب صداقة (المرسِل من auth.uid داخل الدالة — لا يمكن انتحال غيره)
+// يقبل اسم المستخدم أو معرّف المستخدم مباشرة (من الطاولة نعرف المعرّف فقط)
+router.post('/friends/request', authenticate, async (req: Request, res: Response) => {
+  const username = String(req.body?.username ?? '').replace(/^@/, '').trim().toLowerCase();
+  const userId = String(req.body?.user_id ?? '').trim();
+
+  if (!/^[a-z0-9_]{3,20}$/.test(username) && !/^[0-9a-f-]{36}$/.test(userId)) {
+    return res.status(400).json({ error: 'INVALID_TARGET' });
+  }
+  const admin = getAdmin();
+  let query = admin.from('profiles').select('id');
+  if (/^[0-9a-f-]{36}$/.test(userId)) query = query.eq('id', userId);
+  else query = query.eq('username', username);
+  const { data: target } = await query.single();
+  if (!target) return res.status(404).json({ error: 'USER_NOT_FOUND' });
+
+  const { error } = await admin.rpc('send_friend_request', { to_user: target.id });
+  if (error) {
+    // رسائل الدالة العربية: علاقة سابقة / إضافة النفس / طلب معلق
+    return res.status(400).json({ error: 'REQUEST_FAILED', message: String(error.message) });
+  }
+  return res.json({ ok: true });
+});
+
+// قبول طلب صداقة (RPC محمية: المستقبِل فقط)
+router.post('/friends/accept', authenticate, async (req: Request, res: Response) => {
+  const requestId = String(req.body?.request_id ?? '');
+  if (!requestId) return res.status(400).json({ error: 'REQUEST_ID_REQUIRED' });
+  const { error } = await getAdmin().rpc('accept_friend_request', { request_id: requestId });
+  if (error) return res.status(400).json({ error: 'ACCEPT_FAILED', message: String(error.message) });
+  return res.json({ ok: true });
+});
+
+// رفض طلب صداقة (المستقبِل فقط)
+router.post('/friends/reject', authenticate, async (req: Request, res: Response) => {
+  const requestId = String(req.body?.request_id ?? '');
+  if (!requestId) return res.status(400).json({ error: 'REQUEST_ID_REQUIRED' });
+  const { error } = await getAdmin()
+    .from('friend_requests')
+    .update({ status: 'declined', responded_at: new Date().toISOString() })
+    .eq('id', requestId)
+    .eq('receiver_id', req.user!.id);
+  if (error) return res.status(400).json({ error: 'REJECT_FAILED', message: error.message });
+  return res.json({ ok: true });
+});
+
+// إزالة صديق (الاتجاهان)
+router.post('/friends/remove', authenticate, async (req: Request, res: Response) => {
+  const friendId = String(req.body?.friend_id ?? '');
+  if (!friendId) return res.status(400).json({ error: 'FRIEND_ID_REQUIRED' });
+  const admin = getAdmin();
+  const { error } = await admin
+    .from('friendships')
+    .delete()
+    .or(`and(user_id.eq.${req.user!.id},friend_id.eq.${friendId}),and(user_id.eq.${friendId},friend_id.eq.${req.user!.id})`);
+  if (error) return res.status(400).json({ error: 'REMOVE_FAILED', message: error.message });
+  return res.json({ ok: true });
+});
+
+// إحصاءات حية للوحة المدير (متصلون + طاولات + جلسات)
+router.get('/admin/stats', authenticate, requireAdmin, async (_req: Request, res: Response) => {
+  res.json({
+    onlineUsers: onlineUsersCount(),
+    sockets: totalSocketCount(),
+    tables: getTableStats(),
+    soloSessions: getSoloStats().sessions,
+  });
 });
 
 // الحصول على بروفايل المستخدم الحالي
@@ -371,6 +496,21 @@ router.get('/tables', authenticate, async (_req: Request, res: Response) => {
 
   if (error) return res.status(500).json({ error: error.message });
   return res.json(data);
+});
+
+// الطاولات الثابتة الحية (أرضية اللعب) + عدادات الجالسين الفعليين
+router.get('/live-tables', async (_req: Request, res: Response) => {
+  const solo = getLiveSoloCounts();
+  const holdem = getHoldemCounts();
+  res.json([
+    { id: 'bj-1', game_type: 'blackjack', name: 'بلاك جاك — طاولة مشتركة', min_bet: 50, players: solo['solo:blackjack:bj-1'] ?? 0, maxPlayers: 6, route: '/(app)/blackjack/1' },
+    { id: 'tc-1', game_type: 'three_card', name: 'ثلاث أوراق بوكر', min_bet: 50, players: solo['solo:three-card:tc-1'] ?? 0, maxPlayers: 6, route: '/(app)/three-card/1' },
+    { id: 'ru-1', game_type: 'russian', name: 'البوكر الروسي', min_bet: 50, players: solo['solo:russian:ru-1'] ?? 0, maxPlayers: 6, route: '/(app)/russian/1' },
+    { id: 'ro-1', game_type: 'roulette', name: 'روليت — منخفضة (10+)', min_bet: 10, players: solo['solo:roulette:ro-1'] ?? 0, maxPlayers: 50, route: '/(app)/roulette/1' },
+    { id: 'ro-2', game_type: 'roulette', name: 'روليت — متوسطة (50+)', min_bet: 50, players: solo['solo:roulette:ro-2'] ?? 0, maxPlayers: 50, route: '/(app)/roulette/2' },
+    { id: 'ro-3', game_type: 'roulette', name: 'روليت — عالية (200+)', min_bet: 200, players: solo['solo:roulette:ro-3'] ?? 0, maxPlayers: 50, route: '/(app)/roulette/3' },
+    { id: 'table-1', game_type: 'texas_holdem', name: 'تكساس هولدم — الطاولة العامة', min_bet: 500, players: holdem['table-1'] ?? 0, maxPlayers: 6, route: '/(app)/table/1' },
+  ]);
 });
 
 // إنشاء طاولة خاصة
@@ -404,6 +544,7 @@ router.post('/tables', authenticate, async (req: Request, res: Response) => {
       min_buy_in: buyIn,
       is_private: Boolean(is_private),
       password: hashedPassword,
+      host_id: req.user!.id,
     })
     .select()
     .single();
@@ -513,8 +654,8 @@ router.get('/majlis', authenticate, async (req: Request, res: Response) => {
   return res.json(data ?? []);
 });
 
-// إنشاء مجلس (خاصة برمز 6 أرقام — عامة بلا رمز)
-router.post('/majlis', authenticate, async (req: Request, res: Response) => {
+// إنشاء مجلس — حصري لمدير اللعبة (خاصة برمز 6 أرقام — عامة بلا رمز)
+router.post('/majlis', authenticate, requireAdmin, async (req: Request, res: Response) => {
   const name = String(req.body?.name ?? '').trim().slice(0, 40);
   if (!name) return res.status(400).json({ error: 'MAJLIS_NAME_REQUIRED' });
   const isPrivate = Boolean(req.body?.is_private);

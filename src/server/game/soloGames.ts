@@ -41,6 +41,13 @@ export function getSoloStats(): { sessions: number } {
   return { sessions: sessions.size };
 }
 
+/** أحجام الغرف الحية للألعاب الفردية (مفتاح الغرفة -> عدد الجالسين). */
+export function getLiveSoloCounts(): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const [key, room] of soloTables) out[key] = room.size;
+  return out;
+}
+
 // ===== طاولات فردية مشتركة: حتى 6 لاعبين على نفس الطاولة =====
 // البلاك جاك: محرك مشترك لكل الطاولة — ديلر واحد وكل اللاعبين يرون بعضهم.
 // باقي الألعاب: مقاعد مشتركة (حضور + صوت) مع محرك مستقل لكل لاعب.
@@ -50,11 +57,20 @@ interface SoloSeat {
   userId: string | null;
   startBalance: number;
   leaving?: boolean;
+  leaveAt?: number; // موعد الطرد النهائي للغائب (بلاك جاك: 3 دقائق)
+  skipRound?: boolean; // جلس خارج الجولة الحالية لعدم الرهان
+  // إعادة الرهان التلقائي في الروليت (آخر رهانات الجولة السابقة)
+  lastBets: RouletteBet[];
+  autoRebet: boolean;
 }
 
 interface SoloRoomMeta {
   lastPhase: string;
   insuranceResponded: Set<string>;
+  // عداد بدء البلاك جاك: 30 ثانية من أول رهان — من لم يراهن يجلس خارج الجولة
+  bjTimer: NodeJS.Timeout | null;
+  bjCountdown: number;
+  afkTimer: NodeJS.Timeout | null;
 }
 
 const soloTables = new Map<string, Map<string, SoloSeat>>(); // solo:<game>:<tableId> -> socketId -> مقعد
@@ -94,10 +110,24 @@ function soloRoomKey(game: SoloGameKind, tableId: string): string {
 function getRoomMeta(key: string): SoloRoomMeta {
   let meta = soloRoomMeta.get(key);
   if (!meta) {
-    meta = { lastPhase: 'betting', insuranceResponded: new Set() };
+    meta = { lastPhase: 'betting', insuranceResponded: new Set(), bjTimer: null, bjCountdown: 0, afkTimer: null };
     soloRoomMeta.set(key, meta);
   }
   return meta;
+}
+
+/** إيقاف مؤقتات الغرفة قبل حذفها. */
+function clearRoomTimers(key: string) {
+  const meta = soloRoomMeta.get(key);
+  if (meta?.bjTimer) {
+    clearInterval(meta.bjTimer);
+    meta.bjTimer = null;
+  }
+  const rState = rouletteRooms.get(key);
+  if (rState?.timer) {
+    clearInterval(rState.timer);
+    rState.timer = null;
+  }
 }
 
 function broadcastSoloPlayers(io: Server, key: string, room: Map<string, SoloSeat>) {
@@ -128,19 +158,117 @@ async function settleSharedBlackjack(io: Server, key: string, engine: BlackjackE
     seat.startBalance = newBalance;
   }
 
-  // حذف المغادرين خلال الجولة بعد تسوية أرصدتهم
-  const leaving = Array.from(room.entries()).filter(([, s]) => s.leaving);
+  // حذف المغادرين بعد تسوية أرصدتهم (المغادرة الصريحة فورًا، والمنقطع بعد انتهاء مهلة 3 دقائق)
+  const now = Date.now();
+  const leaving = Array.from(room.entries()).filter(
+    ([, s]) => s.leaving && (!s.leaveAt || now >= s.leaveAt)
+  );
   for (const [sid, seat] of leaving) {
     engine.removePlayer(seat.id);
     room.delete(sid);
+    sessions.delete(sid);
   }
   if (room.size === 0) {
+    clearRoomTimers(key);
     soloTables.delete(key);
     blackjackRooms.delete(key);
     soloRoomMeta.delete(key);
     return;
   }
-  broadcastSoloPlayers(io, key, room);
+  // إعادة من لم يراهنوا (جلسوا خارج الجولة) ليشاركوا الجولة القادمة
+  const reAdd: SoloSeat[] = [];
+  for (const seat of room.values()) {
+    if (seat.skipRound && !seat.leaving) {
+      seat.skipRound = false;
+      engine.addPlayer(seat.id, seat.name, Math.round(seat.startBalance));
+      reAdd.push(seat);
+    }
+  }
+  if (reAdd.length > 0) broadcastSoloPlayers(io, key, room);
+}
+
+// ===== عداد بدء البلاك جاك: 30 ثانية من أول رهان — من لم يراهن يجلس خارج الجولة (لا يُطرد) =====
+
+function startBlackjackCountdown(io: Server, key: string, engine: BlackjackEngine, room: Map<string, SoloSeat>) {
+  const meta = getRoomMeta(key);
+  if (meta.bjTimer) return; // العداد يعمل بالفعل
+  let remain = 30;
+  meta.bjCountdown = remain;
+  io.to(key).emit('solo:countdown', { seconds: remain });
+  meta.bjTimer = setInterval(() => {
+    remain -= 1;
+    const snap = engine.snapshot();
+    const waiting = snap.players.filter((p) => p.currentBet === 0);
+    if (waiting.length === 0) {
+      // الجميع راهنوا — ابدأ فورًا
+      if (meta.bjTimer) clearInterval(meta.bjTimer);
+      meta.bjTimer = null;
+      meta.bjCountdown = 0;
+      if (snap.phase === 'betting') {
+        const r = engine.startRound();
+        io.to(key).emit('solo:state', 'error' in r ? engine.snapshot() : r);
+      }
+      return;
+    }
+    if (remain <= 0) {
+      if (meta.bjTimer) clearInterval(meta.bjTimer);
+      meta.bjTimer = null;
+      meta.bjCountdown = 0;
+      // من لم يراهن يجلس خارج هذه الجولة (يبقى على الطاولة) — لا يُطرد
+      const skipIds = waiting.map((p) => p.id);
+      for (const p of waiting) {
+        const seat = Array.from(room.values()).find((s) => s.id === p.id);
+        if (seat) seat.skipRound = true;
+        engine.removePlayer(p.id);
+      }
+      io.to(key).emit('solo:countdown', { seconds: 0 });
+      const s2 = engine.snapshot();
+      const r = s2.players.length > 0 && s2.phase === 'betting' ? engine.startRound() : s2;
+      io.to(key).emit('solo:state', 'error' in r ? s2 : r);
+      if (skipIds.length > 0) {
+        // إشعار الجالسين خارج الجولة
+        io.to(key).emit('solo:notice', { text: 'انتهى وقت الرهان — من لم يراهن يجلس خارج هذه الجولة' });
+      }
+      return;
+    }
+    meta.bjCountdown = remain;
+    io.to(key).emit('solo:countdown', { seconds: remain });
+  }, 1000);
+}
+
+// ===== طرد الغائب: يبقى مقعد المنقطع 3 دقائق ثم يُحذف إن لم يعد =====
+const BLACKJACK_AFK_MS = 3 * 60 * 1000;
+
+function scheduleBlackjackAfkSweep(io: Server, key: string) {
+  const meta = getRoomMeta(key);
+  if (meta.afkTimer) return;
+  meta.afkTimer = setTimeout(() => {
+    meta.afkTimer = null;
+    const room = soloTables.get(key);
+    const engine = blackjackRooms.get(key);
+    if (!room || !engine) return;
+    const now = Date.now();
+    let removed = false;
+    for (const [sid, seat] of Array.from(room.entries())) {
+      if (seat.leaving && seat.leaveAt && now >= seat.leaveAt && !io.sockets.sockets.has(sid)) {
+        engine.removePlayer(seat.id);
+        room.delete(sid);
+        sessions.delete(sid);
+        removed = true;
+      }
+    }
+    if (removed) {
+      broadcastSoloPlayers(io, key, room);
+      if (room.size === 0) {
+        clearRoomTimers(key);
+        soloTables.delete(key);
+        blackjackRooms.delete(key);
+        soloRoomMeta.delete(key);
+        return;
+      }
+      scheduleBlackjackAfkSweep(io, key);
+    }
+  }, BLACKJACK_AFK_MS);
 }
 
 // ===== الروليت المشترك: دورة موقّتة (رهان 30 ثانية → دوران → نتيجة) =====
@@ -160,16 +288,35 @@ function startRouletteBetting(io: Server, key: string, state: RouletteRoomState)
   state.endsAt = Date.now() + ROULETTE_BET_SECONDS * 1000;
   broadcastRouletteRoom(io, key, state);
 
-  // إعادة فتح محركات كل الجالسين لجولة رهان جديدة
+  // إعادة فتح محركات كل الجالسين لجولة رهان جديدة + إعادة الرهان التلقائي
   const room = soloTables.get(key);
   if (room) {
-    for (const [sid] of room) {
+    for (const [sid, seat] of room) {
       const session = sessions.get(sid);
       if (session && isRoulette(session.engine)) {
         session.engine.newRound();
+        // إعادة الرهان السابق تلقائيًا (فقط للمتصلين — المقعد الموجود = متصل)
+        if (seat.autoRebet && seat.lastBets.length > 0) {
+          let failed = false;
+          for (const b of seat.lastBets) {
+            const err = session.engine.placeBet(b.type, b.numbers, b.amount);
+            if (err) {
+              failed = true;
+              break;
+            }
+          }
+          if (failed) {
+            seat.autoRebet = false;
+            io.sockets.sockets.get(sid)?.emit('roulette:auto', {
+              enabled: false,
+              reason: 'رصيد غير كافٍ — توقف إعادة الرهان',
+            });
+          }
+        }
         io.sockets.sockets.get(sid)?.emit('solo:state', session.engine.snapshot());
       }
     }
+    broadcastRouletteBets(io, key, room);
   }
 
   if (state.timer) clearInterval(state.timer);
@@ -207,6 +354,8 @@ async function settleRouletteRound(io: Server, key: string, state: RouletteRoomS
     const session = sessions.get(sid);
     if (!session || !isRoulette(session.engine)) continue;
     const e = session.engine;
+    // احفظ رهانات هذه الجولة لإعادة الرهان التلقائي
+    seat.lastBets = e.snapshot().bets.map((b) => ({ ...b, numbers: [...b.numbers] }));
     const didSpin = e.spinWithResult(num);
     if (!didSpin) continue;
     const after = e.snapshot();
@@ -233,6 +382,23 @@ async function settleRouletteRound(io: Server, key: string, state: RouletteRoomS
 
   // إعلان عام للطاولة (الفائزون + الرقم)
   io.to(key).emit('roulette:winners', { number: num, winners });
+
+  // حذف المغادرين بعد تسوية دورتهم (لا يخسرون رهاناتهم)
+  let removedLeaving = false;
+  for (const [sid, seat] of Array.from(room.entries())) {
+    if (seat.leaving) {
+      room.delete(sid);
+      sessions.delete(sid);
+      removedLeaving = true;
+    }
+  }
+  if (removedLeaving) broadcastSoloPlayers(io, key, room);
+  if (room.size === 0) {
+    clearRoomTimers(key);
+    soloTables.delete(key);
+    rouletteRooms.delete(key);
+    return;
+  }
 
   // بعد عرض النتيجة: دورة رهان جديدة
   if (state.timer) clearTimeout(state.timer);
@@ -550,7 +716,30 @@ export function setupSoloGameHandlers(io: Server) {
           if (isBlackjack(engine)) engine.addPlayer(playerId, name, balance);
         }
 
-        room.set(socket.id, { id: playerId, name, userId, startBalance: balance });
+        // عودة لاعب غائب (بلاك جاك): استعد مقعده القديم — المحرك ما زال يحتفظ به
+        // ونقل startBalance الحقيقي (لا رصيد DB الجديد) حتى تبقى التسوية صحيحة
+        let restoredStartBalance: number | null = null;
+        if (shared) {
+          for (const [oldSid, oldSeat] of Array.from(room.entries())) {
+            if (oldSeat.id === playerId && oldSeat.leaving && oldSid !== socket.id) {
+              restoredStartBalance = oldSeat.startBalance;
+              oldSeat.leaving = false;
+              oldSeat.leaveAt = undefined;
+              room.delete(oldSid);
+              sessions.delete(oldSid);
+              break;
+            }
+          }
+        }
+
+        room.set(socket.id, {
+          id: playerId,
+          name,
+          userId,
+          startBalance: restoredStartBalance ?? balance,
+          lastBets: [],
+          autoRebet: false,
+        });
 
         const session: SoloSession = {
           game,
@@ -611,6 +800,14 @@ export function setupSoloGameHandlers(io: Server) {
         // ===== روليت مشترك: رهان مقفول خارج النافذة، والدوران تلقائي =====
         if (isRoulette(session.engine)) {
           const rState = rouletteRooms.get(session.roomKey);
+          // تفعيل/إيقاف إعادة الرهان التلقائي
+          if (action === 'autoRebet') {
+            const seat = soloTables.get(session.roomKey)?.get(socket.id);
+            if (!seat) return;
+            seat.autoRebet = Boolean(data.enabled);
+            socket.emit('roulette:auto', { enabled: seat.autoRebet });
+            return;
+          }
           if (action === 'spin') {
             socket.emit('error', { message: 'الدوران تلقائي كل ٣٠ ثانية — لا زر يدوي' });
             return;
@@ -652,8 +849,8 @@ export function setupSoloGameHandlers(io: Server) {
               return;
             }
             meta.insuranceResponded.add(session.playerId);
-            // الجميع ردّوا؟ → أنهِ التأمين وواصل الجولة
-            if (room && meta.insuranceResponded.size >= room.size) {
+            // الجميع ردّوا؟ (بحسب لاعبي المحرك الفعليين) → أنهِ التأمين
+            if (room && meta.insuranceResponded.size >= e.snapshot().players.length) {
               const r = e.finishInsurance();
               if ('error' in r) {
                 socket.emit('error', { message: r.error });
@@ -663,20 +860,33 @@ export function setupSoloGameHandlers(io: Server) {
           } else {
             const result = applyAction(session, action, data ?? {});
             if (result.error) {
-              socket.emit('error', { message: result.error });
-              return;
+              // 'bet' مع بقاء لاعبين لم يراهنوا: ابدأ عداد الـ30 ثانية بدل الخطأ
+              const snapNow = e.snapshot();
+              const meNow = snapNow.players.find((p) => p.id === session.playerId);
+              if (action === 'bet' && snapNow.phase === 'betting' && meNow && meNow.currentBet > 0) {
+                startBlackjackCountdown(io, session.roomKey, e, room ?? new Map());
+              } else {
+                socket.emit('error', { message: result.error });
+                return;
+              }
             }
           }
 
           const snap = snapshotOf(session) as BlackjackSnapshot;
           io.to(session.roomKey).emit('solo:state', snap);
           // نهاية الجولة (عادت لمرحلة الرهان) → تسوية أرصدة الجميع
-          if (snap.phase === 'betting' && meta.lastPhase !== 'betting') {
-            meta.lastPhase = 'betting';
-            meta.insuranceResponded.clear();
-            void settleSharedBlackjack(io, session.roomKey, e);
+          if (snap.phase === 'betting') {
+            if (meta.lastPhase !== 'betting') {
+              meta.lastPhase = 'betting';
+              meta.insuranceResponded.clear();
+              void settleSharedBlackjack(io, session.roomKey, e);
+            }
           } else {
             meta.lastPhase = snap.phase;
+            if (meta.bjTimer) {
+              clearInterval(meta.bjTimer);
+              meta.bjTimer = null;
+            }
           }
           return;
         }
@@ -698,69 +908,93 @@ export function setupSoloGameHandlers(io: Server) {
     );
 
     // مغادرة/انقطاع: إزالة المقعد + إشعار الباقين
-    const removeSoloSeat = (sid: string) => {
+    const removeSoloSeat = (sid: string, explicit = false) => {
       const session = sessions.get(sid);
-      sessions.delete(sid);
       if (!session) return;
 
       const room = soloTables.get(session.roomKey);
       const seat = room?.get(sid);
-      if (!room || !seat) return;
+      if (!room || !seat) {
+        sessions.delete(sid);
+        return;
+      }
 
       // بلاك جاك مشترك: لا تكسر الجولة الجارية
       if (session.shared && isBlackjack(session.engine)) {
         const e = session.engine;
         const snap = e.snapshot();
-        if (snap.phase === 'playing') {
-          if (snap.currentPlayerId === seat.id) e.performAction(seat.id, 'stand', 0);
-          // يؤجَّل حذفه من المحرك حتى نهاية الجولة (تسوية أرصدة الجميع)
-          seat.leaving = true;
-          seat.startBalance = snap.players.find((p) => p.id === seat.id)?.balance ?? seat.startBalance;
-          broadcastSoloPlayers(io, session.roomKey, room);
-          return;
+        // إن كان دوره: وقوف تلقائي حتى لا تتعطل الجولة
+        if ((snap.phase === 'playing' && snap.currentPlayerId === seat.id)) {
+          e.performAction(seat.id, 'stand', 0);
         }
         if (snap.phase === 'insurance') {
           e.declineInsurance(seat.id);
           const meta = getRoomMeta(session.roomKey);
           meta.insuranceResponded.add(seat.id);
-          if (meta.insuranceResponded.size >= room.size) {
+          if (meta.insuranceResponded.size >= e.snapshot().players.length) {
             e.finishInsurance();
             const s2 = e.snapshot();
             io.to(session.roomKey).emit('solo:state', s2);
             if (s2.phase === 'betting') {
               meta.lastPhase = 'betting';
               void settleSharedBlackjack(io, session.roomKey, e);
-              return;
             }
           }
-          // يكمل حذفه بعد الجولة
+        }
+
+        if (explicit) {
+          // مغادرة صريحة: إزالة فورية (تُحذف من المحرك نهاية الجولة إن كانت جارية)
+          if (snap.phase === 'betting' || snap.phase === 'complete') {
+            e.removePlayer(seat.id);
+            sessions.delete(sid);
+            room.delete(sid);
+            broadcastSoloPlayers(io, session.roomKey, room);
+          } else {
+            seat.leaving = true;
+            seat.leaveAt = Date.now(); // يُحذف في أول تسوية
+            broadcastSoloPlayers(io, session.roomKey, room);
+            return;
+          }
+        } else {
+          // انقطاع: يبقى المقعد 3 دقائق — إن عاد يُستعاد، وإلا يُطرد
           seat.leaving = true;
+          seat.leaveAt = Date.now() + BLACKJACK_AFK_MS;
+          sessions.delete(sid); // جلسته الحالية تنتهي، لكن المقعد والمحرك يبقيان
           broadcastSoloPlayers(io, session.roomKey, room);
+          scheduleBlackjackAfkSweep(io, session.roomKey);
           return;
         }
-        // بين الجولات: حذف فوري آمن
-        e.removePlayer(seat.id);
       }
 
+      // روليت: رهان قائم أو دورة جارية → تبقى دورته حتى التسوية (لا يخسر رهانه)
+      if (isRoulette(session.engine)) {
+        const rState = rouletteRooms.get(session.roomKey);
+        const hasBets = session.engine.snapshot().bets.length > 0;
+        const midRound = rState && (rState.phase === 'spinning' || rState.phase === 'result');
+        if (midRound || hasBets) {
+          seat.leaving = true;
+          sessions.delete(sid);
+          return; // تُحذف في نهاية التسوية
+        }
+      }
+
+      sessions.delete(sid);
       room.delete(sid);
       broadcastSoloPlayers(io, session.roomKey, room);
       if (room.size === 0) {
+        clearRoomTimers(session.roomKey);
         soloTables.delete(session.roomKey);
         blackjackRooms.delete(session.roomKey);
         soloRoomMeta.delete(session.roomKey);
-        const rState = rouletteRooms.get(session.roomKey);
-        if (rState) {
-          if (rState.timer) clearInterval(rState.timer);
-          rouletteRooms.delete(session.roomKey);
-        }
+        rouletteRooms.delete(session.roomKey);
       }
     };
 
-    socket.on('solo:leave', () => removeSoloSeat(socket.id));
+    socket.on('solo:leave', () => removeSoloSeat(socket.id, true));
 
     socket.on('disconnect', () => {
       console.log('🎰 Solo player disconnected:', socket.id);
-      removeSoloSeat(socket.id);
+      removeSoloSeat(socket.id, false);
     });
   });
 }

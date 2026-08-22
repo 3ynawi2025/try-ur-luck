@@ -3,7 +3,7 @@
 // بحث عن لاعب + طلبات صداقة واردة + قائمة الأصدقاء
 // ============================================================
 
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -218,6 +218,11 @@ function ChatModal({ friend, onClose }: { friend: FriendProfile; onClose: () => 
 export default function FriendsScreen() {
   const [tab, setTab] = useState<Tab>('search');
   const [query, setQuery] = useState('');
+  const [errMsg, setErrMsg] = useState<string | null>(null);
+  const showError = (m: string) => {
+    setErrMsg(m);
+    setTimeout(() => setErrMsg(null), 3500);
+  };
   const [activeChat, setActiveChat] = useState<FriendProfile | null>(null);
 
   const {
@@ -231,7 +236,13 @@ export default function FriendsScreen() {
     removeFriend,
     hasPendingOutgoing,
     searching,
+    loadFriends,
   } = useFriendsStore();
+
+  // جلب الأصدقاء والطلبات الحقيقية عند فتح الشاشة
+  useEffect(() => {
+    loadFriends();
+  }, [loadFriends]);
 
   const handleSearch = (text: string) => {
     setQuery(text);
@@ -242,6 +253,13 @@ export default function FriendsScreen() {
 
   return (
     <Screen>
+      {/* ===== تنبيه خطأ مؤقت ===== */}
+      {!!errMsg && (
+        <View style={styles.errToast} pointerEvents="none">
+          <Text style={styles.errToastText}>{errMsg}</Text>
+        </View>
+      )}
+
       {/* ===== العنوان ===== */}
       <View style={styles.header}>
         <Text style={styles.title}>الأصدقاء</Text>
@@ -317,7 +335,7 @@ export default function FriendsScreen() {
                           ) : pending ? (
                             <Badge label="بانتظار الموافقة" tone="neutral" />
                           ) : (
-                            <FriendActionButton active onPress={() => sendRequest(p.id)}>
+                            <FriendActionButton active onPress={() => sendRequest(p.id, p.username).catch((e) => showError((e as Error).message || 'تعذر الإرسال'))}>
                               <UserPlusIcon size={16} color={COLORS.onGold} />
                               <Text style={styles.addText}>إضافة</Text>
                             </FriendActionButton>
@@ -417,6 +435,27 @@ export default function FriendsScreen() {
 }
 
 const styles = StyleSheet.create({
+  errToast: {
+    position: 'absolute',
+    top: 90,
+    left: SPACING.lg,
+    right: SPACING.lg,
+    zIndex: 50,
+    alignItems: 'center',
+  },
+  errToastText: {
+    backgroundColor: 'rgba(122,31,43,0.95)',
+    borderWidth: 1,
+    borderColor: COLORS.crimson,
+    borderRadius: RADIUS.md,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.sm,
+    color: '#FFDAD6',
+    fontFamily: FONTS.ar.medium,
+    fontSize: TYPE.small.fontSize,
+    textAlign: 'center',
+    overflow: 'hidden',
+  },
   header: {
     paddingHorizontal: SIZES.screenPadding,
     paddingTop: SPACING.md,

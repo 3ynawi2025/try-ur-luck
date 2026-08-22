@@ -96,7 +96,9 @@ function FilterTab({
   );
 }
 
-function TableRow({ table }: { table: (typeof MOCK_TABLES)[number] }) {
+type TableRowData = (typeof MOCK_TABLES)[number] & { route?: string; minBet?: number };
+
+function TableRow({ table }: { table: TableRowData }) {
   const scale = useRef(new Animated.Value(1)).current;
   const to = (v: number) =>
     Animated.spring(scale, { toValue: v, useNativeDriver: true, speed: 45, bounciness: 5 }).start();
@@ -104,6 +106,10 @@ function TableRow({ table }: { table: (typeof MOCK_TABLES)[number] }) {
   const isFull = table.players >= table.maxPlayers;
 
   const openTable = () => {
+    if (table.route) {
+      router.push(table.route as never);
+      return;
+    }
     if (table.gameType === 'blackjack') router.push(`/(app)/blackjack/${table.id}`);
     else if (table.gameType === 'three_card') router.push(`/(app)/three-card/${table.id}`);
     else if (table.gameType === 'russian') router.push(`/(app)/russian/${table.id}`);
@@ -198,23 +204,44 @@ export default function TablesScreen() {
   // جلب الطاولات الحقيقية من السيرفر، مع الاحتفاظ بالبيانات الافتراضية كاحتياط
   const loadTables = useCallback(async () => {
     try {
-      const data = await apiFetch<any[]>('/api/tables');
-      if (!Array.isArray(data) || data.length === 0) return; // قاعدة فارغة → أبقِ الافتراضية
-
-      const mapped = data.map((t: any) => ({
+      // الطاولات الثابتة الحية (أرضية اللعب) بعداد الجالسين الفعلي
+      const live = await apiFetch<any[]>('/api/live-tables');
+      const liveRows: TableRowData[] = (Array.isArray(live) ? live : []).map((t: any) => ({
         id: String(t.id ?? ''),
-        gameType: (t.game_type === 'three_card' ? 'three_card' : t.game_type) ?? 'texas_holdem',
+        gameType: t.game_type ?? 'texas_holdem',
         name: t.name ?? 'طاولة',
-        players: t.table_players?.length ?? 0,
-        maxPlayers: t.max_players ?? 6,
-        minBuyIn: t.min_buy_in ?? 500,
-        smallBlind: t.small_blind,
-        bigBlind: t.big_blind,
-        isPrivate: !!t.is_private,
-        vip: t.name?.toLowerCase().includes('vip'),
-        seated: (t.table_players ?? []).map((p: any) => p.display_name ?? 'لاعب'),
+        players: Number(t.players ?? 0),
+        maxPlayers: t.maxPlayers ?? 6,
+        minBuyIn: t.min_bet ?? 50,
+        route: t.route,
+        minBet: t.min_bet,
+        seated: [],
       }));
-      setServerTables(mapped);
+
+      // الطاولات الخاصة المنشأة من الذهبيين (قاعدة البيانات)
+      let privateRows: TableRowData[] = [];
+      try {
+        const data = await apiFetch<any[]>('/api/tables');
+        if (Array.isArray(data)) {
+          privateRows = data.map((t: any) => ({
+            id: String(t.id ?? ''),
+            gameType: (t.game_type === 'three_card' ? 'three_card' : t.game_type) ?? 'texas_holdem',
+            name: t.name ?? 'طاولة',
+            players: t.table_players?.length ?? 0,
+            maxPlayers: t.max_players ?? 6,
+            minBuyIn: t.min_buy_in ?? 500,
+            smallBlind: t.small_blind,
+            bigBlind: t.big_blind,
+            isPrivate: !!t.is_private,
+            vip: t.name?.toLowerCase().includes('vip'),
+            seated: (t.table_players ?? []).map((p: any) => p.display_name ?? 'لاعب'),
+          }));
+        }
+      } catch {
+        /* لا طاولات خاصة */
+      }
+
+      setServerTables([...liveRows, ...privateRows]);
     } catch {
       /* تبقى الافتراضية */
     }

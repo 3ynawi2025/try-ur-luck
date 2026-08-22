@@ -3,7 +3,7 @@
 // (تظهر فقط لحساب المدير is_admin — السيرفر يتحقق من الصلاحية)
 // ============================================================
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Keyboard } from 'react-native';
 import Screen from '../../components/ui/Screen';
 import GlassCard from '../../components/ui/GlassCard';
@@ -31,6 +31,18 @@ export default function AdminScreen() {
   const [amount, setAmount] = useState('');
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [stats, setStats] = useState<{ onlineUsers?: number; sockets?: number; tables?: { tables?: number; seatedPlayers?: number }; soloSessions?: number } | null>(null);
+
+  // إحصاءات حية: متصلون + طاولات + جلسات (كل 10 ثوانٍ)
+  useEffect(() => {
+    const load = () =>
+      apiFetch<any>('/api/admin/stats')
+        .then(setStats)
+        .catch(() => {});
+    load();
+    const t = setInterval(load, 10000);
+    return () => clearInterval(t);
+  }, []);
 
   const showToast = (t: string) => {
     setToast(t);
@@ -81,6 +93,30 @@ export default function AdminScreen() {
           <Text style={styles.title}>لوحة المدير</Text>
           <Badge label="مدير" tone="gold" />
         </View>
+
+        {stats && (
+          <GlassCard variant="gold" padding={SPACING.lg} style={styles.block}>
+            <Text style={styles.blockTitle}>📡 المتصلون الآن</Text>
+            <View style={styles.statsRow}>
+              <View style={styles.statBox}>
+                <Text style={styles.statValue}>{stats.onlineUsers ?? 0}</Text>
+                <Text style={styles.statLabel}>لاعب متصل</Text>
+              </View>
+              <View style={styles.statBox}>
+                <Text style={styles.statValue}>{stats.sockets ?? 0}</Text>
+                <Text style={styles.statLabel}>اتصال حي</Text>
+              </View>
+              <View style={styles.statBox}>
+                <Text style={styles.statValue}>{stats.tables?.tables ?? 0}</Text>
+                <Text style={styles.statLabel}>طاولة هولدم</Text>
+              </View>
+              <View style={styles.statBox}>
+                <Text style={styles.statValue}>{stats.soloSessions ?? 0}</Text>
+                <Text style={styles.statLabel}>جلسة فردية</Text>
+              </View>
+            </View>
+          </GlassCard>
+        )}
 
         <GlassCard padding={SPACING.xl} style={styles.block}>
           <Text style={styles.blockTitle}>بحث عن لاعب</Text>
@@ -248,6 +284,29 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.num.medium,
     fontSize: TYPE.caption.fontSize,
     color: COLORS.goldLight,
+  },
+  statsRow: {
+    flexDirection: 'row-reverse',
+    gap: SPACING.sm,
+  },
+  statBox: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 2,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: RADIUS.sm,
+    paddingVertical: SPACING.sm,
+  },
+  statValue: {
+    fontFamily: FONTS.num.bold,
+    fontSize: TYPE.h3.fontSize,
+    color: COLORS.goldLight,
+  },
+  statLabel: {
+    fontFamily: FONTS.ar.regular,
+    fontSize: TYPE.micro.fontSize,
+    color: COLORS.textDim,
   },
   toastWrap: {
     alignItems: 'center',

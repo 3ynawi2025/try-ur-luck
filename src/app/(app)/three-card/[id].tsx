@@ -3,7 +3,7 @@
 // نفس نسق البلاك جاك — لا تغيير في الثيم.
 // ============================================================
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, Pressable, Animated, ScrollView } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';

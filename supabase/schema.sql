@@ -43,6 +43,8 @@ CREATE TABLE tables (
   max_players INT NOT NULL DEFAULT 6,
   is_private BOOLEAN DEFAULT false,
   password TEXT,
+  -- منشئ الطاولة الخاصة (الذهبي): تُغلق الطاولة بمجرد خروجه
+  host_id UUID REFERENCES profiles(id) ON DELETE SET NULL,
   status TEXT DEFAULT 'waiting' CHECK (status IN ('waiting', 'playing', 'closed')),
   created_at TIMESTAMPTZ DEFAULT NOW()
 );

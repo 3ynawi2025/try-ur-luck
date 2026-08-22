@@ -78,7 +78,7 @@ export default function BlackjackScreen() {
   const [bet, setBet] = useState(100);
 
   const { showError, errorNode } = useErrorToast();
-  const { snapshot, sendAction, players, isMuted, toggleMute, myPlayerId } = useSoloGame('blackjack', `bj-${id ?? '1'}`, showError);
+  const { snapshot, sendAction, players, isMuted, toggleMute, myPlayerId, soloCountdown } = useSoloGame('blackjack', `bj-${id ?? '1'}`, showError);
 
   const EMPTY_SNAP: BlackjackSnapshot = {
     phase: 'betting',
@@ -94,7 +94,8 @@ export default function BlackjackScreen() {
   };
   const snap: BlackjackSnapshot = (snapshot as BlackjackSnapshot) ?? EMPTY_SNAP;
 
-  const me = snap.players.find((p) => p.id === myPlayerId) ?? snap.players[0];
+  const me = snap.players.find((p) => p.id === myPlayerId);
+  const sittingOut = snap.phase !== 'betting' && !me;
   const others = snap.players.filter((p) => p.id !== (me?.id ?? '__me__'));
   const myTurn = !!me && snap.currentPlayerId === me.id;
   const currentName = snap.players.find((p) => p.id === snap.currentPlayerId)?.name;
@@ -161,18 +162,21 @@ export default function BlackjackScreen() {
   // عدّاد رصيد متدحرج
   const balanceDisplay = useCountUp(Math.round(me?.balance ?? 0));
 
-  const phaseText =
-    snap.phase === 'betting'
-      ? me && me.currentBet > 0 && snap.players.length > 1
-        ? 'بانتظار بقية اللاعبين…'
-        : 'ضع رهانك'
-      : snap.phase === 'insurance'
-      ? 'الموزع يُظهر آص — تأمين؟'
-      : snap.phase === 'playing'
-      ? myTurn
-        ? 'دورك — الموزع يقف على ١٧'
-        : `دور ${currentName ?? 'لاعب آخر'}…`
-      : 'انتهت الجولة';
+  const phaseText = sittingOut
+    ? '⏸️ جلست خارج هذه الجولة — ستعود للجولة القادمة'
+    : snap.phase === 'betting'
+    ? me && me.currentBet > 0 && snap.players.length > 1
+      ? soloCountdown !== null
+        ? `بانتظار بقية اللاعبين — تبدأ خلال ${soloCountdown} ثانية`
+        : 'بانتظار بقية اللاعبين…'
+      : 'ضع رهانك'
+    : snap.phase === 'insurance'
+    ? 'الموزع يُظهر آص — تأمين؟'
+    : snap.phase === 'playing'
+    ? myTurn
+      ? 'دورك — الموزع يقف على ١٧'
+      : `دور ${currentName ?? 'لاعب آخر'}…`
+    : 'انتهت الجولة';
 
   // ===== شريط الإجراءات حسب المرحلة =====
   const footer = (
@@ -206,14 +210,19 @@ export default function BlackjackScreen() {
       )}
 
       {/* مرحلة اللعب */}
-      {snap.phase === 'playing' && !!activeHand && !myTurn && (
+      {snap.phase === 'playing' && sittingOut && (
+        <View style={styles.betArea}>
+          <Text style={styles.turnLabel}>⏸️ جلست خارج هذه الجولة — راهن في الجولة القادمة</Text>
+        </View>
+      )}
+      {snap.phase === 'playing' && !sittingOut && !!activeHand && !myTurn && (
         <View style={styles.betArea}>
           <Text style={styles.turnLabel}>
             ⏳ بانتظار <Text style={styles.turnScore}>{currentName ?? 'لاعب آخر'}</Text> — يلعب الآن
           </Text>
         </View>
       )}
-      {snap.phase === 'playing' && !!activeHand && myTurn && (
+      {snap.phase === 'playing' && !sittingOut && !!activeHand && myTurn && (
         <View style={styles.betArea}>
           <Text style={styles.turnLabel}>
             دورك — مجموعك <Text style={styles.turnScore}>{myScore}</Text>
@@ -365,7 +374,7 @@ export default function BlackjackScreen() {
                         { color: STATUS_TONE[activeHand.status]?.fg ?? STATUS_TONE.playing.fg },
                       ]}
                     >
-                      {handCount > 1 ? `يد ${me.activeHandIndex + 1}/${handCount} · ` : ''}
+                      {handCount > 1 ? `يد ${me ? me.activeHandIndex + 1 : 1}/${handCount} · ` : ''}
                       {STATUS_TONE[activeHand.status]?.label ?? 'دورك'}
                     </Text>
                   </View>

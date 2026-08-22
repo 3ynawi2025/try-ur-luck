@@ -40,6 +40,7 @@ interface MajlisRoom {
 
 export default function MajlisScreen() {
   const [rooms, setRooms] = useState<MajlisRoom[]>([]);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [name, setName] = useState('');
   const [isPrivate, setIsPrivate] = useState(false);
@@ -54,6 +55,13 @@ export default function MajlisScreen() {
       setRooms(Array.isArray(data) ? data : []);
     } catch {
       /* ضيف */
+    }
+    // صلاحية إنشاء المجالس حصريًا لمدير اللعبة
+    try {
+      const s = await apiFetch<{ isAdmin?: boolean }>('/api/store/status');
+      setIsAdmin(!!s.isAdmin);
+    } catch {
+      setIsAdmin(false);
     }
   }, []);
 
@@ -123,10 +131,14 @@ export default function MajlisScreen() {
           <MajlisIcon size={34} color={COLORS.goldLight} />
         </View>
 
-        {/* ===== إنشاء + دخول برمز ===== */}
+        {/* ===== إنشاء (للمدير فقط) + دخول برمز ===== */}
         <GlassCard padding={SPACING.xl}>
           <View style={styles.actionsRow}>
-            <GoldButton title="أنشئ مجلسًا" icon={<PlusIcon size={17} color={COLORS.onGold} />} onPress={() => setCreateOpen(true)} />
+            {isAdmin ? (
+              <GoldButton title="أنشئ مجلسًا" icon={<PlusIcon size={17} color={COLORS.onGold} />} onPress={() => setCreateOpen(true)} />
+            ) : (
+              <Text style={styles.adminOnlyNote}>🔒 إنشاء المجالس متاح لإدارة اللعبة فقط</Text>
+            )}
           </View>
           <View style={styles.codeRow}>
             <TextInput
@@ -256,6 +268,13 @@ const styles = StyleSheet.create({
     color: COLORS.textDim,
   },
   actionsRow: { gap: SPACING.md },
+  adminOnlyNote: {
+    fontFamily: FONTS.ar.regular,
+    fontSize: TYPE.small.fontSize,
+    color: COLORS.textDim,
+    textAlign: 'center',
+    paddingVertical: SPACING.sm,
+  },
   codeRow: {
     flexDirection: 'row-reverse',
     alignItems: 'center',

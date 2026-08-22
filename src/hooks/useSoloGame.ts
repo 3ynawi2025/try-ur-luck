@@ -62,6 +62,9 @@ export function useSoloGame(
   const [countdown, setCountdown] = useState<number | null>(null);
   const [othersBets, setOthersBets] = useState<RouletteOtherBets[]>([]);
   const [winners, setWinners] = useState<RouletteWinners | null>(null);
+  // عداد بدء البلاك جاك (30 ثانية) + إعادة الرهان التلقائي للروليت
+  const [soloCountdown, setSoloCountdown] = useState<number | null>(null);
+  const [autoRebet, setAutoRebet] = useState(false);
 
   // الدردشة الصوتية — نفس قناة طاولة اللعبة
   const { isMuted, toggleMute, joinChannel, joinError, leaveChannel } = useAgoraVoice();
@@ -117,6 +120,17 @@ export function useSoloGame(
     socket.on('roulette:countdown', (d: any) => setCountdown(typeof d?.seconds === 'number' ? d.seconds : null));
     socket.on('roulette:bets', (d: any) => setOthersBets(Array.isArray(d?.players) ? d.players : []));
     socket.on('roulette:winners', (d: any) => setWinners(d ?? null));
+    socket.on('roulette:auto', (d: any) => {
+      setAutoRebet(Boolean(d?.enabled));
+      if (d?.reason) onErrorRef.current?.(d.reason);
+    });
+    // عداد بدء البلاك جاك
+    socket.on('solo:countdown', (d: any) => {
+      setSoloCountdown(typeof d?.seconds === 'number' ? d.seconds : null);
+    });
+    socket.on('solo:notice', (d: any) => {
+      if (typeof d?.text === 'string') onErrorRef.current?.(d.text);
+    });
 
     socketRef.current = socket;
     return () => {
@@ -164,5 +178,7 @@ export function useSoloGame(
     countdown,
     othersBets,
     winners,
+    soloCountdown,
+    autoRebet,
   };
 }

@@ -205,7 +205,7 @@ export default function RouletteScreen() {
   const ballRadius = useRef(new Animated.Value(BALL_START)).current;
 
   // ===== المحرك على السيرفر =====
-  const { snapshot, sendAction, players, isMuted, toggleMute, rouletteRoom, countdown, othersBets, winners } = useSoloGame('roulette', `ro-${id ?? '1'}`, showError);
+  const { snapshot, sendAction, players, isMuted, toggleMute, rouletteRoom, countdown, othersBets, winners, autoRebet } = useSoloGame('roulette', `ro-${id ?? '1'}`, showError);
 
   const EMPTY_SNAP: RouletteSnapshot = {
     phase: 'BETTING',
@@ -561,6 +561,14 @@ export default function RouletteScreen() {
               <Text style={styles.chipValue}>{v}</Text>
             </Pressable>
           ))}
+          <Pressable
+            style={[styles.rebetBtn, autoRebet && styles.rebetBtnActive]}
+            onPress={() => sendAction('autoRebet', { enabled: !autoRebet })}
+          >
+            <Text style={[styles.rebetText, autoRebet && styles.rebetTextActive]}>
+              {autoRebet ? '🔄 إعادة ✓' : '🔄 إعادة'}
+            </Text>
+          </Pressable>
           <Pressable style={styles.clearBtn} onPress={clear} disabled={snap.totalBet === 0}>
             <Text style={[styles.clearText, snap.totalBet === 0 && { opacity: 0.4 }]}>مسح</Text>
           </Pressable>
@@ -1045,5 +1053,24 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.num.bold,
     fontSize: 9,
     color: '#1A1206',
+  },
+  rebetBtn: {
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: SPACING.xs,
+    borderRadius: RADIUS.sm,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  rebetBtnActive: {
+    borderColor: COLORS.gold,
+    backgroundColor: 'rgba(201,169,97,0.14)',
+  },
+  rebetText: {
+    fontFamily: FONTS.ar.medium,
+    fontSize: TYPE.caption.fontSize,
+    color: COLORS.textDim,
+  },
+  rebetTextActive: {
+    color: COLORS.goldLight,
   },
 });

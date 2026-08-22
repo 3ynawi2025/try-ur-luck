@@ -25,6 +25,8 @@ interface TableRoom {
   engine: TexasHoldemEngine;
   players: Map<string, TableSeat>; // socketId -> seat
   autoStartTimer?: NodeJS.Timeout;
+  /** منشئ الطاولة الخاصة (ذهبي) — تُغلق الغرفة بمجرد خروجه */
+  hostId: string | null;
 }
 
 const tables = new Map<string, TableRoom>();
@@ -36,6 +38,13 @@ export function getTableStats(): { tables: number; seatedPlayers: number } {
   let seatedPlayers = 0;
   for (const t of tables.values()) seatedPlayers += t.players.size;
   return { tables: tables.size, seatedPlayers };
+}
+
+/** عدد الجالسين لكل طاولة هولدم حية (مفتاح الغرفة -> العدد). */
+export function getHoldemCounts(): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const [key, room] of tables) out[key] = room.players.size;
+  return out;
 }
 
 const CHAT_REPORT_REASONS = ['voice_abuse', 'cheating', 'offensive_language', 'harassment', 'spam'];
@@ -54,6 +63,7 @@ function getOrCreateTable(tableId: string): TableRoom | null {
       minBuyIn: 500,
     }),
     players: new Map(),
+    hostId: null,
   };
   tables.set(tableId, room);
   return room;
@@ -65,6 +75,35 @@ function removeRoomIfEmpty(tableId: string, table: TableRoom) {
     tables.delete(tableId);
     console.log(`🧹 Table ${tableId} removed (empty)`);
   }
+}
+
+/** إغلاق الطاولة الخاصة فور خروج منشئها الذهبي (إشعار الجميع + تحديث قاعدة البيانات). */
+function closeHostedRoom(io: Server, tableId: string, table: TableRoom) {
+  // تسوية أرصدة الجميع قبل الإغلاق
+  settleRoom(io, tableId, table);
+
+  io.to(tableId).emit('table:closed', {
+    message: 'أغلق منشئ الطاولة الجلسة — تم إغلاق الطاولة',
+  });
+
+  for (const sid of table.players.keys()) {
+    io.sockets.sockets.get(sid)?.leave(tableId);
+  }
+  if (table.autoStartTimer) clearTimeout(table.autoStartTimer);
+  tables.delete(tableId);
+
+  // تحديث حالة الطاولة في قاعدة البيانات (تختفي من القائمة)
+  const dbId = tableId.startsWith('table-') ? tableId.slice(6) : tableId;
+  void getSupabaseAdmin()
+    .from('tables')
+    .update({ status: 'closed' })
+    .eq('id', dbId)
+    .then(
+      () => console.log(`🔒 Private table ${tableId} closed by host`),
+      () => {
+        /* تجاهل */
+      }
+    );
 }
 
 /** حفظ دلتا رصيد اللاعب في Supabase بذرّية (عبارة واحدة — مساعد مشترك). يعيد true عند النجاح فقط. */
@@ -127,11 +166,12 @@ export function setupGameHandlers(io: Server) {
         return;
       }
 
-      // فحص كلمة سر الطاولات الخاصة — من قاعدة البيانات (لا نثق بأي شيء من العميل)
+      // فحص كلمة سر الطاولات الخاصة + منشئها — من قاعدة البيانات (لا نثق بأي شيء من العميل)
+      const dbId = tableId.startsWith('table-') ? tableId.slice(6) : tableId;
       const { data: dbTable } = await getSupabaseAdmin()
         .from('tables')
-        .select('password')
-        .eq('id', tableId)
+        .select('password, host_id')
+        .eq('id', dbId)
         .maybeSingle();
       const storedPassword = dbTable?.password ?? null;
       if (storedPassword) {
@@ -146,6 +186,8 @@ export function setupGameHandlers(io: Server) {
         socket.emit('error', { code: 'INVALID_TABLE', message: 'طاولة غير صالحة' });
         return;
       }
+      // منشئ الطاولة الخاصة (يُغلق وجود الغرفة بخروجه)
+      table.hostId = dbTable?.host_id ?? table.hostId;
 
       // الهوية من التوكن الموثّق — لا من العميل
       const userId: string | null = socket.data.userId ?? null;
@@ -218,6 +260,15 @@ export function setupGameHandlers(io: Server) {
       if (!table) return;
       const seat = table.players.get(socket.id);
       if (!seat) return;
+
+      // خروج منشئ الطاولة الخاصة → إغلاق فوري للجلسة كلها
+      if (table.hostId && seat.userId === table.hostId) {
+        table.engine.removePlayer(seat.id);
+        table.players.delete(socket.id);
+        socket.leave(tableId);
+        closeHostedRoom(io, tableId, table);
+        return;
+      }
 
       table.engine.removePlayer(seat.id);
       table.players.delete(socket.id);
@@ -343,6 +394,13 @@ export function setupGameHandlers(io: Server) {
       for (const [tableId, table] of tables) {
         const seat = table.players.get(socket.id);
         if (seat) {
+          // انقطاع منشئ الطاولة الخاصة → إغلاق فوري للجلسة كلها
+          if (table.hostId && seat.userId === table.hostId) {
+            table.engine.removePlayer(seat.id);
+            table.players.delete(socket.id);
+            closeHostedRoom(io, tableId, table);
+            continue;
+          }
           table.engine.removePlayer(seat.id);
           table.players.delete(socket.id);
           settleRoom(io, tableId, table);
