@@ -70,25 +70,25 @@ export default function RewardsModal({ visible, onClose, onReward }: RewardsModa
   const rotation = useRef(new Animated.Value(0)).current;
   const rotationRef = useRef(0);
   const [winTrigger, setWinTrigger] = useState<{ key: string; magnitude: 1 | 2 | 3 } | null>(null);
+  const winKey = useRef(0);
   const reduced = useReducedMotion();
   const balanceDisplay = useCountUp(prize ?? 0, 700);
 
-  const load = useCallback(async () => {
-    try {
-      const s = await apiFetch<Status>('/api/rewards/status');
-      setStatus(s);
-    } catch {
-      /* وضع ضيف */
-    }
-  }, []);
-
   useEffect(() => {
-    if (visible) {
-      load();
-      setPrize(null);
-      setSpinning(false);
-    }
-  }, [visible, load]);
+    if (!visible) return;
+    apiFetch<Status>('/api/rewards/status')
+      .then((s) => setStatus(s))
+      .catch(() => {
+        /* وضع ضيف */
+      });
+  }, [visible]);
+
+  const handleClose = useCallback(() => {
+    setPrize(null);
+    setSpinning(false);
+    setWinTrigger(null);
+    onClose();
+  }, [onClose]);
 
   const claimDaily = async () => {
     if (busy || !status || status.claimedToday) return;
@@ -97,7 +97,7 @@ export default function RewardsModal({ visible, onClose, onReward }: RewardsModa
       const r = await apiFetch<{ awarded: number; streak: number }>('/api/rewards/daily', { method: 'POST' });
       if (r.awarded > 0) {
         onReward?.(r.awarded);
-        setWinTrigger({ key: `daily-${Date.now()}`, magnitude: r.awarded >= 1500 ? 3 : 2 });
+        setWinTrigger({ key: `daily-${++winKey.current}`, magnitude: r.awarded >= 1500 ? 3 : 2 });
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       }
       setStatus({ streak: r.streak, claimedToday: true, wheelSpunToday: status.wheelSpunToday });
@@ -146,7 +146,7 @@ export default function RewardsModal({ visible, onClose, onReward }: RewardsModa
         });
       }
       onReward?.(r.prize);
-      setWinTrigger({ key: `wheel-${Date.now()}`, magnitude: r.prize >= 2000 ? 3 : r.prize >= 500 ? 2 : 1 });
+      setWinTrigger({ key: `wheel-${++winKey.current}`, magnitude: r.prize >= 2000 ? 3 : r.prize >= 500 ? 2 : 1 });
     } catch {
       setSpinning(false);
     }
@@ -176,16 +176,16 @@ export default function RewardsModal({ visible, onClose, onReward }: RewardsModa
   });
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={handleClose}>
       <View style={styles.overlay}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+        <Pressable style={StyleSheet.absoluteFill} onPress={handleClose} />
         <View style={styles.card}>
           {/* لحظة الفوز داخل النافذة */}
           <WinFX trigger={winTrigger} />
 
           <View style={styles.headerRow}>
             <Text style={styles.title}>مكافآت اليوم</Text>
-            <Pressable style={styles.closeBtn} onPress={onClose} hitSlop={8}>
+            <Pressable style={styles.closeBtn} onPress={handleClose} hitSlop={8}>
               <CloseIcon size={18} color={COLORS.textDim} />
             </Pressable>
           </View>
