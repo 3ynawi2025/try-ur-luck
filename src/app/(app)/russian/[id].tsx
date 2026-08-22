@@ -16,6 +16,7 @@ import PlayingCard, { Card as PCard } from '../../../components/game/PlayingCard
 import FeltTable from '../../../components/game/FeltTable';
 import InstructionsModal from '../../../components/game/InstructionsModal';
 import GameHeader from '../../../components/game/GameHeader';
+import SoloTableBar from '../../../components/game/SoloTableBar';
 import ActionButton from '../../../components/game/ActionButton';
 import WinFX from '../../../components/game/WinFX';
 import { useErrorToast } from '../../../hooks/useErrorToast';
@@ -69,7 +70,7 @@ export default function RussianScreen() {
   const { showError, errorNode } = useErrorToast();
 
   // ===== المحرك على السيرفر =====
-  const { snapshot, sendAction } = useSoloGame('russian', `ru-${id ?? '1'}`, showError);
+  const { snapshot, sendAction, players, isMuted, toggleMute } = useSoloGame('russian', `ru-${id ?? '1'}`, showError);
 
   const EMPTY_SNAP: RussianSnapshot = {
     phase: 'BETTING',
@@ -143,7 +144,10 @@ export default function RussianScreen() {
 
       {/* ===== الترويسة الموحدة ===== */}
       <View style={{ paddingTop: insets.top + SPACING.xs }}>
-        <GameHeader title="البوكر الروسي" onBack={() => router.back()} onInfo={() => setHelpOpen(true)} />
+        <GameHeader title="البوكر الروسي" onBack={() => router.back()} onInfo={() => setHelpOpen(true)} live muted={isMuted} onToggleMute={toggleMute} />
+        <View style={{ paddingHorizontal: SPACING.lg, marginBottom: SPACING.xs }}>
+          <SoloTableBar players={players} isMuted={isMuted} onToggleMute={toggleMute} />
+        </View>
         <Text style={styles.phaseText}>
           {snap.phase === 'BETTING'
             ? 'ضع رهانك'

@@ -78,7 +78,7 @@ export default function BlackjackScreen() {
   const [bet, setBet] = useState(100);
 
   const { showError, errorNode } = useErrorToast();
-  const { snapshot, sendAction } = useSoloGame('blackjack', `bj-${id ?? '1'}`, showError);
+  const { snapshot, sendAction, players, isMuted, toggleMute } = useSoloGame('blackjack', `bj-${id ?? '1'}`, showError);
 
   const EMPTY_SNAP: BlackjackSnapshot = {
     phase: 'betting',
@@ -248,6 +248,10 @@ export default function BlackjackScreen() {
       onInfo={() => setHelpOpen(true)}
       errorNode={errorNode}
       footer={footer}
+      live
+      muted={isMuted}
+      onToggleMute={toggleMute}
+      players={players}
     >
       {/* لحظة الفوز */}
       <WinFX trigger={bjWin} />

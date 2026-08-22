@@ -7,10 +7,17 @@ import { useEffect, useRef, useCallback, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useAuthStore } from '../stores/authStore';
 import { getAccessToken } from '../lib/supabase';
+import { useAgoraVoice } from './useAgoraVoice';
+import { AGORA_APP_ID as FALLBACK_AGORA_APP_ID } from '../lib/config';
 
 const SOCKET_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
 
 export type SoloGameKind = 'blackjack' | 'three-card' | 'russian' | 'roulette';
+
+export interface SoloPlayer {
+  id: string;
+  name: string;
+}
 
 interface JoinPayload {
   game: SoloGameKind;
@@ -32,6 +39,10 @@ export function useSoloGame(
 
   const [isConnected, setIsConnected] = useState(false);
   const [snapshot, setSnapshot] = useState<any>(null);
+  const [players, setPlayers] = useState<SoloPlayer[]>([]);
+
+  // الدردشة الصوتية — نفس قناة طاولة اللعبة
+  const { isMuted, toggleMute, joinChannel } = useAgoraVoice();
 
   const profile = useAuthStore((s) => s.profile);
   const userId = profile?.id ?? null;
@@ -62,6 +73,15 @@ export function useSoloGame(
     });
     socket.on('solo:state', (s: any) => setSnapshot(s));
     socket.on('error', (d: any) => onErrorRef.current?.(d?.message ?? 'حدث خطأ'));
+    socket.on('solo:players', (d: any) => {
+      if (Array.isArray(d?.players)) setPlayers(d.players);
+    });
+    // توكن الصوت: انضم لقناة طاولة اللعبة
+    socket.on('voice:token', (d: any) => {
+      if (d?.channelName) {
+        joinChannel(d.appId || FALLBACK_AGORA_APP_ID, d.channelName, d.token ?? '');
+      }
+    });
 
     socketRef.current = socket;
     return () => {
@@ -69,6 +89,7 @@ export function useSoloGame(
       connectedRef.current = false;
       socket.disconnect();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Join/re-join when identity or table changes (and on reconnect above)
@@ -94,5 +115,5 @@ export function useSoloGame(
     [game, userId]
   );
 
-  return { isConnected, snapshot, sendAction };
+  return { isConnected, snapshot, sendAction, players, isMuted, toggleMute };
 }

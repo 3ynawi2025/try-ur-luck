@@ -13,6 +13,7 @@ import Svg, { G, Circle, Path, Ellipse, Rect, Text as SvgText } from 'react-nati
 import GoldButton from '../../../components/ui/GoldButton';
 import InstructionsModal from '../../../components/game/InstructionsModal';
 import GameHeader from '../../../components/game/GameHeader';
+import SoloTableBar from '../../../components/game/SoloTableBar';
 import WinFX from '../../../components/game/WinFX';
 import { CrownIcon } from '../../../components/icons/GameIcons';
 import { useErrorToast } from '../../../hooks/useErrorToast';
@@ -194,7 +195,7 @@ export default function RouletteScreen() {
   const ballRadius = useRef(new Animated.Value(BALL_START)).current;
 
   // ===== المحرك على السيرفر =====
-  const { snapshot, sendAction } = useSoloGame('roulette', `ro-${id ?? '1'}`, showError);
+  const { snapshot, sendAction, players, isMuted, toggleMute } = useSoloGame('roulette', `ro-${id ?? '1'}`, showError);
 
   const EMPTY_SNAP: RouletteSnapshot = {
     phase: 'BETTING',
@@ -314,7 +315,10 @@ export default function RouletteScreen() {
 
       {/* ===== الترويسة الموحدة ===== */}
       <View style={{ paddingTop: insets.top + SPACING.xs }}>
-        <GameHeader title="الروليت" onBack={() => router.back()} onInfo={() => setHelpOpen(true)} />
+        <GameHeader title="الروليت" onBack={() => router.back()} onInfo={() => setHelpOpen(true)} live muted={isMuted} onToggleMute={toggleMute} />
+        <View style={{ paddingHorizontal: SPACING.lg, marginBottom: SPACING.xs }}>
+          <SoloTableBar players={players} isMuted={isMuted} onToggleMute={toggleMute} />
+        </View>
         <Text style={styles.phaseText}>
           {spinning ? 'العجلة تدور…' : isBETTING ? 'ضع رهاناتك' : 'انتهت الجولة'}
         </Text>

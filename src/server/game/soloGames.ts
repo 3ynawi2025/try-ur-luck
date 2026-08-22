@@ -12,6 +12,7 @@ import { ThreeCardPokerEngine } from './threeCardPoker';
 import { RussianPokerEngine } from './russianPoker';
 import { RouletteEngine } from './roulette';
 import { applyBalanceDelta, loadPlayerBalance, loadPlayerDisplayName } from '../lib/playerPersistence';
+import { generateAgoraToken, AGORA_APP_ID } from './agora';
 
 export type SoloGameKind = 'blackjack' | 'three-card' | 'russian' | 'roulette';
 
@@ -35,6 +36,28 @@ const sessions = new Map<string, SoloSession>();
 /** إحصاءات حية للجلسات الفردية (لمراقبة /diag). */
 export function getSoloStats(): { sessions: number } {
   return { sessions: sessions.size };
+}
+
+// ===== طاولات فردية مشتركة: حتى 6 لاعبين على نفس الطاولة (كلٌّ ضد الديلر) =====
+interface SoloSeat {
+  id: string;
+  name: string;
+  userId: string | null;
+}
+
+const soloTables = new Map<string, Map<string, SoloSeat>>(); // solo:<game>:<tableId> -> socketId -> مقعد
+const MAX_SOLO_SEATS = 6;
+
+function soloRoomKey(game: SoloGameKind, tableId: string): string {
+  return `solo:${game}:${tableId}`;
+}
+
+function broadcastSoloPlayers(io: Server, key: string, room: Map<string, SoloSeat>) {
+  io.to(key).emit('solo:players', {
+    players: Array.from(room.values()).map((s) => ({ id: s.id, name: s.name })),
+    count: room.size,
+    max: MAX_SOLO_SEATS,
+  });
 }
 
 function isBlackjack(e: SoloEngine): e is BlackjackEngine {
@@ -282,6 +305,7 @@ export function setupSoloGameHandlers(io: Server) {
       }) => {
         const { game, tableId } = data ?? {};
         if (!game || !['blackjack', 'three-card', 'russian', 'roulette'].includes(game)) return;
+        const cleanTableId = String(tableId ?? '').trim().slice(0, 40) || '1';
 
         const userId: string | null = socket.data.userId ?? null;
         // الهوية الموثّقة أولًا، وللضيف معرّف فريد لكل اتصال (لا guest-* مشترك)
@@ -289,6 +313,19 @@ export function setupSoloGameHandlers(io: Server) {
         const playerId = userId ?? (guestId || socket.id);
         const fallbackName = String(data.name ?? '').trim().slice(0, 40) || 'أنت';
         const name = userId ? await loadPlayerDisplayName(userId, fallbackName) : fallbackName;
+
+        // ===== المقاعد المشتركة: حتى 6 لاعبين على نفس الطاولة =====
+        const key = soloRoomKey(game, cleanTableId);
+        let room = soloTables.get(key);
+        if (!room) {
+          room = new Map();
+          soloTables.set(key, room);
+        }
+        if (!room.has(socket.id) && room.size >= MAX_SOLO_SEATS) {
+          socket.emit('error', { code: 'SOLO_TABLE_FULL', message: 'الطاولة ممتلئة (6 لاعبين كحد أقصى)' });
+          return;
+        }
+        room.set(socket.id, { id: playerId, name, userId });
 
         const prev = sessions.get(socket.id);
         if (prev) sessions.delete(socket.id);
@@ -310,9 +347,19 @@ export function setupSoloGameHandlers(io: Server) {
         };
         sessions.set(socket.id, session);
 
-        socket.join(`solo:${game}:${tableId}`);
+        socket.join(key);
+        broadcastSoloPlayers(io, key, room);
         socket.emit('solo:state', snapshotOf(session));
-        console.log(`🎰 Solo join: ${game} @ ${tableId} (balance=${balance})`);
+
+        // ===== الدردشة الصوتية: نفس قناة طاولة اللعبة =====
+        const voiceChannel = `solo-${game}-${cleanTableId}`;
+        socket.emit('voice:token', {
+          appId: AGORA_APP_ID,
+          channelName: voiceChannel,
+          token: generateAgoraToken(voiceChannel, playerId),
+        });
+
+        console.log(`🎰 Solo join: ${game} @ ${cleanTableId} (balance=${balance}, seats=${room.size})`);
       }
     );
 
@@ -339,12 +386,26 @@ export function setupSoloGameHandlers(io: Server) {
       }
     );
 
+    // مغادرة/انقطاع: إزالة المقعد + إشعار الباقين
+    const removeSoloSeat = (sid: string) => {
+      for (const [key, room] of soloTables) {
+        if (room.has(sid)) {
+          room.delete(sid);
+          broadcastSoloPlayers(io, key, room);
+          if (room.size === 0) soloTables.delete(key);
+          break;
+        }
+      }
+    };
+
     socket.on('solo:leave', () => {
       sessions.delete(socket.id);
+      removeSoloSeat(socket.id);
     });
 
     socket.on('disconnect', () => {
       sessions.delete(socket.id);
+      removeSoloSeat(socket.id);
       console.log('🎰 Solo player disconnected:', socket.id);
     });
   });

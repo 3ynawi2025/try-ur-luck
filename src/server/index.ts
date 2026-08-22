@@ -93,6 +93,14 @@ app.get('/diag/stats', (_req, res) => {
   });
 });
 
+// تشخيص إعداد الصوت (بلا كشف قيم سرية — فقط مكوّن أم لا)
+app.get('/diag/voice', (_req, res) => {
+  res.json({
+    appIdConfigured: Boolean(process.env.AGORA_APP_ID),
+    certificateConfigured: Boolean(process.env.AGORA_APP_CERTIFICATE),
+  });
+});
+
 // صفحة تشخيص اتصال (تُفتح من جوال اللاعب لفحص الشبكة)
 app.get('/diag', (_req, res) => {
   res.type('html').send(`<!DOCTYPE html>

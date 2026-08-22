@@ -9,8 +9,10 @@ import { View, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import GameHeader from './GameHeader';
+import SoloTableBar from './SoloTableBar';
 import Screen from '../ui/Screen';
 import { COLORS, GRADIENTS, SPACING } from '../../constants/theme';
+import type { SoloPlayer } from '../../hooks/useSoloGame';
 
 interface SoloGameScreenProps {
   title: string;
@@ -26,6 +28,8 @@ interface SoloGameScreenProps {
   muted?: boolean;
   onToggleMute?: () => void;
   onInfo?: () => void;
+  /** الجالسون على الطاولة المشتركة (حتى 6) — يظهر الشريط عند تمريرهم */
+  players?: SoloPlayer[];
 }
 
 export default function SoloGameScreen({
@@ -38,6 +42,7 @@ export default function SoloGameScreen({
   muted,
   onToggleMute,
   onInfo,
+  players,
 }: SoloGameScreenProps) {
   const insets = useSafeAreaInsets();
 
@@ -62,6 +67,13 @@ export default function SoloGameScreen({
         />
       </View>
 
+      {/* شريط الجالسين على الطاولة المشتركة */}
+      {players && (
+        <View style={styles.tableBarWrap}>
+          <SoloTableBar players={players} isMuted={!!muted} onToggleMute={onToggleMute ?? (() => {})} />
+        </View>
+      )}
+
       {/* التوست */}
       {errorNode}
 
@@ -81,6 +93,10 @@ export default function SoloGameScreen({
 const styles = StyleSheet.create({
   screen: {
     backgroundColor: COLORS.bg,
+  },
+  tableBarWrap: {
+    paddingHorizontal: SPACING.lg,
+    marginBottom: SPACING.xs,
   },
   body: {
     flex: 1,
