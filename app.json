@@ -20,6 +20,7 @@
       "bundleIdentifier": "com.al3ynawi.jarebhazzak",
       "infoPlist": {
         "NSMicrophoneUsageDescription": "يحتاج التطبيق إذن المايك للدردشة الصوتية داخل الطاولات",
+        "NSCameraUsageDescription": "لا يستخدم التطبيق الكاميرا في اللعب؛ هذا الإذن مطلوب تقنيًا لبعض مكتبات الوسائط المضمّنة",
         "NSLocalNetworkUsageDescription": "يحتاج التطبيق الوصول إلى الشبكة المحلية للاتصال بخادم اللعبة",
         "NSAppTransportSecurity": {
           "NSAllowsLocalNetworking": true
