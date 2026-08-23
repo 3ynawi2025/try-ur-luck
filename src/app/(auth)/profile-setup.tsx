@@ -146,7 +146,7 @@ export default function ProfileSetupScreen() {
               <View style={[styles.checkbox, agreeAge && styles.checkboxOn]}>
                 {agreeAge && <Text style={styles.checkMark}>✓</Text>}
               </View>
-              <Text style={styles.checkLabel}>أؤكد أن عمري 17 عامًا أو أكثر</Text>
+              <Text style={styles.checkLabel}>أؤكد أن عمري 18 عامًا أو أكثر</Text>
             </Pressable>
 
             <Text style={styles.disclosure}>

@@ -58,7 +58,7 @@ eas submit --platform ios
 |---|---|
 | Name / Subtitle | App Information |
 | Category: **Games > Casino** + Secondary: Entertainment | App Information |
-| Age Rating: أجب عن الاستبيان كما في `compliance-checklist.md` (سيُحسب **17+** بسبب Simulated Gambling) | App Information |
+| Age Rating: أجب عن الاستبيان كما في `compliance-checklist.md` (سيُحسب **18+** بسبب Simulated Gambling) | App Information |
 | Privacy Policy URL: `https://jareb-hazzak-server.onrender.com/privacy` | App Privacy |
 | Support URL: `https://jareb-hazzak-server.onrender.com/support` | App Information |
 

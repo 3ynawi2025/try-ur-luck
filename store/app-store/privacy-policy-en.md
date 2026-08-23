@@ -44,7 +44,7 @@ We keep your data for as long as your account is active. You may request **delet
 
 ## 7. Children
 
-The app is rated **17+** and is not directed at children. We do not knowingly collect data from anyone under 17. If we learn that a minor created an account, we will delete it.
+The app is rated **18+** and is not directed at children. We do not knowingly collect data from anyone under 18. If we learn that a minor created an account, we will delete it.
 
 ## 8. Rules of Conduct & Abuse
 

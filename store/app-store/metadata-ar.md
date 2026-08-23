@@ -91,7 +91,7 @@
 | Unrestricted Web Access | No |
 | User-Generated Content / Digital Communications | Yes — دردشة صوتية وغرف مجالس (تواصل لحظي بين المستخدمين، بدون موجز محتوى منشور) |
 
-> **النتيجة المحسوبة: 17+**
+> **النتيجة المحسوبة: 18+**
 
 ---
 
@@ -135,7 +135,7 @@ https://jareb-hazzak-server.onrender.com/support
 - Admin-only features (e.g. granting gifts) are server-side and **hidden from regular users**; they are not accessible from the client.
 
 **Rating:**
-- Simulated Gambling is set to **Frequent/Intense**, which yields a **17+** rating. There is no real-money gambling in the app.
+- Simulated Gambling is set to **Frequent/Intense**, which yields an **18+** rating. There is no real-money gambling in the app.
 
 ---
 

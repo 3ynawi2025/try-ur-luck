@@ -68,7 +68,7 @@ Download Try Your Luck now and gather your friends around the table — fortune 
 
 ## Age Rating
 
-- **Simulated Gambling:** Frequent/Intense → **17+**
+- **Simulated Gambling:** Frequent/Intense → **18+**
 - Gambling (Real-Money / Contests): **No**
 
 ---

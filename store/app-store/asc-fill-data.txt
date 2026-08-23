@@ -42,7 +42,7 @@ Subtitle: كازينو اجتماعي بفيشات مجانية
 Privacy Policy URL: https://jareb-hazzak-server.onrender.com/privacy
 Category: Primary = Games > Casino | Secondary = Entertainment
 License Agreement: Apple Standard
-Age Rating: (أجب الاستبيان حسب compliance-checklist.md — النتيجة 17+ بسبب Simulated Gambling)
+Age Rating: (أجب الاستبيان حسب compliance-checklist.md — النتيجة 18+ بسبب Simulated Gambling)
 
 [App Privacy — Nutrition Label]
 Data Linked to You: User ID, Username, Device ID, Optional Email (فقط عند ربط البريد)
