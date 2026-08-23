@@ -33,7 +33,9 @@
   "submit": {
     "production": {
       "ios": {
-        "appleId": "al__3ynawi@hotmail.com"
+        "ascApiKeyId": "8BK9FT6FTN",
+        "ascApiKeyIssuerId": "69a6de92-2723-47e3-e053-5b8c7c11a4d1",
+        "ascApiKeyPath": ".eas-credentials/AuthKey_8BK9FT6FTN.p8"
       }
     }
   }

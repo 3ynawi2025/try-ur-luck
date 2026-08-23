@@ -61,3 +61,4 @@ _design_archive/
 ios_local_backup/
 ios/credentials/
 credentials.json
+.eas-credentials/

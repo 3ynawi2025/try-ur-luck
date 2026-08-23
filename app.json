@@ -25,7 +25,8 @@
           "NSAllowsLocalNetworking": true
         },
         "ITSAppUsesNonExemptEncryption": false
-      }
+      },
+      "buildNumber": "6"
     },
     "android": {
       "adaptiveIcon": {
