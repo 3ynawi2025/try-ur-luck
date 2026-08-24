@@ -14,7 +14,6 @@ import GoldButton from '../../../components/ui/GoldButton';
 import InstructionsModal from '../../../components/game/InstructionsModal';
 import GameHeader from '../../../components/game/GameHeader';
 import SoloTableBar from '../../../components/game/SoloTableBar';
-import WinFX from '../../../components/game/WinFX';
 import { CrownIcon } from '../../../components/icons/GameIcons';
 import { useErrorToast } from '../../../hooks/useErrorToast';
 import { useCountUp } from '../../../hooks/useCountUp';
@@ -331,15 +330,6 @@ export default function RouletteScreen() {
   const showOverlay = rouletteRoom?.phase === 'spinning' || rouletteRoom?.phase === 'result';
   const wheelVisible = showOverlay && (rouletteRoom?.endsAt ?? Infinity) > wheelDismissedAt;
 
-  // ===== لحظة الفوز السينمائية =====
-  const roWin =
-    res && res.netWin > 0 && snap.phase === 'SETTLED'
-      ? {
-          key: `ro-${snap.roundNumber}`,
-          magnitude: (res.netWin >= 1000 ? 3 : 2) as 1 | 2 | 3,
-        }
-      : null;
-
   // عدّاد رصيد متدحرج
   const balanceDisplay = useCountUp(Math.round(snap.balance));
 
@@ -394,7 +384,7 @@ export default function RouletteScreen() {
           </Text>
         )}
         {rouletteRoom?.phase === 'spinning' && <Text style={styles.spinNotice}>🎡 العجلة تدور…</Text>}
-        {rouletteRoom?.phase === 'result' && winners && (
+        {rouletteRoom?.phase === 'result' && !spinning && winners && (
           <Text style={styles.winnersLine}>
             🏆 الرقم {winners.number} —{' '}
             {winners.winners.length > 0
@@ -524,12 +514,12 @@ export default function RouletteScreen() {
           <ScrollView contentContainerStyle={styles.gridWrap} showsVerticalScrollIndicator={false}>
           {/* صف الأصفار + أول صف */}
           <View style={styles.gridRow}>
-            <BetCell label="0" numbers={[0]} type="straight" color={CELL_COLOR.green} height={zeroH} flex={0.9} onPress={place} total={cellTotal('straight', [0])} others={othersOn('straight', [0])} crowned={!!res && res.winningNumber === 0} />
+            <BetCell label="0" numbers={[0]} type="straight" color={CELL_COLOR.green} height={zeroH} flex={0.9} onPress={place} total={cellTotal('straight', [0])} others={othersOn('straight', [0])} crowned={!spinning && !!res && res.winningNumber === 0} />
             <View style={styles.gridCol}>
               {rows.map((row, ri) => (
                 <View key={ri} style={styles.gridRow}>
                   {row.map((n) => (
-                    <BetCell key={n} label={String(n)} numbers={[n]} type="straight" color={CELL_COLOR[numberColor(n)]} height={cellH} onPress={place} total={cellTotal('straight', [n])} others={othersOn('straight', [n])} crowned={!!res && res.winningNumber === n} />
+                    <BetCell key={n} label={String(n)} numbers={[n]} type="straight" color={CELL_COLOR[numberColor(n)]} height={cellH} onPress={place} total={cellTotal('straight', [n])} others={othersOn('straight', [n])} crowned={!spinning && !!res && res.winningNumber === n} />
                   ))}
                 </View>
               ))}
@@ -626,7 +616,7 @@ export default function RouletteScreen() {
             <Text style={styles.autoText}>⚙️ الدوران تلقائي — الرهان يُغلق مع انتهاء العداد</Text>
           ) : (
             <>
-              {!!res && (
+              {!spinning && !!res && (
                 <View style={styles.resultRow}>
                   <Text style={styles.resultText}>
                     الرقم الفائز: <Text style={styles.resultNumber}>{res.winningNumber}</Text>
@@ -642,10 +632,7 @@ export default function RouletteScreen() {
         </View>
       </View>
 
-      {/* لحظة الفوز */}
-      <WinFX trigger={roWin} />
-
-      {/* ===== رسالة الخطأ الموحدة ===== */}
+      {/* لحظة الفوز — أُلغيت جرافيكس الفوز في الروليت حتى لا ينكشف رقم الفوز قبل توقف الكرة */}
       {errorNode}
 
       <InstructionsModal game="roulette" visible={helpOpen} onClose={() => setHelpOpen(false)} />
