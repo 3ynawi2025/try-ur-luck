@@ -67,7 +67,7 @@ export default function ThreeCardScreen() {
   const { showError, errorNode } = useErrorToast();
 
   // ===== المحرك على السيرفر =====
-  const { snapshot, sendAction, players, isMuted, toggleMute } = useSoloGame('three-card', `tc-${id ?? '1'}`, showError);
+  const { snapshot, sendAction, players, isMuted, toggleMute, turnRemaining, muteAllRemote, toggleMuteAllRemote, mutedRemoteUids, toggleRemoteMute, isRemoteMuted } = useSoloGame('three-card', `tc-${id ?? '1'}`, showError);
 
   const EMPTY_SNAP: ThreeCardSnapshot = {
     phase: 'BETTING',
@@ -120,7 +120,16 @@ export default function ThreeCardScreen() {
       <View style={{ paddingTop: insets.top + SPACING.xs }}>
         <GameHeader title="ثلاث أوراق بوكر" onBack={() => router.back()} onInfo={() => setHelpOpen(true)} live muted={isMuted} onToggleMute={toggleMute} />
         <View style={{ paddingHorizontal: SPACING.lg, marginBottom: SPACING.xs }}>
-          <SoloTableBar players={players} isMuted={isMuted} onToggleMute={toggleMute} />
+          <SoloTableBar
+            players={players}
+            isMuted={isMuted}
+            onToggleMute={toggleMute}
+            muteAllRemote={muteAllRemote}
+            onToggleMuteAllRemote={toggleMuteAllRemote}
+            mutedRemoteUids={mutedRemoteUids}
+            onToggleRemoteMute={toggleRemoteMute}
+            isRemoteMuted={isRemoteMuted}
+          />
         </View>
         <Text style={styles.phaseText}>
           {snap.phase === 'BETTING'
@@ -254,6 +263,9 @@ export default function ThreeCardScreen() {
             <Text style={styles.turnLabel}>
               يدك: <Text style={styles.turnScore}>{HAND_NAMES[snap.playerHand!.category]}</Text> — العب أو انسحب؟
             </Text>
+            {typeof turnRemaining === 'number' && (
+              <Text style={styles.countdownText}>⏱️ وقتك: {turnRemaining} ثانية</Text>
+            )}
             <View style={styles.actions}>
               <ActionButton label="انسحاب" colors={['#7A1F2B', '#5C0F16'] as const} onPress={() => decide(false)} />
               <ActionButton
@@ -521,6 +533,12 @@ const styles = StyleSheet.create({
   turnScore: {
     fontFamily: FONTS.num.bold,
     color: COLORS.goldLight,
+  },
+  countdownText: {
+    fontFamily: FONTS.num.bold,
+    fontSize: TYPE.body.fontSize,
+    color: COLORS.crimson,
+    textAlign: 'center',
   },
   actions: {
     flexDirection: 'row-reverse',

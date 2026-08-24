@@ -97,6 +97,22 @@ function registerRateLimited(ip: string): boolean {
   return false;
 }
 
+// تحديد معدل محاولات تسجيل الدخول الفاشلة (حماية من تخمين كلمات المرور)
+const loginFailures = new Map<string, number[]>();
+function loginRateLimited(ip: string): boolean {
+  const now = Date.now();
+  const window = 10 * 60 * 1000; // 10 دقائق
+  const list = (loginFailures.get(ip) ?? []).filter((t) => now - t < window);
+  return list.length >= 10;
+}
+function recordLoginFailure(ip: string): void {
+  const now = Date.now();
+  const window = 10 * 60 * 1000;
+  const list = (loginFailures.get(ip) ?? []).filter((t) => now - t < window);
+  list.push(now);
+  loginFailures.set(ip, list);
+}
+
 // إنشاء حساب جديد باسم مستخدم (يمنع التكرار عالمياً عبر قيد فريد في قاعدة البيانات)
 router.post('/auth/register', async (req: Request, res: Response) => {
   if (registerRateLimited(String(req.ip ?? 'unknown'))) {
@@ -105,16 +121,30 @@ router.post('/auth/register', async (req: Request, res: Response) => {
 
   const username = String(req.body?.username ?? '').replace(/^@/, '').trim().toLowerCase();
   const displayName = String(req.body?.displayName ?? '').trim().slice(0, 40) || username;
+  const passwordRaw = String(req.body?.password ?? '');
 
   if (!/^[a-z0-9_]{3,20}$/.test(username)) {
     return res.status(400).json({ error: 'USERNAME_INVALID' });
   }
 
+  // توافق خلفي: العملاء القدامى (قبل وصول تحديث OTA) يسجّلون بدون كلمة مرور —
+  // نولّد لهم كلمة مرور عشوائية كما كان النظام القديم، وجلساتهم تبقى تعمل.
+  // العملاء الجدد يُلزمون بكلمة مرور ≥ 6 أحرف من واجهتهم، وإذا أرسلوها أقصر نرفض.
+  let password: string;
+  let legacy = false;
+  if (!passwordRaw) {
+    password = randomBytes(18).toString('base64url');
+    legacy = true;
+  } else if (passwordRaw.length < 6) {
+    return res.status(400).json({ error: 'PASSWORD_TOO_SHORT' });
+  } else {
+    password = passwordRaw;
+  }
+
   const admin = getAdmin();
 
-  // هوية مجهولة: مستخدم ببريد اصطناعي فريد وكلمة مرور عشوائية (لا يُرسل إليه شيء)
+  // هوية مجهولة: مستخدم ببريد اصطناعي فريد (لا يُرسل إليه شيء) + كلمة مرور المستخدم الحقيقية
   const email = `u_${randomUUID()}@guest.jarebhazzak.app`;
-  const password = randomBytes(18).toString('base64url');
 
   const created = await admin.auth.admin.createUser({
     email,
@@ -129,11 +159,13 @@ router.post('/auth/register', async (req: Request, res: Response) => {
 
   const userId = created.data.user.id;
 
-  // إنشاء البروفايل المرتبط بالمستخدم
+  // إنشاء البروفايل المرتبط بالمستخدم (يُخزَّن البريد الاصطناعي لتمكين تسجيل الدخول لاحقًا —
+  // الحسابات القديمة المولّدة بكلمة مرور عشوائية تُترك auth_email فارغة حتى تعيّن كلمة مرور)
   const { error: profileError } = await admin.from('profiles').insert({
     id: userId,
     username,
     display_name: displayName,
+    ...(legacy ? {} : { auth_email: email }),
   });
 
   if (profileError) {
@@ -202,6 +234,87 @@ router.post('/auth/register', async (req: Request, res: Response) => {
       refresh_token: session.data.session.refresh_token,
     },
   });
+});
+
+// تسجيل الدخول باسم المستخدم وكلمة المرور — يعمل بعد إعادة التثبيت أو على جهاز آخر
+router.post('/auth/login', async (req: Request, res: Response) => {
+  const ip = String(req.ip ?? 'unknown');
+  if (loginRateLimited(ip)) {
+    return res.status(429).json({ error: 'LOGIN_RATE_LIMITED' });
+  }
+
+  const username = String(req.body?.username ?? '').replace(/^@/, '').trim().toLowerCase();
+  const password = String(req.body?.password ?? '');
+
+  if (!/^[a-z0-9_]{3,20}$/.test(username)) {
+    return res.status(400).json({ error: 'USERNAME_INVALID' });
+  }
+  if (!password) {
+    return res.status(400).json({ error: 'PASSWORD_REQUIRED' });
+  }
+
+  const admin = getAdmin();
+
+  // البحث عن الحساب → البريد الاصطناعي المُخزَّن في البروفايل
+  const { data: profile } = await admin
+    .from('profiles')
+    .select('id, username, display_name, auth_email')
+    .eq('username', username)
+    .maybeSingle();
+
+  // حسابات قديمة بلا كلمة مرور (auth_email = null) لا يمكنها تسجيل الدخول
+  // حتى تعيّن كلمة مرور من داخل الإعدادات — جلساتها المحفوظة تبقى تعمل.
+  if (!profile?.auth_email) {
+    return res.status(404).json({ error: 'USER_NOT_FOUND' });
+  }
+
+  // عميل مستقل حتى لا تثبت جلسة المستخدم على العميل الإداري المشترك
+  const authClient = createSupabaseAdminClient();
+  const session = await authClient.auth.signInWithPassword({
+    email: profile.auth_email,
+    password,
+  });
+
+  if (session.error || !session.data.session) {
+    recordLoginFailure(ip);
+    return res.status(401).json({ error: 'WRONG_PASSWORD' });
+  }
+
+  return res.json({
+    userId: profile.id,
+    username: profile.username,
+    displayName: profile.display_name ?? profile.username,
+    session: {
+      access_token: session.data.session.access_token,
+      refresh_token: session.data.session.refresh_token,
+    },
+  });
+});
+
+// تعيين/تغيير كلمة المرور لحساب قائم (للحسابات القديمة التي أُنشئت بدون كلمة مرور)
+router.post('/auth/set-password', authenticate, async (req: Request, res: Response) => {
+  const password = String(req.body?.password ?? '');
+  if (password.length < 6) {
+    return res.status(400).json({ error: 'PASSWORD_TOO_SHORT' });
+  }
+
+  const admin = getAdmin();
+  const { error } = await admin.auth.admin.updateUserById(req.user!.id, { password });
+  if (error) {
+    console.error('[auth/set-password] updateUserById failed:', error.message);
+    return res.status(500).json({ error: 'SET_PASSWORD_FAILED' });
+  }
+
+  // تثبيت البريد الاصطناعي في البروفايل حتى يعمل تسجيل الدخول لاحقًا
+  if (req.user?.email) {
+    await admin
+      .from('profiles')
+      .update({ auth_email: req.user.email })
+      .eq('id', req.user!.id)
+      .then(() => {}, () => {});
+  }
+
+  return res.json({ ok: true });
 });
 
 // رصيد المستخدم الحالي — يُقرأ من التوكن الموثّق (لا معرّف من العميل)

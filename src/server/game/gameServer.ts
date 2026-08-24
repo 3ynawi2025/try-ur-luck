@@ -25,6 +25,10 @@ interface TableRoom {
   engine: TexasHoldemEngine;
   players: Map<string, TableSeat>; // socketId -> seat
   autoStartTimer?: NodeJS.Timeout;
+  /** مؤقت دور اللاعب الحالي (30 ثانية) — يُلغى عند أي إجراء/مغادرة/انتهاء. */
+  turnTimer?: NodeJS.Timeout;
+  /** مفتاح المؤقت الحالي (playerId:startedAt) لتجنّب إعادة الجدولة المكررة. */
+  turnKey?: string;
   /** منشئ الطاولة الخاصة (ذهبي) — تُغلق الغرفة بمجرد خروجه */
   hostId: string | null;
 }
@@ -32,6 +36,8 @@ interface TableRoom {
 const tables = new Map<string, TableRoom>();
 const MAX_TABLES = 500; // حماية من إنشاء غرف لا نهائي (DoS) — 500 طاولة × 6 مقاعد = 3,000 لاعب
 const TABLE_BUYIN = 10_000;
+/** مهلة دور اللاعب (افتراضية) — القيمة الفعلية تأتي من snapshot.waitingFor.timeoutMs. */
+const TURN_TIMEOUT_MS = 30_000;
 
 /** إحصاءات حية للطاولات (لمراقبة /diag). */
 export function getTableStats(): { tables: number; seatedPlayers: number } {
@@ -72,6 +78,7 @@ function getOrCreateTable(tableId: string): TableRoom | null {
 function removeRoomIfEmpty(tableId: string, table: TableRoom) {
   if (table.players.size === 0) {
     if (table.autoStartTimer) clearTimeout(table.autoStartTimer);
+    clearTurnTimer(table);
     tables.delete(tableId);
     console.log(`🧹 Table ${tableId} removed (empty)`);
   }
@@ -90,6 +97,7 @@ function closeHostedRoom(io: Server, tableId: string, table: TableRoom) {
     io.sockets.sockets.get(sid)?.leave(tableId);
   }
   if (table.autoStartTimer) clearTimeout(table.autoStartTimer);
+  clearTurnTimer(table);
   tables.delete(tableId);
 
   // تحديث حالة الطاولة في قاعدة البيانات (تختفي من القائمة)
@@ -152,6 +160,46 @@ function broadcastState(io: Server, tableId: string, table: TableRoom) {
     ...snapshot,
     holeCards: null,
   });
+
+  syncTurnTimer(io, tableId, table);
+}
+
+/** إلغاء مؤقت الدور الحالي للطاولة. */
+function clearTurnTimer(table: TableRoom) {
+  if (table.turnTimer) {
+    clearTimeout(table.turnTimer);
+    table.turnTimer = undefined;
+  }
+  table.turnKey = undefined;
+}
+
+/**
+ * مزامنة مؤقت الدور: بعد كل تغيير حالة نفحص waitingFor،
+ * فإن وُجد لاعب منتظر ولم يكن له مؤقت قائم أنشأنا مؤقتًا يطويه تلقائيًا عند انتهائه.
+ */
+function syncTurnTimer(io: Server, tableId: string, table: TableRoom) {
+  const waiting = table.engine.snapshot().waitingFor;
+  const key = waiting ? `${waiting.playerId}:${waiting.startedAt}` : null;
+
+  if (!key) {
+    clearTurnTimer(table);
+    return;
+  }
+  // مؤقت قائم لنفس الدور — لا شيء لنفعله
+  if (table.turnKey === key && table.turnTimer) return;
+
+  clearTurnTimer(table);
+  table.turnKey = key;
+  const timeoutMs = waiting && waiting.timeoutMs > 0 ? waiting.timeoutMs : TURN_TIMEOUT_MS;
+  table.turnTimer = setTimeout(() => {
+    table.turnTimer = undefined;
+    if (tables.get(tableId) !== table) return;
+    // لا نطوي إلا إذا بقي نفس اللاعب منتظرًا (يمنع سباقًا مع إجراء وصل متأخرًا)
+    const now = table.engine.snapshot().waitingFor;
+    if (!now || `${now.playerId}:${now.startedAt}` !== key) return;
+    table.engine.applyTurnTimeout();
+    broadcastState(io, tableId, table);
+  }, timeoutMs);
 }
 
 export function setupGameHandlers(io: Server) {

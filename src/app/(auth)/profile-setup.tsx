@@ -24,15 +24,54 @@ import { BackIcon, PlusIcon } from '../../components/icons/GameIcons';
 import { COLORS, FONTS, TYPE, SPACING, SIZES, RADIUS } from '../../constants/theme';
 import { useAuthStore } from '../../stores/authStore';
 
+/** حقل كلمة مرور مع زر إظهار/إخفاء — يطابق نمط Input الحالي */
+function PasswordInput({
+  label,
+  placeholder,
+  value,
+  onChangeText,
+  error,
+}: {
+  label: string;
+  placeholder?: string;
+  value: string;
+  onChangeText: (t: string) => void;
+  error?: string;
+}) {
+  const [visible, setVisible] = useState(false);
+  return (
+    <View>
+      <View style={styles.labelRow}>
+        <Text style={styles.fieldLabel}>{label}</Text>
+        <Pressable onPress={() => setVisible((v) => !v)} hitSlop={8}>
+          <Text style={styles.toggle}>{visible ? 'إخفاء' : 'إظهار'}</Text>
+        </Pressable>
+      </View>
+      <Input
+        placeholder={placeholder}
+        value={value}
+        onChangeText={onChangeText}
+        secureTextEntry={!visible}
+        autoCapitalize="none"
+        autoCorrect={false}
+        textContentType="password"
+        error={error}
+      />
+    </View>
+  );
+}
+
 export default function ProfileSetupScreen() {
   const params = useLocalSearchParams<{ ref?: string }>();
   const [username, setUsername] = useState('');
   const [displayName, setDisplayName] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [invited, setInvited] = useState<string | null>(null);
   const [agreeTerms, setAgreeTerms] = useState(false);
   const [agreeAge, setAgreeAge] = useState(false);
-  const signInWithUsername = useAuthStore((s) => s.signInWithUsername);
+  const register = useAuthStore((s) => s.register);
   const busy = useAuthStore((s) => s.busy);
 
   const ref = typeof params.ref === 'string' ? params.ref : undefined;
@@ -42,10 +81,11 @@ export default function ProfileSetupScreen() {
   const valid = /^[a-z0-9_]{3,20}$/.test(clean);
 
   const create = async () => {
+    if (password.length < 6 || password !== confirmPassword) return;
     if (!valid || busy || !agreeTerms || !agreeAge) return;
     setError(null);
     try {
-      const r = await signInWithUsername(clean, displayName, ref);
+      const r = await register(clean, displayName, password, ref);
       if (r.inviteBonus) {
         // مكافأة الدعوة استُلمت — أظهرها لحظتين ثم ادخل
         setInvited(ref ?? 'صديقك');
@@ -58,6 +98,8 @@ export default function ProfileSetupScreen() {
         setError('اسم المستخدم مستخدم مسبقاً — اختر اسماً آخر');
       } else if (e?.message === 'USERNAME_INVALID') {
         setError('اسم المستخدم: ٣-٢٠ حرفًا لاتينيًا أو أرقامًا أو شرطة سفلية فقط');
+      } else if (e?.message === 'PASSWORD_TOO_SHORT') {
+        setError('كلمة المرور: ٦ أحرف على الأقل');
       } else {
         setError('تعذّر إنشاء الحساب. تأكد من اتصالك بالإنترنت ثم أعد المحاولة');
       }
@@ -87,7 +129,7 @@ export default function ProfileSetupScreen() {
         >
           <Text style={styles.title}>أنشئ حسابك</Text>
           <Text style={styles.subtitle}>
-            اختر اسم مستخدم واسم معروض، وابدأ اللعب فوراً — بدون رقم هاتف
+            اختر اسم مستخدم وكلمة مرور واسم معروض، وابدأ اللعب فوراً
           </Text>
 
           {/* الصورة */}
@@ -132,6 +174,28 @@ export default function ProfileSetupScreen() {
               onChangeText={setDisplayName}
               maxLength={24}
             />
+            <PasswordInput
+              label="كلمة المرور"
+              placeholder="٦ أحرف على الأقل"
+              value={password}
+              onChangeText={setPassword}
+              error={
+                password.length > 0 && password.length < 6
+                  ? '٦ أحرف على الأقل'
+                  : undefined
+              }
+            />
+            <PasswordInput
+              label="تأكيد كلمة المرور"
+              placeholder="أعد كتابة كلمة المرور"
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              error={
+                confirmPassword.length > 0 && confirmPassword !== password
+                  ? 'غير متطابقة'
+                  : undefined
+              }
+            />
           </View>
 
           <View style={styles.consent}>
@@ -150,7 +214,7 @@ export default function ProfileSetupScreen() {
             </Pressable>
 
             <Text style={styles.disclosure}>
-              سننشئ حسابك باسم مستخدم، ونخزّن معرّف جهازك لتأمين الحساب. لا نبيع بياناتك. راجع سياسة الخصوصية من الأسفل.
+              سننشئ حسابك باسم مستخدم وكلمة مرور، ونخزّن معرّف جهازك لتأمين الحساب. لا نبيع بياناتك. راجع سياسة الخصوصية من الأسفل.
             </Text>
 
             <Pressable onPress={openPrivacy} hitSlop={8}>
@@ -161,12 +225,19 @@ export default function ProfileSetupScreen() {
           <GoldButton
             title={busy ? 'جارٍ إنشاء الحساب…' : 'ابدأ اللعب'}
             onPress={create}
-            disabled={!valid || busy || !agreeTerms || !agreeAge}
+            disabled={
+              !valid ||
+              busy ||
+              !agreeTerms ||
+              !agreeAge ||
+              password.length < 6 ||
+              password !== confirmPassword
+            }
             loading={busy}
           />
 
           <Text style={styles.hint}>
-            يمكنك لاحقاً ربط بريدك الإلكتروني من الملف الشخصي لتثبيت حسابك حتى لا تفقده عند تغيير الجهاز
+            احفظ كلمة مرورك جيدًا — ستسجّل بها دخولك من أي جهاز لاحقًا
           </Text>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -239,6 +310,26 @@ const styles = StyleSheet.create({
   },
   form: {
     marginTop: SPACING.xxl,
+  },
+  labelRow: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: SPACING.sm,
+  },
+  fieldLabel: {
+    flex: 1,
+    color: COLORS.textDim,
+    fontSize: TYPE.small.fontSize,
+    lineHeight: TYPE.small.lineHeight,
+    fontFamily: FONTS.ar.medium,
+    textAlign: 'right',
+  },
+  toggle: {
+    fontFamily: FONTS.ar.semibold,
+    fontSize: TYPE.small.fontSize,
+    lineHeight: TYPE.small.lineHeight,
+    color: COLORS.gold,
   },
   inviteBanner: {
     marginBottom: SPACING.md,

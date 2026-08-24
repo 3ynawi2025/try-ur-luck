@@ -3,11 +3,20 @@
 // شاشة مخفية: تُفتح من الملف الشخصي.
 // ============================================================
 
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  Pressable,
+  Modal,
+  TextInput,
+} from 'react-native';
 import * as Linking from 'expo-linking';
 import Screen from '../../components/ui/Screen';
 import GlassCard from '../../components/ui/GlassCard';
+import GoldButton from '../../components/ui/GoldButton';
 import {
   BackIcon,
   InfoIcon,
@@ -15,9 +24,11 @@ import {
   UserIcon,
   SendIcon,
   ChevronIcon,
+  KeyIcon,
 } from '../../components/icons/GameIcons';
-import { COLORS, FONTS, TYPE, SPACING, SIZES } from '../../constants/theme';
+import { COLORS, FONTS, TYPE, SPACING, SIZES, RADIUS } from '../../constants/theme';
 import { router } from 'expo-router';
+import { useAuthStore } from '../../stores/authStore';
 
 const PRIVACY_URL = 'https://jareb-hazzak-server.onrender.com/privacy';
 const SUPPORT_URL = 'https://jareb-hazzak-server.onrender.com/support';
@@ -43,6 +54,38 @@ function MenuRow({
 }
 
 export default function SettingsScreen() {
+  const setPassword = useAuthStore((s) => s.setPassword);
+  const busy = useAuthStore((s) => s.busy);
+  const [pwOpen, setPwOpen] = useState(false);
+  const [pw, setPw] = useState('');
+  const [pw2, setPw2] = useState('');
+  const [pwMsg, setPwMsg] = useState<string | null>(null);
+  const [pwErr, setPwErr] = useState<string | null>(null);
+
+  const submitPassword = async () => {
+    if (pw.length < 6) {
+      setPwErr('كلمة المرور ٦ أحرف على الأقل');
+      return;
+    }
+    if (pw !== pw2) {
+      setPwErr('كلمتا المرور غير متطابقتين');
+      return;
+    }
+    setPwErr(null);
+    try {
+      await setPassword(pw);
+      setPwMsg('تم تعيين كلمة المرور — سجّل بها مستقبلًا');
+      setTimeout(() => {
+        setPwOpen(false);
+        setPwMsg(null);
+        setPw('');
+        setPw2('');
+      }, 1500);
+    } catch {
+      setPwErr('تعذّر تعيين كلمة المرور — حاول مجددًا');
+    }
+  };
+
   return (
     <Screen>
       <ScrollView
@@ -57,6 +100,12 @@ export default function SettingsScreen() {
         </View>
 
         <GlassCard padding={SPACING.sm} style={styles.block}>
+          <MenuRow
+            icon={<KeyIcon size={19} color={COLORS.gold} />}
+            label="تعيين كلمة المرور"
+            onPress={() => setPwOpen(true)}
+          />
+          <View style={styles.divider} />
           <MenuRow
             icon={<InfoIcon size={19} color={COLORS.textDim} />}
             label="قواعد السلوك والإبلاغ"
@@ -82,8 +131,50 @@ export default function SettingsScreen() {
           />
         </GlassCard>
 
-        <Text style={styles.note}>حذف الحساب متاح من صفحة حسابك</Text>
+        <Text style={styles.note}>
+          حذف الحساب متاح من صفحة حسابك.{'\n'}كلمة المرور تحمي حسابك عند تغيير الجهاز أو إعادة التثبيت.
+        </Text>
       </ScrollView>
+
+      <Modal
+        visible={pwOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPwOpen(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>تعيين كلمة المرور</Text>
+            <Text style={styles.modalSub}>
+              ستستخدمها لتسجيل الدخول إذا حذفت التطبيق أو بدّلت جهازك
+            </Text>
+            <TextInput
+              style={styles.pwInput}
+              placeholder="كلمة المرور (٦ أحرف على الأقل)"
+              placeholderTextColor={COLORS.textFaint}
+              secureTextEntry
+              value={pw}
+              onChangeText={setPw}
+              autoCapitalize="none"
+            />
+            <TextInput
+              style={styles.pwInput}
+              placeholder="تأكيد كلمة المرور"
+              placeholderTextColor={COLORS.textFaint}
+              secureTextEntry
+              value={pw2}
+              onChangeText={setPw2}
+              autoCapitalize="none"
+            />
+            {pwErr && <Text style={styles.pwErr}>{pwErr}</Text>}
+            {pwMsg && <Text style={styles.pwOk}>{pwMsg}</Text>}
+            <View style={styles.modalActions}>
+              <GoldButton title="إلغاء" variant="ghost" onPress={() => setPwOpen(false)} />
+              <GoldButton title="حفظ" onPress={submitPassword} disabled={busy} />
+            </View>
+          </View>
+        </View>
+      </Modal>
     </Screen>
   );
 }
@@ -141,5 +232,65 @@ const styles = StyleSheet.create({
     color: COLORS.textFaint,
     textAlign: 'center',
     marginTop: SPACING.sm,
+    lineHeight: TYPE.caption.lineHeight * 1.6,
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(4,6,10,0.72)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: SPACING.lg,
+  },
+  modalCard: {
+    width: '100%',
+    maxWidth: 380,
+    borderRadius: RADIUS.lg,
+    borderWidth: 1,
+    borderColor: COLORS.hairlineGold,
+    backgroundColor: COLORS.surfaceSunken,
+    padding: SPACING.lg,
+    gap: SPACING.md,
+  },
+  modalTitle: {
+    fontFamily: FONTS.ar.bold,
+    fontSize: TYPE.h3.fontSize,
+    color: COLORS.text,
+    textAlign: 'center',
+  },
+  modalSub: {
+    fontFamily: FONTS.ar.regular,
+    fontSize: TYPE.caption.fontSize,
+    color: COLORS.textDim,
+    textAlign: 'center',
+  },
+  pwInput: {
+    borderWidth: 1,
+    borderColor: COLORS.borderStrong,
+    borderRadius: RADIUS.sm,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: 12,
+    color: COLORS.text,
+    fontFamily: FONTS.ar.medium,
+    fontSize: TYPE.body.fontSize,
+    backgroundColor: COLORS.surface,
+    textAlign: 'right',
+  },
+  pwErr: {
+    fontFamily: FONTS.ar.medium,
+    fontSize: TYPE.caption.fontSize,
+    color: COLORS.crimson,
+    textAlign: 'center',
+  },
+  pwOk: {
+    fontFamily: FONTS.ar.medium,
+    fontSize: TYPE.caption.fontSize,
+    color: COLORS.emerald,
+    textAlign: 'center',
+  },
+  modalActions: {
+    flexDirection: 'row-reverse',
+    justifyContent: 'center',
+    gap: SPACING.md,
+    marginTop: SPACING.xs,
   },
 });

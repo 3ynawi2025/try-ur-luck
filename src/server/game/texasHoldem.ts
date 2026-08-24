@@ -26,6 +26,8 @@ export interface TableConfig {
   /** Fixed-limit cap: bet + (cap-1) raises. Default 4. */
   fixedLimitCap?: number;
   straddle?: 'off' | 'utg';
+  /** مهلة دور اللاعب بالمللي ثانية (تُبثّ للعميل ويستخدمها السيرفر). Default 30000. */
+  turnTimeoutMs?: number;
   /** Injectable RNG for tests. Default: CSPRNG. */
   rng?: Rng;
 }
@@ -88,6 +90,14 @@ export interface SnapshotPlayer {
   isCurrentTurn: boolean;
 }
 
+export interface WaitingForInfo {
+  playerId: string;
+  /** طابع زمني (سيرفر) لبدء انتظار هذا اللاعب. */
+  startedAt: number;
+  /** مدة المهلة بالمللي ثانية (30 ثانية افتراضيًا). */
+  timeoutMs: number;
+}
+
 export interface GameSnapshot {
   tableId: string;
   phase: GamePhase;
@@ -104,6 +114,8 @@ export interface GameSnapshot {
   winners?: WinnerInfo[];
   legalActions?: LegalActions;
   handNumber: number;
+  /** اللاعب المنتظر للفعل حاليًا (null في waiting/showdown أو عند غياب فاعل نشط). */
+  waitingFor: WaitingForInfo | null;
 }
 
 export interface EngineResult {
@@ -242,6 +254,7 @@ export class TexasHoldemEngine {
   private raiseCount = 0; // fixed-limit
 
   private activeSeat: number | null = null;
+  private turnStartedAt: number | null = null;
   private lastAction: GameSnapshot['lastAction'];
 
   private winners: WinnerInfo[] = [];
@@ -696,6 +709,17 @@ export class TexasHoldemEngine {
     return this.performAction(playerId, toCall > 0 ? 'fold' : 'check');
   }
 
+  /**
+   * طي اللاعب المنتظر تلقائيًا عند انتهاء مهلة الدور (30 ثانية).
+   * الطي قانوني دائمًا (بما في ذلك حالة الـBB والمواجهة الثنائية)،
+   * وإن أدى إلى تسوية الجولة فـperformAction يتكفل بذلك كالمعتاد.
+   */
+  applyTurnTimeout(): void {
+    const actorId = this.getCurrentActorId();
+    if (!actorId) return;
+    this.performAction(actorId, 'fold');
+  }
+
   private reopenForOthers(actor: TablePlayer, full: boolean): void {
     for (const p of this.players) {
       if (p.seatIndex === actor.seatIndex) continue;
@@ -1060,6 +1084,7 @@ export class TexasHoldemEngine {
 
   private syncTurnFlag(): void {
     for (const p of this.players) p.isCurrentTurn = p.seatIndex === this.activeSeat;
+    this.turnStartedAt = this.activeSeat !== null ? Date.now() : null;
   }
 
   getHandHistory(): Record<string, unknown>[] {
@@ -1093,6 +1118,18 @@ export class TexasHoldemEngine {
     };
   }
 
+  private currentWaitingFor(): WaitingForInfo | null {
+    if (this.phase === 'waiting' || this.phase === 'showdown') return null;
+    if (this.activeSeat === null) return null;
+    const p = this.bySeat(this.activeSeat);
+    if (!p || p.status !== 'active') return null;
+    return {
+      playerId: p.id,
+      startedAt: this.turnStartedAt ?? Date.now(),
+      timeoutMs: this.config.turnTimeoutMs ?? 30000,
+    };
+  }
+
   snapshot(): GameSnapshot {
     const currentActorId = this.getCurrentActorId();
     const inShowdown = this.phase === 'showdown';
@@ -1121,6 +1158,7 @@ export class TexasHoldemEngine {
       winners: inShowdown ? this.winners : undefined,
       legalActions: currentActorId ? this.legalActionsFor(currentActorId) : undefined,
       handNumber: this.handNumber,
+      waitingFor: this.currentWaitingFor(),
     };
   }
 }

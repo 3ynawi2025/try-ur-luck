@@ -70,7 +70,7 @@ npx eas-cli submit --platform ios --profile production --id <BUILD_ID> --non-int
 ### App Store > iOS App > 1.0.0
 - Promotional Text، Description، Keywords: انسخ من `metadata-ar.md`.
 - Review Notes: الصق نص **Review notes** من `metadata-ar.md` (يوضح أن الرقاقات افتراضية بالكامل ولا مال حقيقي).
-- Demo account: التسجيل باسم مستخدم فقط (بدون كلمة مرور) — مذكور في Review Notes.
+- Demo account: التسجيل باسم مستخدم + كلمة مرور (٦ أحرف على الأقل) — أي حساب جديد يصلح للتجربة. اذكر اسمًا تجريبيًا وكلمة مروره في Review Notes عند التحديث القادم.
 - Screenshots: ارفع لقطات `screenshots/6.9/*.png` (iPhone 6.9") و `screenshots/5.5/*.png` (iPhone 5.5") و `screenshots/ipad/*.png` (iPad).
 
 > ✅ **تم إنجازه فعليًا (2026-08-23):** التطبيق مسجل في App Store Connect (App ID `6804312275`)، كل البيانات معبأة ومحفوظة، ملصق الخصوصية منشور (5 أنواع بيانات لغرض App Functionality فقط، بدون تتبع)، لقطات الشاشة مرفوعة (6.9"×6 + 5.5"×6 + iPad×6)، السعر مجاني في 174 دولة (كوريا مستثناة لاشتراطها رخصة RCN للتصنيف 19+)، التصنيف العمري 18+، والبناء 1.0.0(7) مرفوع إلى TestFlight.

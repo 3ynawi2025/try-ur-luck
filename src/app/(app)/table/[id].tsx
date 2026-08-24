@@ -13,7 +13,7 @@ import {
   Modal,
   TextInput,
 } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
@@ -42,7 +42,7 @@ import { useReducedMotion } from '../../../constants/motion';
 import { GameSnapshot } from '../../../server/game/texasHoldem';
 import { Card as GameCard } from '../../../server/game/deck';
 import { useGameSocket } from '../../../hooks/useGameSocket';
-import { useAgoraVoice } from '../../../hooks/useAgoraVoice';
+import { useAgoraVoice, agoraUidFor } from '../../../hooks/useAgoraVoice';
 import { useCountUp } from '../../../hooks/useCountUp';
 import { useScale, scaleSize } from '../../../hooks/useScale';
 import { useFriendsStore } from '../../../stores/friendsStore';
@@ -116,6 +116,9 @@ function Seat({
   isMe,
   topHalf,
   winner = false,
+  turnCountdown = null,
+  remoteMuted = false,
+  onToggleRemoteMute,
 }: {
   player: GameSnapshot['players'][number];
   isMe: boolean;
@@ -123,6 +126,12 @@ function Seat({
   topHalf: boolean;
   /** فائز باليد — حلقة شامبين نابضة */
   winner?: boolean;
+  /** الثواني المتبقية لدور اللاعب الحالي (يظهر بجانب اسمه فقط) */
+  turnCountdown?: number | null;
+  /** هل صوت هذا اللاعب مكتوم عندي؟ */
+  remoteMuted?: boolean;
+  /** تبديل كتم صوت هذا اللاعب */
+  onToggleRemoteMute?: () => void;
 }) {
   const sc = useScale();
   const folded = player.status === 'folded';
@@ -195,6 +204,12 @@ function Seat({
           <Text style={styles.seatStack}>{formatCompact(player.balance)}</Text>
         </View>
 
+        {player.isCurrentTurn && turnCountdown !== null && (
+          <View style={[styles.turnBadge, turnCountdown <= 5 && styles.turnBadgeUrgent]}>
+            <Text style={styles.turnBadgeText}>{turnCountdown}</Text>
+          </View>
+        )}
+
         {player.isDealer && (
           <View style={styles.dealerBtn}>
             <Text style={styles.dealerBtnText}>D</Text>
@@ -203,23 +218,28 @@ function Seat({
       </View>
 
       {!isMe && (
-        <Pressable
-          style={[styles.addFriendBtn, isFriend && styles.addFriendBtnDone]}
-          onPress={() => {
-            if (isFriend) return;
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-            sendFriendRequest(player.id, player.name).catch(() => {
-              /* تجاهل — قد يكونون أصدقاء بالفعل */
-            });
-          }}
-          hitSlop={6}
-        >
-          {isFriend ? (
-            <UserCheckIcon size={12} color={COLORS.emerald} />
-          ) : (
-            <UserPlusIcon size={12} color={COLORS.goldLight} />
-          )}
-        </Pressable>
+        <View style={styles.seatActionsRow}>
+          <Pressable
+            style={[styles.addFriendBtn, isFriend && styles.addFriendBtnDone]}
+            onPress={() => {
+              if (isFriend) return;
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+              sendFriendRequest(player.id, player.name).catch(() => {
+                /* تجاهل — قد يكونون أصدقاء بالفعل */
+              });
+            }}
+            hitSlop={6}
+          >
+            {isFriend ? (
+              <UserCheckIcon size={12} color={COLORS.emerald} />
+            ) : (
+              <UserPlusIcon size={12} color={COLORS.goldLight} />
+            )}
+          </Pressable>
+          <Pressable style={styles.mutePlayerBtn} onPress={onToggleRemoteMute} hitSlop={6}>
+            <Text style={styles.mutePlayerEmoji}>{remoteMuted ? '🔇' : '🔊'}</Text>
+          </Pressable>
+        </View>
       )}
 
       {(folded || allIn) && (
@@ -241,7 +261,18 @@ export default function PokerTableScreen() {
   const insets = useSafeAreaInsets();
   const sc = useScale();
   const { isConnected, joinTable, leaveTable, performAction, on } = useGameSocket();
-  const { isMuted, joinChannel, toggleMute, destroy, joinError } = useAgoraVoice();
+  // API الصوت الكامل (كتم الجميع + كتم فردي بربط uid الحتمي)
+  const {
+    isMuted,
+    joinChannel,
+    toggleMute,
+    destroy,
+    joinError,
+    muteAllRemote,
+    toggleMuteAllRemote,
+    toggleRemoteMute,
+    isRemoteMuted,
+  } = useAgoraVoice();
 
   // هوية هذه الجلسة — من الحساب الحقيقي، أو من معرّف المقعد الذي يمنحه الخادم
   const profile = useAuthStore((s) => s.profile);
@@ -249,6 +280,11 @@ export default function PokerTableScreen() {
   const myId = seatId ?? profile?.id ?? 'guest';
   const myName = profile?.displayName ?? 'أنت';
   const tableId = `table-${id ?? '1'}`;
+  // uid حتمي لهذا اللاعب — نفس ما يستخدمه الآخرون لكتمه
+  const myVoiceUid = agoraUidFor(myId);
+  // مرجع دائم الـuid (myId يتغير بعد table:seat — المستمعون المسجلون مرة واحدة يقرؤون المرجع)
+  const myVoiceUidRef = useRef(myVoiceUid);
+  myVoiceUidRef.current = myVoiceUid;
 
   const [snapshot, setSnapshot] = useState<GameSnapshot | null>(null);
   const [holeCards, setHoleCards] = useState<GameCard[]>([]);
@@ -258,6 +294,9 @@ export default function PokerTableScreen() {
   // طاولة خاصة: طلب كلمة السر عند الرفض من السيرفر
   const [pwPrompt, setPwPrompt] = useState(false);
   const [pwText, setPwText] = useState('');
+  // عدّاد تنازلي لدور اللاعب الحالي + توكن الصوت لإعادة الانضمام
+  const [turnCountdown, setTurnCountdown] = useState<number | null>(null);
+  const voiceTokenRef = useRef<{ appId: string; channelName: string; token: string } | null>(null);
 
   const errorAnim = useRef(new Animated.Value(0)).current;
   const noticeAnim = useRef(new Animated.Value(0)).current;
@@ -314,7 +353,11 @@ export default function PokerTableScreen() {
     });
     const offVoice = on<{ appId: string; channelName: string; token: string }>(
       'voice:token',
-      (d) => joinChannel(d.appId || AGORA_APP_ID, d.channelName, d.token)
+      (d) => {
+        const appId = d.appId || AGORA_APP_ID;
+        voiceTokenRef.current = { appId, channelName: d.channelName, token: d.token };
+        joinChannel(appId, d.channelName, d.token, myVoiceUidRef.current);
+      }
     );
     return () => {
       offState();
@@ -327,12 +370,17 @@ export default function PokerTableScreen() {
     };
   }, [on, joinChannel]);
 
-  // --- إتلاف محرك الصوت عند مغادرة الشاشة ---
-  useEffect(() => {
-    return () => {
-      destroy();
-    };
-  }, [destroy]);
+  // --- فصل الصوت فور مغادرة الشاشة (حتى لو بقيت محمّلة في الـStack)، وإعادة الانضمام عند العودة ---
+  useFocusEffect(
+    useCallback(() => {
+      // عند العودة للشاشة: إعادة الانضمام بنفس التوكن والـuid (النمط الحالي)
+      const v = voiceTokenRef.current;
+      if (v) joinChannel(v.appId, v.channelName, v.token, myVoiceUidRef.current);
+      return () => {
+        destroy();
+      };
+    }, [joinChannel, destroy])
+  );
 
   // --- نبضة عند تغيّر مجموع الرهان ---
   useEffect(() => {
@@ -363,12 +411,34 @@ export default function PokerTableScreen() {
     ]).start(() => setNotice(null));
   }, [notice]);
 
+  // --- عدّاد تنازلي (30→0) لدور اللاعب الحالي ---
+  useEffect(() => {
+    const wf = snapshot?.waitingFor ?? null;
+    if (!wf) {
+      setTurnCountdown(null);
+      return;
+    }
+    const total = Math.max(1, Math.ceil((wf.timeoutMs ?? 30000) / 1000));
+    setTurnCountdown(total);
+    const id = setInterval(() => {
+      setTurnCountdown((c) => (c === null ? null : c > 0 ? c - 1 : 0));
+    }, 1000);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [snapshot?.waitingFor?.playerId, snapshot?.waitingFor?.startedAt]);
+
   const handleAction = useCallback(
     (action: 'fold' | 'check' | 'call' | 'raise' | 'all_in' | 'bet', amount?: number) => {
       performAction(tableId, myId, action, amount);
     },
     [performAction, tableId, myId]
   );
+
+  const handleLeaveTable = useCallback(() => {
+    leaveTable(tableId, myId);
+    destroy();
+    router.replace('/(app)/tables');
+  }, [leaveTable, tableId, myId, destroy]);
 
   const startNewHand = () => {
     setError('تبدأ الجولة التالية تلقائيًا خلال ثوانٍ');
@@ -385,6 +455,10 @@ export default function PokerTableScreen() {
   const winnersCards = (snapshot?.winners ?? []).flatMap((w) =>
     (w.revealedCards ?? []).map((c) => ({ id: w.playerId, card: c }))
   );
+  const waitingFor = snapshot?.waitingFor ?? null;
+  const waitingPlayer = waitingFor
+    ? snapshot?.players.find((p) => p.id === waitingFor.playerId) ?? null
+    : null;
   const potDisplay = useCountUp(snapshot?.pot || 0);
   const handKey = `h${snapshot?.handNumber ?? 0}`;
 
@@ -425,6 +499,15 @@ export default function PokerTableScreen() {
             ) : (
               <MicIcon size={20} color={COLORS.emerald} />
             )}
+          </Pressable>
+
+          <Pressable
+            style={[styles.iconBtn, muteAllRemote && styles.iconBtnLive]}
+            onPress={() => toggleMuteAllRemote()}
+            hitSlop={8}
+            accessibilityLabel="كتم الجميع"
+          >
+            <Text style={styles.muteEmoji}>{muteAllRemote ? '🔇' : '🔊'}</Text>
           </Pressable>
 
           <Pressable
@@ -504,6 +587,9 @@ export default function PokerTableScreen() {
                 isMe={p.id === myId}
                 topHalf={parseFloat(pos.top) < 50}
                 winner={winnerIds.has(p.id)}
+                turnCountdown={turnCountdown}
+                remoteMuted={p.id !== myId && isRemoteMuted(agoraUidFor(p.id))}
+                onToggleRemoteMute={() => toggleRemoteMute(agoraUidFor(p.id))}
               />
             </View>
           );
@@ -659,7 +745,8 @@ export default function PokerTableScreen() {
         {!showActions && !isShowdown && (
           <View style={styles.waiting}>
             <Text style={styles.waitingText}>
-              بانتظار {snapshot?.players.find((p) => p.isCurrentTurn)?.name || 'اللاعبين'}…
+              بانتظار {waitingPlayer?.name || 'اللاعبين'}…
+              {turnCountdown !== null ? ` (${turnCountdown} ث)` : ''}
             </Text>
             {(!snapshot || (snapshot?.players ?? []).length < 2) && (
               <View style={styles.waitingHint}>
@@ -696,6 +783,14 @@ export default function PokerTableScreen() {
             />
           </View>
         )}
+
+        {/* خروج من الطاولة */}
+        <GoldButton
+          title="خروج من الطاولة"
+          variant="danger"
+          onPress={handleLeaveTable}
+          style={styles.leaveBtn}
+        />
       </View>
 
       {/* ===== نافذة التعليمات ===== */}
@@ -1096,6 +1191,55 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.ar.medium,
     fontSize: TYPE.small.fontSize,
     color: COLORS.textDim,
+  },
+  // عدّاد تنازلي للدور
+  turnBadge: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(10,13,18,0.95)',
+    borderWidth: 1.5,
+    borderColor: COLORS.gold,
+  },
+  turnBadgeUrgent: {
+    borderColor: COLORS.crimson,
+    backgroundColor: 'rgba(62,0,8,0.95)',
+  },
+  turnBadgeText: {
+    fontFamily: FONTS.num.bold,
+    fontSize: 13,
+    color: COLORS.goldLight,
+    includeFontPadding: false,
+  },
+  // كتم اللاعبين
+  seatActionsRow: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 3,
+  },
+  mutePlayerBtn: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(10,13,18,0.92)',
+    borderWidth: 1,
+    borderColor: COLORS.borderStrong,
+  },
+  mutePlayerEmoji: {
+    fontSize: 11,
+    includeFontPadding: false,
+  },
+  muteEmoji: {
+    fontSize: 16,
+    includeFontPadding: false,
+  },
+  leaveBtn: {
+    marginTop: SPACING.xs,
   },
   // ===== نافذة كلمة سر الطاولة الخاصة =====
   pwOverlay: {

@@ -72,7 +72,7 @@ export default function RussianScreen() {
   const { showError, errorNode } = useErrorToast();
 
   // ===== المحرك على السيرفر =====
-  const { snapshot, sendAction, players, isMuted, toggleMute } = useSoloGame('russian', `ru-${id ?? '1'}`, showError);
+  const { snapshot, sendAction, players, isMuted, toggleMute, turnRemaining, muteAllRemote, toggleMuteAllRemote, mutedRemoteUids, toggleRemoteMute, isRemoteMuted } = useSoloGame('russian', `ru-${id ?? '1'}`, showError);
 
   const EMPTY_SNAP: RussianSnapshot = {
     phase: 'BETTING',
@@ -148,7 +148,16 @@ export default function RussianScreen() {
       <View style={{ paddingTop: insets.top + SPACING.xs }}>
         <GameHeader title="البوكر الروسي" onBack={() => router.back()} onInfo={() => setHelpOpen(true)} live muted={isMuted} onToggleMute={toggleMute} />
         <View style={{ paddingHorizontal: SPACING.lg, marginBottom: SPACING.xs }}>
-          <SoloTableBar players={players} isMuted={isMuted} onToggleMute={toggleMute} />
+          <SoloTableBar
+            players={players}
+            isMuted={isMuted}
+            onToggleMute={toggleMute}
+            muteAllRemote={muteAllRemote}
+            onToggleMuteAllRemote={toggleMuteAllRemote}
+            mutedRemoteUids={mutedRemoteUids}
+            onToggleRemoteMute={toggleRemoteMute}
+            isRemoteMuted={isRemoteMuted}
+          />
         </View>
         <Text style={styles.phaseText}>
           {snap.phase === 'BETTING'
@@ -282,6 +291,9 @@ export default function RussianScreen() {
                 ? 'بدّل أوراقك أو اراهن مباشرة — رهان اللعب = ضعف الأساسي'
                 : 'يدك جاهزة — اراهن أو انسحب'}
             </Text>
+            {typeof turnRemaining === 'number' && (
+              <Text style={styles.countdownText}>⏱️ وقتك: {turnRemaining} ثانية</Text>
+            )}
             {selected.size > 0 && (
               <GoldButton title={`تبديل ${selected.size} أوراق (${ante})`} onPress={doExchange} />
             )}
@@ -532,6 +544,12 @@ const styles = StyleSheet.create({
     fontSize: TYPE.small.fontSize,
     color: COLORS.textDim,
     textAlign: 'right',
+  },
+  countdownText: {
+    fontFamily: FONTS.num.bold,
+    fontSize: TYPE.body.fontSize,
+    color: COLORS.crimson,
+    textAlign: 'center',
   },
   actions: {
     flexDirection: 'row-reverse',

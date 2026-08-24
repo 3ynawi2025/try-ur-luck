@@ -13,9 +13,9 @@ import GameHeader from '../../../components/game/GameHeader';
 import GoldButton from '../../../components/ui/GoldButton';
 import Avatar from '../../../components/ui/Avatar';
 import { Badge } from '../../../components/ui/Bits';
-import { MicIcon, MicOffIcon, MajlisIcon, LockIcon } from '../../../components/icons/GameIcons';
+import { MicIcon, MicOffIcon, MajlisIcon, LockIcon, SpeakerIcon, SpeakerOffIcon } from '../../../components/icons/GameIcons';
 import { apiFetch } from '../../../lib/api';
-import { useAgoraVoice } from '../../../hooks/useAgoraVoice';
+import { useAgoraVoice, agoraUidFor } from '../../../hooks/useAgoraVoice';
 import { useAuthStore } from '../../../stores/authStore';
 import { AGORA_APP_ID } from '../../../lib/config';
 import {
@@ -36,7 +36,16 @@ export default function MajlisRoomScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
   const profile = useAuthStore((s) => s.profile);
-  const { isMuted, joinChannel, toggleMute, destroy } = useAgoraVoice();
+  const {
+    isMuted,
+    joinChannel,
+    toggleMute,
+    destroy,
+    muteAllRemote,
+    toggleMuteAllRemote,
+    mutedRemoteUids,
+    toggleRemoteMute,
+  } = useAgoraVoice();
 
   const [room, setRoom] = useState<{ name: string; is_private: boolean; code?: string | null } | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
@@ -54,8 +63,9 @@ export default function MajlisRoomScreen() {
         if (cancelled) return;
         setRoom(r.room);
         setMembers(r.members ?? []);
-        // قناة الصوت — انضم فورًا (كتم افتراضي)
-        joinChannel(AGORA_APP_ID, `majlis-${id}`, r.token).catch(() => {});
+        // قناة الصوت — انضم فورًا (كتم افتراضي) بمعرف حتمي يمكّن الكتم الفردي
+        const myUid = profile?.id ? agoraUidFor(profile.id) : 0;
+        joinChannel(AGORA_APP_ID, `majlis-${id}`, r.token, myUid).catch(() => {});
       } catch {
         if (!cancelled) setErr('تعذّر الانضمام للمجلس');
       }
@@ -65,6 +75,14 @@ export default function MajlisRoomScreen() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  // ===== فصل الصوت فور مغادرة الشاشة (حتى مع بقائها في الـ Stack) =====
+  useEffect(() => {
+    return () => {
+      destroy().catch(() => {});
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ===== مغادرة =====
   const leave = useCallback(async () => {
@@ -122,19 +140,37 @@ export default function MajlisRoomScreen() {
 
           {/* ===== الحضور ===== */}
           <View style={styles.membersGrid}>
-            {members.map((m) => (
-              <View key={m.userId} style={styles.member}>
-                <Avatar
-                  name={m.displayName}
-                  size={56}
-                  showBorder
-                  isActive={m.userId === profile?.id && !isMuted}
-                />
-                <Text style={styles.memberName} numberOfLines={1}>
-                  {m.userId === profile?.id ? 'أنت' : m.displayName}
-                </Text>
-              </View>
-            ))}
+            {members.map((m) => {
+              const isSelf = m.userId === profile?.id;
+              const muted = !isSelf && mutedRemoteUids.includes(agoraUidFor(m.userId));
+              return (
+                <Pressable
+                  key={m.userId}
+                  style={styles.member}
+                  disabled={isSelf}
+                  onPress={() => toggleRemoteMute(agoraUidFor(m.userId))}
+                >
+                  <Avatar
+                    name={m.displayName}
+                    size={56}
+                    showBorder
+                    isActive={isSelf && !isMuted}
+                  />
+                  {!isSelf && (
+                    <View style={[styles.memberMute, muted && styles.memberMuteOn]}>
+                      {muted ? (
+                        <SpeakerOffIcon size={13} color={COLORS.textDim} />
+                      ) : (
+                        <SpeakerIcon size={13} color={COLORS.text} />
+                      )}
+                    </View>
+                  )}
+                  <Text style={styles.memberName} numberOfLines={1}>
+                    {isSelf ? 'أنت' : m.displayName}
+                  </Text>
+                </Pressable>
+              );
+            })}
             {members.length === 0 && (
               <Text style={styles.emptyText}>لا أحد هنا بعد — شارك الرمز وادعُ أصدقاءك</Text>
             )}
@@ -155,7 +191,22 @@ export default function MajlisRoomScreen() {
                 {isMuted ? 'تكلم' : 'كتم'}
               </Text>
             </Pressable>
-            <GoldButton title="مغادرة المجلس" variant="ghost" onPress={leave} />
+            <View style={styles.sideActions}>
+              <Pressable
+                style={[styles.speakerBtn, muteAllRemote && styles.speakerBtnOn]}
+                onPress={() => toggleMuteAllRemote()}
+              >
+                {muteAllRemote ? (
+                  <SpeakerOffIcon size={20} color={COLORS.textDim} />
+                ) : (
+                  <SpeakerIcon size={20} color={COLORS.text} />
+                )}
+                <Text style={styles.speakerLabel}>
+                  {muteAllRemote ? 'تشغيل الأصوات' : 'كتم الجميع'}
+                </Text>
+              </Pressable>
+              <GoldButton title="مغادرة المجلس" variant="ghost" onPress={leave} />
+            </View>
           </View>
         </View>
       )}
@@ -238,6 +289,23 @@ const styles = StyleSheet.create({
     gap: SPACING.xs,
     width: 84,
   },
+  memberMute: {
+    position: 'absolute',
+    top: 2,
+    left: 2,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.borderStrong,
+  },
+  memberMuteOn: {
+    borderColor: COLORS.crimson,
+    backgroundColor: 'rgba(224,82,82,0.14)',
+  },
   memberName: {
     fontFamily: FONTS.ar.medium,
     fontSize: TYPE.caption.fontSize,
@@ -279,5 +347,30 @@ const styles = StyleSheet.create({
   },
   micLabelLive: {
     color: COLORS.onGold,
+  },
+  sideActions: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: SPACING.md,
+  },
+  speakerBtn: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: 10,
+    borderRadius: RADIUS.sm,
+    borderWidth: 1,
+    borderColor: COLORS.borderStrong,
+    backgroundColor: COLORS.surface,
+  },
+  speakerBtnOn: {
+    borderColor: COLORS.crimson,
+    backgroundColor: 'rgba(224,82,82,0.12)',
+  },
+  speakerLabel: {
+    fontFamily: FONTS.ar.medium,
+    fontSize: TYPE.caption.fontSize,
+    color: COLORS.textDim,
   },
 });

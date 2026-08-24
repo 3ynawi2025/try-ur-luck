@@ -213,7 +213,7 @@ export default function RouletteScreen() {
   const ballRadius = useRef(new Animated.Value(ballStart)).current;
 
   // ===== المحرك على السيرفر =====
-  const { snapshot, sendAction, players, isMuted, toggleMute, rouletteRoom, countdown, othersBets, winners, autoRebet } = useSoloGame('roulette', `ro-${id ?? '1'}`, showError);
+  const { snapshot, sendAction, players, isMuted, toggleMute, rouletteRoom, countdown, othersBets, winners, autoRebet, leaveRoom, kickedReason, muteAllRemote, toggleMuteAllRemote, mutedRemoteUids, toggleRemoteMute, isRemoteMuted } = useSoloGame('roulette', `ro-${id ?? '1'}`, showError);
 
   const EMPTY_SNAP: RouletteSnapshot = {
     phase: 'BETTING',
@@ -234,6 +234,20 @@ export default function RouletteScreen() {
   };
 
   const clear = () => sendAction('clearBets');
+
+  // طرد بسبب الخمول (دقيقتان بلا نشاط) → رسالة ثم عودة للوبي
+  useEffect(() => {
+    if (!kickedReason) return;
+    showError(kickedReason);
+    const t = setTimeout(() => router.back(), 1500);
+    return () => clearTimeout(t);
+  }, [kickedReason, showError]);
+
+  // خروج فوري من الطاولة: إيقاف اللعب والصوت ثم عودة للوبي
+  const leaveTable = () => {
+    leaveRoom();
+    router.back();
+  };
 
 
   // عند وصول النتيجة من السيرفر: حرّك العجلة إلى القطاع الفائز
@@ -340,7 +354,16 @@ export default function RouletteScreen() {
       <View style={{ paddingTop: insets.top + SPACING.xs }}>
         <GameHeader title="الروليت" onBack={() => router.back()} onInfo={() => setHelpOpen(true)} live muted={isMuted} onToggleMute={toggleMute} />
         <View style={{ paddingHorizontal: SPACING.lg, marginBottom: SPACING.xs }}>
-          <SoloTableBar players={players} isMuted={isMuted} onToggleMute={toggleMute} />
+          <SoloTableBar
+            players={players}
+            isMuted={isMuted}
+            onToggleMute={toggleMute}
+            muteAllRemote={muteAllRemote}
+            onToggleMuteAllRemote={toggleMuteAllRemote}
+            mutedRemoteUids={mutedRemoteUids}
+            onToggleRemoteMute={toggleRemoteMute}
+            isRemoteMuted={isRemoteMuted}
+          />
         </View>
         {/* ثلاث طاولات حسب الحد الأدنى للرهان */}
         <View style={styles.stakeRow}>
@@ -587,6 +610,13 @@ export default function RouletteScreen() {
             <Text style={[styles.rebetText, autoRebet && styles.rebetTextActive]}>
               🔄 إعادة الرهان تلقائيًا{autoRebet ? ' ✓' : ''}
             </Text>
+          </Pressable>
+        </View>
+
+        {/* خروج من الطاولة — يوقف اللعب والصوت فورًا ويعيد للوبي */}
+        <View style={styles.rebetRow}>
+          <Pressable style={styles.leaveBtn} onPress={leaveTable}>
+            <Text style={styles.leaveText}>🚪 خروج من الطاولة</Text>
           </Pressable>
         </View>
 
@@ -1104,5 +1134,20 @@ const styles = StyleSheet.create({
   rebetBtnFullActive: {
     borderColor: COLORS.gold,
     backgroundColor: 'rgba(201,169,97,0.14)',
+  },
+  leaveBtn: {
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: SPACING.sm,
+    borderRadius: RADIUS.sm,
+    borderWidth: 1,
+    borderColor: 'rgba(232,169,160,0.35)',
+    backgroundColor: 'rgba(232,169,160,0.08)',
+  },
+  leaveText: {
+    fontFamily: FONTS.ar.bold,
+    fontSize: TYPE.caption.fontSize,
+    color: COLORS.crimson,
   },
 });

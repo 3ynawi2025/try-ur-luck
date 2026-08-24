@@ -5,7 +5,7 @@
 // ============================================================
 
 import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import Avatar from '../../../components/ui/Avatar';
@@ -17,7 +17,9 @@ import ActionButton from '../../../components/game/ActionButton';
 import SoloGameScreen from '../../../components/game/SoloGameScreen';
 import InstructionsModal from '../../../components/game/InstructionsModal';
 import WinFX from '../../../components/game/WinFX';
+import { SpeakerIcon, SpeakerOffIcon } from '../../../components/icons/GameIcons';
 import { useSoloGame } from '../../../hooks/useSoloGame';
+import { agoraUidFor } from '../../../hooks/useAgoraVoice';
 import { useErrorToast } from '../../../hooks/useErrorToast';
 import { useCountUp } from '../../../hooks/useCountUp';
 import { useScale, scaleSize } from '../../../hooks/useScale';
@@ -80,7 +82,27 @@ export default function BlackjackScreen() {
   const sc = useScale();
 
   const { showError, errorNode } = useErrorToast();
-  const { snapshot, sendAction, players, isMuted, toggleMute, myPlayerId, soloCountdown } = useSoloGame('blackjack', `bj-${id ?? '1'}`, showError);
+  const {
+    snapshot,
+    sendAction,
+    players,
+    isMuted,
+    toggleMute,
+    myPlayerId,
+    soloCountdown,
+    turnRemaining,
+    leaveRoom,
+    muteAllRemote,
+    toggleMuteAllRemote,
+    toggleRemoteMute,
+    isRemoteMuted,
+  } = useSoloGame('blackjack', `bj-${id ?? '1'}`, showError);
+
+  // خروج من الطاولة: يوقف اللعب والصوت فورًا ويعيد للوبي
+  const leaveTable = () => {
+    leaveRoom();
+    router.back();
+  };
 
   const EMPTY_SNAP: BlackjackSnapshot = {
     phase: 'betting',
@@ -222,6 +244,9 @@ export default function BlackjackScreen() {
           <Text style={styles.turnLabel}>
             ⏳ بانتظار <Text style={styles.turnScore}>{currentName ?? 'لاعب آخر'}</Text> — يلعب الآن
           </Text>
+          {typeof turnRemaining === 'number' && (
+            <Text style={styles.countdownText}>ينتهي الدور خلال {turnRemaining} ثانية</Text>
+          )}
         </View>
       )}
       {snap.phase === 'playing' && !sittingOut && !!activeHand && myTurn && (
@@ -229,6 +254,9 @@ export default function BlackjackScreen() {
           <Text style={styles.turnLabel}>
             دورك — مجموعك <Text style={styles.turnScore}>{myScore}</Text>
           </Text>
+          {typeof turnRemaining === 'number' && (
+            <Text style={styles.countdownText}>⏱️ وقتك: {turnRemaining} ثانية</Text>
+          )}
           <View style={styles.actions}>
             <ActionButton label="سحب" colors={['#6E9DFF', '#2C4E9E'] as const} onPress={() => act('hit')} />
             <ActionButton label="وقوف" colors={['#8FCBB4', '#0A3D2E'] as const} onPress={() => act('stand')} />
@@ -288,6 +316,27 @@ export default function BlackjackScreen() {
 
       <Text style={styles.phaseText}>{phaseText}</Text>
 
+      {/* ===== شريط التحكم: كتم الجميع + خروج من الطاولة ===== */}
+      <View style={styles.controlRow}>
+        <Pressable
+          style={[styles.controlChip, muteAllRemote && styles.controlChipOn]}
+          onPress={() => toggleMuteAllRemote()}
+          hitSlop={8}
+        >
+          {muteAllRemote ? (
+            <SpeakerOffIcon size={16} color={COLORS.textDim} />
+          ) : (
+            <SpeakerIcon size={16} color={COLORS.text} />
+          )}
+          <Text style={styles.controlChipText}>
+            {muteAllRemote ? 'تشغيل الأصوات' : 'كتم الجميع'}
+          </Text>
+        </Pressable>
+        <Pressable style={[styles.controlChip, styles.exitChip]} onPress={leaveTable} hitSlop={8}>
+          <Text style={styles.exitText}>🚪 خروج من الطاولة</Text>
+        </Pressable>
+      </View>
+
       {/* ===== منطقة الموزع ===== */}
       <FeltTable
         style={[styles.dealerFelt, { width: scaleSize(340, sc), height: scaleSize(200, sc) }]}
@@ -329,6 +378,17 @@ export default function BlackjackScreen() {
                     {p.name}
                   </Text>
                   {p.currentBet > 0 && <Chip amount={p.currentBet} size={18} />}
+                  <Pressable
+                    onPress={() => toggleRemoteMute(agoraUidFor(p.id))}
+                    hitSlop={6}
+                    style={styles.spotMuteBtn}
+                  >
+                    {isRemoteMuted(agoraUidFor(p.id)) ? (
+                      <SpeakerOffIcon size={12} color={COLORS.textDim} />
+                    ) : (
+                      <SpeakerIcon size={12} color={COLORS.text} />
+                    )}
+                  </Pressable>
                 </View>
                 <View style={styles.otherCards}>
                   {(hand?.cards ?? []).map((c, i) => (
@@ -437,6 +497,53 @@ const styles = StyleSheet.create({
     color: COLORS.textDim,
     textAlign: 'center',
     marginTop: SPACING.xs,
+  },
+  // ===== شريط التحكم (كتم الجميع + خروج) =====
+  controlRow: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.sm,
+    marginTop: SPACING.xs,
+  },
+  controlChip: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: 7,
+    borderRadius: RADIUS.sm,
+    borderWidth: 1,
+    borderColor: COLORS.borderStrong,
+    backgroundColor: COLORS.surface,
+  },
+  controlChipOn: {
+    borderColor: COLORS.crimson,
+    backgroundColor: 'rgba(224,82,82,0.12)',
+  },
+  controlChipText: {
+    fontFamily: FONTS.ar.medium,
+    fontSize: TYPE.caption.fontSize,
+    color: COLORS.textDim,
+  },
+  exitChip: {
+    borderColor: 'rgba(224,82,82,0.4)',
+    backgroundColor: 'rgba(224,82,82,0.10)',
+  },
+  exitText: {
+    fontFamily: FONTS.ar.semibold,
+    fontSize: TYPE.caption.fontSize,
+    color: COLORS.crimson,
+  },
+  spotMuteBtn: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(10,13,18,0.9)',
+    borderWidth: 1,
+    borderColor: COLORS.borderStrong,
   },
 
   dealerFelt: {
@@ -660,6 +767,12 @@ const styles = StyleSheet.create({
   turnScore: {
     fontFamily: FONTS.num.bold,
     color: COLORS.goldLight,
+  },
+  countdownText: {
+    fontFamily: FONTS.num.bold,
+    fontSize: TYPE.body.fontSize,
+    color: COLORS.crimson,
+    textAlign: 'center',
   },
   actions: {
     flexDirection: 'row-reverse',

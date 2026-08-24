@@ -5,9 +5,10 @@
 
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
+import { useFocusEffect } from 'expo-router';
 import { useAuthStore } from '../stores/authStore';
 import { getAccessToken } from '../lib/supabase';
-import { useAgoraVoice } from './useAgoraVoice';
+import { useAgoraVoice, agoraUidFor } from './useAgoraVoice';
 import { AGORA_APP_ID as FALLBACK_AGORA_APP_ID } from '../lib/config';
 
 const SOCKET_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
@@ -35,6 +36,13 @@ export interface RouletteWinners {
   winners: { name: string; netWin: number }[];
 }
 
+/** حالة دور اللاعب المنتظر — يبثها السيرفر مع snapshot لعدّ تنازلي. */
+export interface TurnInfo {
+  playerId: string;
+  startedAt: number;
+  timeoutMs: number;
+}
+
 interface JoinPayload {
   game: SoloGameKind;
   tableId: string;
@@ -52,6 +60,10 @@ export function useSoloGame(
   const pendingJoinRef = useRef<JoinPayload | null>(null);
   const connectedRef = useRef(false);
   const onErrorRef = useRef(onError);
+  // هل غادرنا الطاولة بسبب فقدان التركيز؟ (لإعادة الانضمام عند العودة)
+  const leftRef = useRef(false);
+  // معرف المقعد الحالي (يصل عبر solo:seat — قد يتأخر عن voice:token فنبقي مرجعًا دائمًا)
+  const myPlayerIdRef = useRef<string | null>(null);
 
   const [isConnected, setIsConnected] = useState(false);
   const [snapshot, setSnapshot] = useState<any>(null);
@@ -65,9 +77,24 @@ export function useSoloGame(
   // عداد بدء البلاك جاك (30 ثانية) + إعادة الرهان التلقائي للروليت
   const [soloCountdown, setSoloCountdown] = useState<number | null>(null);
   const [autoRebet, setAutoRebet] = useState(false);
+  // مؤقت الأدوار (30 ثانية) + سبب الطرد من الروليت
+  const [turn, setTurn] = useState<TurnInfo | null>(null);
+  const [turnRemaining, setTurnRemaining] = useState<number | null>(null);
+  const [kickedReason, setKickedReason] = useState<string | null>(null);
 
-  // الدردشة الصوتية — نفس قناة طاولة اللعبة
-  const { isMuted, toggleMute, joinChannel, joinError, destroy } = useAgoraVoice();
+  // الدردشة الصوتية — نفس قناة طاولة اللعبة + كتم الأصوات البعيدة
+  const {
+    isMuted,
+    toggleMute,
+    joinChannel,
+    joinError,
+    destroy,
+    muteAllRemote,
+    toggleMuteAllRemote,
+    mutedRemoteUids,
+    toggleRemoteMute,
+    isRemoteMuted,
+  } = useAgoraVoice();
 
   // إظهار أخطاء الصوت للمستخدم بدل الفشل الصامت
   useEffect(() => {
@@ -101,18 +128,26 @@ export function useSoloGame(
       connectedRef.current = false;
       setIsConnected(false);
     });
-    socket.on('solo:state', (s: any) => setSnapshot(s));
+    socket.on('solo:state', (s: any) => {
+      setSnapshot(s);
+      if (s?.turn && typeof s.turn.playerId === 'string') setTurn(s.turn);
+      else setTurn(null);
+    });
     socket.on('solo:seat', (d: any) => {
-      if (typeof d?.playerId === 'string') setMyPlayerId(d.playerId);
+      if (typeof d?.playerId === 'string') {
+        setMyPlayerId(d.playerId);
+        myPlayerIdRef.current = d.playerId;
+      }
     });
     socket.on('error', (d: any) => onErrorRef.current?.(d?.message ?? 'حدث خطأ'));
     socket.on('solo:players', (d: any) => {
       if (Array.isArray(d?.players)) setPlayers(d.players);
     });
-    // توكن الصوت: انضم لقناة طاولة اللعبة
+    // توكن الصوت: انضم لقناة طاولة اللعبة بمعرّف حتمي (agoraUidFor) ليعمل الكتم الفردي
     socket.on('voice:token', (d: any) => {
       if (d?.channelName) {
-        joinChannel(d.appId || FALLBACK_AGORA_APP_ID, d.channelName, d.token ?? '');
+        const uid = agoraUidFor(myPlayerIdRef.current ?? userId ?? `guest-${game}`);
+        joinChannel(d.appId || FALLBACK_AGORA_APP_ID, d.channelName, d.token ?? '', uid);
       }
     });
     // الروليت المشترك
@@ -123,6 +158,10 @@ export function useSoloGame(
     socket.on('roulette:auto', (d: any) => {
       setAutoRebet(Boolean(d?.enabled));
       if (d?.reason) onErrorRef.current?.(d.reason);
+    });
+    // طرد بسبب الخمول (دقيقتان بلا نشاط)
+    socket.on('roulette:kicked', (d: any) => {
+      setKickedReason(d?.message ?? 'تم إخراجك من الطاولة بسبب الخمول');
     });
     // عداد بدء البلاك جاك
     socket.on('solo:countdown', (d: any) => {
@@ -158,6 +197,47 @@ export function useSoloGame(
     }
   }, [game, tableId, userId, displayName]);
 
+  // عدّ تنازلي لحقل turn (30 → 0) — يحدّث كل نصف ثانية
+  useEffect(() => {
+    if (!turn) {
+      setTurnRemaining(null);
+      return;
+    }
+    const update = () => {
+      const remain = Math.max(0, Math.ceil((turn.startedAt + turn.timeoutMs - Date.now()) / 1000));
+      setTurnRemaining(remain);
+    };
+    update();
+    const id = setInterval(update, 500);
+    return () => clearInterval(id);
+  }, [turn]);
+
+  // مغادرة صريحة: أرسل الحدث المناسب ثم أوقف الصوت
+  const leaveRoom = useCallback(() => {
+    const socket = socketRef.current;
+    if (socket && connectedRef.current) {
+      socket.emit(game === 'roulette' ? 'roulette:leave' : 'solo:leave');
+    }
+    destroy();
+  }, [game, destroy]);
+
+  // فصل الصوت ومغادرة الطاولة فور فقدان التركيز (حتى مع بقاء الشاشة في الـ Stack)
+  useFocusEffect(
+    useCallback(() => {
+      // عند استعادة التركيز: أعد الانضمام إن سبق أن غادرنا
+      if (leftRef.current && connectedRef.current) {
+        leftRef.current = false;
+        const pending = pendingJoinRef.current;
+        if (pending) socketRef.current?.emit('solo:join', pending);
+      }
+      return () => {
+        leftRef.current = true;
+        socketRef.current?.emit(game === 'roulette' ? 'roulette:leave' : 'solo:leave');
+        destroy();
+      };
+    }, [game, destroy])
+  );
+
   const sendAction = useCallback(
     (action: string, extra: Record<string, unknown> = {}) => {
       const playerId = userId ?? `guest-${game}`;
@@ -180,5 +260,14 @@ export function useSoloGame(
     winners,
     soloCountdown,
     autoRebet,
+    turn,
+    turnRemaining,
+    kickedReason,
+    leaveRoom,
+    muteAllRemote,
+    toggleMuteAllRemote,
+    mutedRemoteUids,
+    toggleRemoteMute,
+    isRemoteMuted,
   };
 }

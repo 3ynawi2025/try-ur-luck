@@ -287,6 +287,15 @@ export const LockIcon = ({ size = 24, color = COLORS.textDim }: IconProps) => (
   </Svg>
 );
 
+export const KeyIcon = ({ size = 24, color = COLORS.gold }: IconProps) => (
+  <Svg {...base(size)}>
+    <G stroke={color} strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" fill="none">
+      <Circle cx={7.6} cy={12} r={3.4} fill={color} fillOpacity={0.14} />
+      <Path d="M10.4 9.2 19 3.6M16.8 5.8l2.2 2.2M14.2 8.4l2 2" />
+    </G>
+  </Svg>
+);
+
 export const MicIcon = ({ size = 24, color = COLORS.text }: IconProps) => (
   <Svg {...base(size)}>
     <G stroke={color} strokeWidth={1.6} strokeLinecap="round" fill="none">
@@ -302,6 +311,24 @@ export const MicOffIcon = ({ size = 24, color = COLORS.textDim }: IconProps) => 
       <Rect x={9} y={3} width={6} height={11} rx={3} />
       <Path d="M5.6 11.4a6.4 6.4 0 0 0 12.8 0M12 17.8V21" />
       <Line x1={4} y1={3.6} x2={20} y2={20.4} stroke={COLORS.crimson} strokeWidth={1.9} />
+    </G>
+  </Svg>
+);
+
+export const SpeakerIcon = ({ size = 24, color = COLORS.text }: IconProps) => (
+  <Svg {...base(size)}>
+    <G stroke={color} strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" fill="none">
+      <Path d="M4 9.5v5h3.4L12 18V6L7.4 9.5H4Z" fill={color} fillOpacity={0.16} />
+      <Path d="M15 9.2a4.2 4.2 0 0 1 0 5.6M17.6 6.8a8 8 0 0 1 0 10.4" />
+    </G>
+  </Svg>
+);
+
+export const SpeakerOffIcon = ({ size = 24, color = COLORS.textDim }: IconProps) => (
+  <Svg {...base(size)}>
+    <G stroke={color} strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" fill="none">
+      <Path d="M4 9.5v5h3.4L12 18V6L7.4 9.5H4Z" />
+      <Line x1={4.2} y1={3.8} x2={19.8} y2={20.2} stroke={COLORS.crimson} strokeWidth={1.9} />
     </G>
   </Svg>
 );

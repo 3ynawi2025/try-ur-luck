@@ -10,9 +10,10 @@ import { View, Text, StyleSheet, Pressable, Modal } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Avatar from '../ui/Avatar';
 import GoldButton from '../ui/GoldButton';
-import { MicIcon, MicOffIcon, CloseIcon } from '../icons/GameIcons';
+import { MicIcon, MicOffIcon, CloseIcon, SpeakerIcon, SpeakerOffIcon } from '../icons/GameIcons';
 import { COLORS, FONTS, TYPE, SPACING, RADIUS } from '../../constants/theme';
 import type { SoloPlayer } from '../../hooks/useSoloGame';
+import { agoraUidFor } from '../../hooks/useAgoraVoice';
 import { apiFetch } from '../../lib/api';
 import { useAuthStore } from '../../stores/authStore';
 
@@ -29,9 +30,28 @@ interface Props {
   isMuted: boolean;
   onToggleMute: () => void;
   max?: number;
+  // كتم الأصوات البعيدة (اختياري — يظهر فقط عند توفره من useAgoraVoice)
+  muteAllRemote?: boolean;
+  onToggleMuteAllRemote?: () => void;
+  mutedRemoteUids?: number[];
+  onToggleRemoteMute?: (uid: number) => void;
+  isRemoteMuted?: (uid: number) => boolean;
 }
 
-export default function SoloTableBar({ players, isMuted, onToggleMute, max = 6 }: Props) {
+/** معرّف Agora رقمي حتمي — نفس الدالة الموحّدة في useAgoraVoice (لضمان تطابق uid الطرفين). */
+const soloUidFor = agoraUidFor;
+
+export default function SoloTableBar({
+  players,
+  isMuted,
+  onToggleMute,
+  max = 6,
+  muteAllRemote,
+  onToggleMuteAllRemote,
+  mutedRemoteUids,
+  onToggleRemoteMute,
+  isRemoteMuted,
+}: Props) {
   const myId = useAuthStore((s) => s.profile?.id);
   const [reportTarget, setReportTarget] = useState<SoloPlayer | null>(null);
   const [reason, setReason] = useState('voice_abuse');
@@ -74,10 +94,28 @@ export default function SoloTableBar({ players, isMuted, onToggleMute, max = 6 }
           )}
         </Pressable>
 
+        {onToggleMuteAllRemote && (
+          <Pressable
+            onPress={onToggleMuteAllRemote}
+            hitSlop={8}
+            style={[styles.muteAllBtn, muteAllRemote && styles.muteAllBtnOn]}
+          >
+            {muteAllRemote ? (
+              <SpeakerOffIcon size={18} color={COLORS.textDim} />
+            ) : (
+              <SpeakerIcon size={18} color={COLORS.text} />
+            )}
+          </Pressable>
+        )}
+
         <View style={styles.avatars}>
           {players.length === 0 && <Text style={styles.hint}>بانتظار لاعبين…</Text>}
           {players.map((p) => {
             const isSelf = !!myId && p.id === myId;
+            const uid = soloUidFor(p.id);
+            const remoteMuted =
+              !isSelf &&
+              (isRemoteMuted ? isRemoteMuted(uid) : (mutedRemoteUids ?? []).includes(uid));
             return (
               <View key={p.id} style={styles.seat}>
                 <Avatar name={p.name} size={28} />
@@ -85,6 +123,19 @@ export default function SoloTableBar({ players, isMuted, onToggleMute, max = 6 }
                   <Text style={styles.seatName} numberOfLines={1}>
                     {p.name}
                   </Text>
+                  {!isSelf && onToggleRemoteMute && (
+                    <Pressable
+                      onPress={() => onToggleRemoteMute(uid)}
+                      hitSlop={6}
+                      style={styles.speakerBtn}
+                    >
+                      {remoteMuted ? (
+                        <SpeakerOffIcon size={12} color={COLORS.textDim} />
+                      ) : (
+                        <SpeakerIcon size={12} color={COLORS.text} />
+                      )}
+                    </Pressable>
+                  )}
                   {!isSelf && (
                     <Pressable
                       onPress={() => {
@@ -177,6 +228,27 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
     backgroundColor: 'rgba(255,255,255,0.04)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  muteAllBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: RADIUS.sm,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  muteAllBtnOn: {
+    borderColor: COLORS.crimson,
+    backgroundColor: 'rgba(224,82,82,0.12)',
+  },
+  speakerBtn: {
+    width: 14,
+    height: 14,
+    borderRadius: 4,
     alignItems: 'center',
     justifyContent: 'center',
   },

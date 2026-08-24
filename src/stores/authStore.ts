@@ -1,7 +1,7 @@
 // ============================================================
 // جرب حظك — Auth Store
-// إنشاء حساب باسم مستخدم يختاره اللاعب، عبر خادم اللعبة
-// الذي يتحقق من تفرّد الاسم على السيرفر (Supabase) عالمياً.
+// حساب باسم مستخدم + كلمة مرور عبر خادم اللعبة، الذي يتحقق من
+// تفرّد الاسم ومن صحة كلمة المرور على السيرفر (Supabase) عالمياً.
 // ============================================================
 
 import { create } from 'zustand';
@@ -23,15 +23,31 @@ interface AuthState {
   profile: PlayerProfile | null;
   isAuthenticated: boolean;
   busy: boolean;
-  /** إنشاء حساب حقيقي على السيرفر (يمنع تكرار اسم المستخدم) — ref = اسم الداعي */
-  signInWithUsername: (
+  /** إنشاء حساب جديد (يمنع تكرار اسم المستخدم) — ref = اسم الداعي */
+  register: (
     username: string,
     displayName: string,
+    password: string,
     ref?: string
   ) => Promise<{ inviteBonus?: boolean }>;
+  /** تسجيل الدخول باسم المستخدم وكلمة المرور (يعمل على أي جهاز) */
+  login: (username: string, password: string) => Promise<void>;
+  /** تعيين/تغيير كلمة المرور لحساب قائم (للحسابات القديمة بلا كلمة مرور) */
+  setPassword: (password: string) => Promise<void>;
   bindEmail: (email: string) => void;
   signOut: () => Promise<void>;
   deleteAccount: () => Promise<void>;
+}
+
+/** تخزين الجلسة الحقيقية (access + refresh) — supabase-js يجدّدها تلقائيًا */
+async function applySession(data: any) {
+  if (data?.session?.access_token && data?.session?.refresh_token) {
+    const sb = getSupabase();
+    await sb.auth.setSession({
+      access_token: data.session.access_token,
+      refresh_token: data.session.refresh_token,
+    });
+  }
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -41,7 +57,10 @@ export const useAuthStore = create<AuthState>()(
       isAuthenticated: false,
       busy: false,
 
-      signInWithUsername: async (username, displayName, ref) => {
+      register: async (username, displayName, password, ref) => {
+        if (password.length < 6) {
+          throw new Error('PASSWORD_TOO_SHORT');
+        }
         set({ busy: true });
         try {
           const clean = username.replace(/^@/, '').trim();
@@ -53,6 +72,7 @@ export const useAuthStore = create<AuthState>()(
             body: JSON.stringify({
               username: clean,
               displayName: name,
+              password,
               ...(ref ? { ref: String(ref).replace(/^@/, '').trim().toLowerCase() } : {}),
             }),
           });
@@ -66,14 +86,7 @@ export const useAuthStore = create<AuthState>()(
             throw new Error(data.error || 'REGISTER_FAILED');
           }
 
-          // تخزين الجلسة الحقيقية (access + refresh) — supabase-js يجدّدها تلقائيًا
-          if (data.session?.access_token && data.session?.refresh_token) {
-            const sb = getSupabase();
-            await sb.auth.setSession({
-              access_token: data.session.access_token,
-              refresh_token: data.session.refresh_token,
-            });
-          }
+          await applySession(data);
 
           set({
             profile: {
@@ -92,6 +105,55 @@ export const useAuthStore = create<AuthState>()(
           set({ busy: false });
           throw e;
         }
+      },
+
+      login: async (username, password) => {
+        if (!password) {
+          throw new Error('PASSWORD_REQUIRED');
+        }
+        set({ busy: true });
+        try {
+          const clean = username.replace(/^@/, '').trim().toLowerCase();
+
+          const res = await fetch(`${API_URL}/api/auth/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: clean, password }),
+          });
+
+          const data = await res.json().catch(() => ({}));
+
+          if (!res.ok) {
+            throw new Error(data.error || 'LOGIN_FAILED');
+          }
+
+          await applySession(data);
+
+          set({
+            profile: {
+              id: data.userId,
+              username: data.username,
+              displayName: data.displayName,
+              email: null,
+              createdAt: Date.now(),
+            },
+            isAuthenticated: true,
+            busy: false,
+          });
+        } catch (e) {
+          set({ busy: false });
+          throw e;
+        }
+      },
+
+      setPassword: async (password) => {
+        if (password.length < 6) {
+          throw new Error('PASSWORD_TOO_SHORT');
+        }
+        await apiFetch('/api/auth/set-password', {
+          method: 'POST',
+          body: JSON.stringify({ password }),
+        });
       },
 
       // ملاحظة: ربط البريد محلي مؤقت فقط — ربط البريد على السيرفر معلّق حتى يُضاف لاحقًا.

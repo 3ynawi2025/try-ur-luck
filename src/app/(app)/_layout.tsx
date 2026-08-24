@@ -4,11 +4,19 @@
 // ============================================================
 
 import React from 'react';
-import { Tabs } from 'expo-router';
+import { Tabs, Redirect } from 'expo-router';
 import TabBar from '../../components/ui/TabBar';
 import { COLORS } from '../../constants/theme';
+import { useAuthStore } from '../../stores/authStore';
 
 export default function AppLayout() {
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+
+  // حارس: لا دخول كضيف أبدًا — أي جلسة غير موثّقة تُعاد لشاشة الدخول
+  if (!isAuthenticated) {
+    return <Redirect href="/(auth)" />;
+  }
+
   return (
     <Tabs
       tabBar={(props) => <TabBar {...props} />}

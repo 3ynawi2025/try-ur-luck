@@ -4,7 +4,7 @@
 
 import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Animated, Easing, Dimensions } from 'react-native';
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Screen from '../../components/ui/Screen';
@@ -139,7 +139,7 @@ export default function WelcomeScreen() {
             },
           ]}
         >
-          <GoldButton title="ابدأ الآن" onPress={() => router.push('/(auth)/profile-setup')} />
+          <GoldButton title="ابدأ الآن" onPress={() => router.push('/(auth)/login' as Href)} />
           <Text style={styles.note}>الدراهم افتراضية بالكامل وليس لها أي قيمة نقدية</Text>
         </Animated.View>
       </View>
