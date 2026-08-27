@@ -45,8 +45,8 @@ export default function ForgotPasswordScreen() {
         const res = await forgotUsername(email.trim());
         setSuccess(
           res.found
-            ? `اسم المستخدم يبدأ: ${res.usernameMasked ?? ''}`
-            : 'إذا كان البريد مسجلًا سيصلك تذكير باسم المستخدم خلال دقائق'
+            ? `وجدنا حسابك — اسم المستخدم: ${res.usernameMasked ?? ''}`
+            : 'لا يوجد حساب مرتبط بهذا البريد الإلكتروني'
         );
       } else {
         await forgotPassword(email.trim());

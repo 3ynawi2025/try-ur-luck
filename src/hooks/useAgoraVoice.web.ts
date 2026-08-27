@@ -21,6 +21,7 @@ export function agoraUidFor(id: string): number {
 export function useAgoraVoice() {
   const [isJoined, setIsJoined] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
+  const [joinError, setJoinError] = useState<string | null>(null);
   // حالة كتم الأصوات البعيدة (no-op على الويب — تحافظ على الحالة فقط)
   const [muteAllRemote, setMuteAllRemote] = useState(false);
   const [mutedRemoteUids, setMutedRemoteUids] = useState<number[]>([]);
@@ -34,6 +35,7 @@ export function useAgoraVoice() {
 
   const leaveChannel = useCallback(async () => {
     setIsJoined(false);
+    setJoinError(null);
     setMuteAllRemote(false);
     setMutedRemoteUids([]);
   }, []);
@@ -61,6 +63,7 @@ export function useAgoraVoice() {
 
   const destroy = useCallback(async () => {
     setIsJoined(false);
+    setJoinError(null);
     setMuteAllRemote(false);
     setMutedRemoteUids([]);
   }, []);
@@ -68,6 +71,7 @@ export function useAgoraVoice() {
   return {
     isJoined,
     isMuted,
+    joinError,
     muteAllRemote,
     mutedRemoteUids,
     joinChannel,

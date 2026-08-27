@@ -24,14 +24,17 @@ import { BackIcon, LogoMark } from '../../components/icons/GameIcons';
 import { COLORS, FONTS, TYPE, SPACING, SIZES, RADIUS } from '../../constants/theme';
 import { getSupabase } from '../../lib/supabase';
 
-/** استخراج توكنَي الاستعادة من رابط عميق — يعيد null إن لم توجد */
+/** استخراج توكنَي الاستعادة من رابط عميق — يدعم query وfragment معًا (Supabase يضعها في #fragment) */
 function extractTokens(url: string | null): { access_token: string; refresh_token: string } | null {
   if (!url) return null;
   try {
-    const parsed = Linking.parse(url);
-    const q = parsed.queryParams ?? {};
-    const access = typeof q.access_token === 'string' ? q.access_token : undefined;
-    const refresh = typeof q.refresh_token === 'string' ? q.refresh_token : undefined;
+    // يجمع بارامترات query وfragment معًا
+    const fragIdx = url.indexOf('#');
+    const queryPart = url.split('?')[1] ?? '';
+    const fragPart = fragIdx >= 0 ? url.slice(fragIdx + 1) : '';
+    const q = new URLSearchParams(`${queryPart}&${fragPart}`);
+    const access = q.get('access_token');
+    const refresh = q.get('refresh_token');
     if (access && refresh) {
       return { access_token: access, refresh_token: refresh };
     }

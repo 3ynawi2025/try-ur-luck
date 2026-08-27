@@ -113,6 +113,18 @@ function recordLoginFailure(ip: string): void {
   loginFailures.set(ip, list);
 }
 
+// تحديد معدل طلبات الاستعادة (كلمة المرور / اسم المستخدم) — حماية من تعداد البريد
+const recoveryAttempts = new Map<string, number[]>();
+function recoveryRateLimited(ip: string): boolean {
+  const now = Date.now();
+  const window = 10 * 60 * 1000; // 10 دقائق
+  const list = (recoveryAttempts.get(ip) ?? []).filter((t) => now - t < window);
+  if (list.length >= 10) return true;
+  list.push(now);
+  recoveryAttempts.set(ip, list);
+  return false;
+}
+
 // إنشاء حساب جديد باسم مستخدم (يمنع التكرار عالمياً عبر قيد فريد في قاعدة البيانات)
 router.post('/auth/register', async (req: Request, res: Response) => {
   if (registerRateLimited(String(req.ip ?? 'unknown'))) {
@@ -387,6 +399,9 @@ router.post('/auth/bind-email', authenticate, async (req: Request, res: Response
 
 // استعادة كلمة المرور: إرسال رابط استعادة عبر Supabase (يتطلب SMTP مشكّلًا)
 router.post('/auth/forgot-password', async (req: Request, res: Response) => {
+  if (recoveryRateLimited(String(req.ip ?? 'unknown'))) {
+    return res.status(429).json({ error: 'TOO_MANY_REQUESTS' });
+  }
   const email = String(req.body?.email ?? '').trim().toLowerCase();
   if (!EMAIL_RE.test(email) || email.length > 254) {
     return res.status(400).json({ error: 'EMAIL_INVALID' });
@@ -394,7 +409,7 @@ router.post('/auth/forgot-password', async (req: Request, res: Response) => {
 
   const authClient = createSupabaseAdminClient();
   const { error } = await authClient.auth.resetPasswordForEmail(email, {
-    redirectTo: 'jareb-hazzak://reset',
+    redirectTo: 'jareb-hazzak://reset-password',
   });
 
   if (error) {
@@ -412,6 +427,9 @@ router.post('/auth/forgot-password', async (req: Request, res: Response) => {
 
 // تذكّر اسم المستخدم: يعيد الاسم المقنّع إذا وُجد بريد مطابق (بدون إرسال بريد)
 router.post('/auth/forgot-username', async (req: Request, res: Response) => {
+  if (recoveryRateLimited(String(req.ip ?? 'unknown'))) {
+    return res.status(429).json({ error: 'TOO_MANY_REQUESTS' });
+  }
   const email = String(req.body?.email ?? '').trim().toLowerCase();
   if (!EMAIL_RE.test(email) || email.length > 254) {
     return res.status(400).json({ error: 'EMAIL_INVALID' });

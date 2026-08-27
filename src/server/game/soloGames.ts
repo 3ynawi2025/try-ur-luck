@@ -1196,9 +1196,9 @@ export function setupSoloGameHandlers(io: Server) {
         const hasBets = session.engine.snapshot().bets.length > 0;
         const midRound = rState && (rState.phase === 'spinning' || rState.phase === 'result');
         if (midRound || hasBets) {
+          // نبقي الجلسة (والمحرك مع الرهانات) حتى التسوية: تُسوّى رهاناته ثم يُحذف المقعد والجلسة
           seat.leaving = true;
-          sessions.delete(sid);
-          return; // تُحذف في نهاية التسوية
+          return;
         }
       }
 
@@ -1216,14 +1216,24 @@ export function setupSoloGameHandlers(io: Server) {
 
     socket.on('solo:leave', () => removeSoloSeat(socket.id, true));
 
-    // مغادرة فورية للروليت (زر "خروج من الطاولة") — إزالة فورية بلا انتظار التسوية
+    // مغادرة فورية للروليت (زر "خروج من الطاولة") — مع رهان قائم أو دورة جارية تُترك الجلسة حتى التسوية
     socket.on('roulette:leave', () => {
       const session = sessions.get(socket.id);
       if (!session || !isRoulette(session.engine)) return;
       const room = soloTables.get(session.roomKey);
+      const seat = room?.get(socket.id);
+      const rState = rouletteRooms.get(session.roomKey);
+      const hasBets = session.engine.snapshot().bets.length > 0;
+      const midRound = rState && (rState.phase === 'spinning' || rState.phase === 'result');
+      socket.leave(session.roomKey);
+      if (seat && (midRound || hasBets)) {
+        // رهانات قائمة: تبقى حتى التسوية ثم يُحذف المقعد (لا تُفقد الرهانات)
+        seat.leaving = true;
+        if (room) broadcastSoloPlayers(io, session.roomKey, room);
+        return;
+      }
       room?.delete(socket.id);
       sessions.delete(socket.id);
-      socket.leave(session.roomKey);
       if (room) broadcastSoloPlayers(io, session.roomKey, room);
       if (room && room.size === 0) {
         clearRoomTimers(session.roomKey);
