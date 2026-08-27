@@ -375,6 +375,13 @@ router.post('/auth/bind-email', authenticate, async (req: Request, res: Response
     return res.status(500).json({ error: 'BIND_EMAIL_FAILED' });
   }
 
+  // مزامنة البريد في البروفايل حتى تعمل استعادة اسم المستخدم مباشرة
+  await admin
+    .from('profiles')
+    .update({ auth_email: email })
+    .eq('id', req.user!.id)
+    .then(() => {}, () => {});
+
   return res.json({ ok: true, message: 'أُرسل رابط التأكيد إلى بريدك' });
 });
 

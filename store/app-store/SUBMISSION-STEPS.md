@@ -41,7 +41,7 @@ npx eas-cli submit --platform ios --profile production --id <BUILD_ID> --non-int
 ```
 
 - **البيانات الحساسة** (غير مرفوعة في Git): مجلد `.eas-credentials/`:
-  - `jareb_distribution.p12` + كلمة المرور `JarebHazzak!2026` (شهادة Apple Distribution من البوابة).
+  - `jareb_distribution.p12` (شهادة Apple Distribution من البوابة — كلمة المرور محفوظة محليًا في `credentials.json` غير المرفوع).
   - `Jareb_Hazzak_AppStore.mobileprovision` (بروفايل App Store).
   - `AuthKey_8BK9FT6FTN.p8` (مفتاح App Store Connect API — Key ID `8BK9FT6FTN`، Issuer `69a6de92-2723-47e3-e053-5b8c7c11a4d1`).
 - `credentials.json` في جذر المشروع يشير لهذه الملفات (وضع `credentialsSource: local` في eas.json).

@@ -37,7 +37,7 @@ Email: al__3ynawi@hotmail.com
 Phone: (يُترك للمالك)
 
 [صفحة App Information]
-Name: جرب حظك
+Name: Midnight Royale
 Subtitle: كازينو اجتماعي بفيشات مجانية
 Privacy Policy URL: https://jareb-hazzak-server.onrender.com/privacy
 Category: Primary = Games > Casino | Secondary = Entertainment
