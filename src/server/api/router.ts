@@ -255,29 +255,52 @@ router.post('/auth/login', async (req: Request, res: Response) => {
 
   const admin = getAdmin();
 
-  // البحث عن الحساب → البريد الاصطناعي المُخزَّن في البروفايل
+  // البحث عن الحساب بالاسم
   const { data: profile } = await admin
     .from('profiles')
     .select('id, username, display_name, auth_email')
     .eq('username', username)
     .maybeSingle();
 
-  // حسابات قديمة بلا كلمة مرور (auth_email = null) لا يمكنها تسجيل الدخول
+  if (!profile) {
+    return res.status(404).json({ error: 'USER_NOT_FOUND' });
+  }
+
+  // البريد الحالي الموثوق: نجلب البريد الفعلي من auth (يتغير بعد ربط بريد حقيقي)
+  // بدل الاعتماد على auth_email القديم (البريد الاصطناعي).
+  let authEmail: string | null = profile.auth_email;
+  try {
+    const { data: authUser } = await admin.auth.admin.getUserById(profile.id);
+    if (authUser?.user?.email) authEmail = authUser.user.email;
+  } catch {
+    /* يبقى auth_email كخيار احتياطي */
+  }
+
+  // حسابات قديمة بلا كلمة مرور (لا بريد ولا كلمة مرور) لا يمكنها تسجيل الدخول
   // حتى تعيّن كلمة مرور من داخل الإعدادات — جلساتها المحفوظة تبقى تعمل.
-  if (!profile?.auth_email) {
+  if (!authEmail) {
     return res.status(404).json({ error: 'USER_NOT_FOUND' });
   }
 
   // عميل مستقل حتى لا تثبت جلسة المستخدم على العميل الإداري المشترك
   const authClient = createSupabaseAdminClient();
   const session = await authClient.auth.signInWithPassword({
-    email: profile.auth_email,
+    email: authEmail,
     password,
   });
 
   if (session.error || !session.data.session) {
     recordLoginFailure(ip);
     return res.status(401).json({ error: 'WRONG_PASSWORD' });
+  }
+
+  // مزامنة البريد الحالي في البروفايل (للاستخدامات الإدارية/الاستعادة)
+  if (authEmail !== profile.auth_email) {
+    await admin
+      .from('profiles')
+      .update({ auth_email: authEmail })
+      .eq('id', profile.id)
+      .then(() => {}, () => {});
   }
 
   return res.json({
@@ -315,6 +338,94 @@ router.post('/auth/set-password', authenticate, async (req: Request, res: Respon
   }
 
   return res.json({ ok: true });
+});
+
+// ===== البريد الإلكتروني: ربط + تأكيد + استعادة =====
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+// ربط بريد حقيقي بالحساب: يرسل Supabase رسالة تأكيد للبريد الجديد تلقائيًا
+// (عبر SMTP المشكّل في المشروع). عند الضغط على الرابط يصبح البريد مؤكدًا
+// وهو وسيلة الاستعادة لاحقًا.
+router.post('/auth/bind-email', authenticate, async (req: Request, res: Response) => {
+  const email = String(req.body?.email ?? '').trim().toLowerCase();
+  if (!EMAIL_RE.test(email) || email.length > 254) {
+    return res.status(400).json({ error: 'EMAIL_INVALID' });
+  }
+
+  const admin = getAdmin();
+  const { data: authUser, error: fetchErr } = await admin.auth.admin.getUserById(req.user!.id);
+  if (fetchErr || !authUser?.user) {
+    return res.status(404).json({ error: 'USER_NOT_FOUND' });
+  }
+  if (authUser.user.email === email && authUser.user.email_confirmed_at) {
+    return res.json({ ok: true, alreadyConfirmed: true });
+  }
+
+  const { error } = await admin.auth.admin.updateUserById(req.user!.id, { email });
+  if (error) {
+    const msg = String(error.message ?? '');
+    if (/already.*registered|already exists|email_exists/i.test(msg)) {
+      return res.status(409).json({ error: 'EMAIL_TAKEN' });
+    }
+    if (/smtp|email.*not.*config|rate limit/i.test(msg)) {
+      return res.status(503).json({ error: 'EMAIL_SERVICE_UNAVAILABLE' });
+    }
+    console.error('[auth/bind-email] updateUserById failed:', msg);
+    return res.status(500).json({ error: 'BIND_EMAIL_FAILED' });
+  }
+
+  return res.json({ ok: true, message: 'أُرسل رابط التأكيد إلى بريدك' });
+});
+
+// استعادة كلمة المرور: إرسال رابط استعادة عبر Supabase (يتطلب SMTP مشكّلًا)
+router.post('/auth/forgot-password', async (req: Request, res: Response) => {
+  const email = String(req.body?.email ?? '').trim().toLowerCase();
+  if (!EMAIL_RE.test(email) || email.length > 254) {
+    return res.status(400).json({ error: 'EMAIL_INVALID' });
+  }
+
+  const authClient = createSupabaseAdminClient();
+  const { error } = await authClient.auth.resetPasswordForEmail(email, {
+    redirectTo: 'jareb-hazzak://reset',
+  });
+
+  if (error) {
+    const msg = String(error.message ?? '');
+    if (/smtp|not.*config|rate limit|over_email_send_rate_limit/i.test(msg)) {
+      return res.status(503).json({ error: 'EMAIL_SERVICE_UNAVAILABLE' });
+    }
+    console.error('[auth/forgot-password] resetPasswordForEmail failed:', msg);
+    // لا نكشف ما إذا كان البريد موجودًا — نرد بنجاح عام
+    return res.json({ ok: true });
+  }
+
+  return res.json({ ok: true, message: 'أُرسل رابط الاستعادة إلى بريدك' });
+});
+
+// تذكّر اسم المستخدم: يعيد الاسم المقنّع إذا وُجد بريد مطابق (بدون إرسال بريد)
+router.post('/auth/forgot-username', async (req: Request, res: Response) => {
+  const email = String(req.body?.email ?? '').trim().toLowerCase();
+  if (!EMAIL_RE.test(email) || email.length > 254) {
+    return res.status(400).json({ error: 'EMAIL_INVALID' });
+  }
+
+  const admin = getAdmin();
+  const { data: profile } = await admin
+    .from('profiles')
+    .select('username')
+    .eq('auth_email', email)
+    .maybeSingle();
+
+  // قناع: أول حرف + نجوم + آخر حرف
+  const mask = (u: string) =>
+    u.length <= 2 ? u[0] + '*' : u[0] + '*'.repeat(Math.max(1, u.length - 2)) + u[u.length - 1];
+
+  if (!profile?.username) {
+    // رد عام حتى لا نكشف وجود البريد
+    return res.json({ found: false });
+  }
+  return res.json({ found: true, usernameMasked: mask(profile.username) });
 });
 
 // رصيد المستخدم الحالي — يُقرأ من التوكن الموثّق (لا معرّف من العميل)

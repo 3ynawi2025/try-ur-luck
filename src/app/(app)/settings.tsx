@@ -55,12 +55,19 @@ function MenuRow({
 
 export default function SettingsScreen() {
   const setPassword = useAuthStore((s) => s.setPassword);
+  const bindEmail = useAuthStore((s) => s.bindEmail);
   const busy = useAuthStore((s) => s.busy);
   const [pwOpen, setPwOpen] = useState(false);
   const [pw, setPw] = useState('');
   const [pw2, setPw2] = useState('');
   const [pwMsg, setPwMsg] = useState<string | null>(null);
   const [pwErr, setPwErr] = useState<string | null>(null);
+
+  const [emailOpen, setEmailOpen] = useState(false);
+  const [email, setEmail] = useState('');
+  const [emailMsg, setEmailMsg] = useState<string | null>(null);
+  const [emailErr, setEmailErr] = useState<string | null>(null);
+  const [emailBusy, setEmailBusy] = useState(false);
 
   const submitPassword = async () => {
     if (pw.length < 6) {
@@ -86,6 +93,37 @@ export default function SettingsScreen() {
     }
   };
 
+  const submitEmail = async () => {
+    const v = email.trim();
+    if (!/^\S+@\S+\.\S+$/.test(v)) {
+      setEmailErr('البريد الإلكتروني غير صالح');
+      return;
+    }
+    setEmailErr(null);
+    setEmailBusy(true);
+    try {
+      await bindEmail(v);
+      setEmailMsg('أُرسل رابط تأكيد لبريدك — اضغطه لتفعيله');
+      setTimeout(() => {
+        setEmailOpen(false);
+        setEmailMsg(null);
+        setEmail('');
+      }, 1500);
+    } catch (e: any) {
+      if (e?.message === 'EMAIL_TAKEN') {
+        setEmailErr('البريد مستخدم بحساب آخر');
+      } else if (e?.message === 'EMAIL_INVALID') {
+        setEmailErr('البريد الإلكتروني غير صالح');
+      } else if (e?.message === 'EMAIL_SERVICE_UNAVAILABLE') {
+        setEmailErr('خدمة البريد غير مهيأة بعد — أبلغ المطور');
+      } else {
+        setEmailErr('تعذّر ربط البريد — حاول مجددًا');
+      }
+    } finally {
+      setEmailBusy(false);
+    }
+  };
+
   return (
     <Screen>
       <ScrollView
@@ -104,6 +142,12 @@ export default function SettingsScreen() {
             icon={<KeyIcon size={19} color={COLORS.gold} />}
             label="تعيين كلمة المرور"
             onPress={() => setPwOpen(true)}
+          />
+          <View style={styles.divider} />
+          <MenuRow
+            icon={<SendIcon size={19} color={COLORS.gold} />}
+            label="ربط البريد الإلكتروني"
+            onPress={() => setEmailOpen(true)}
           />
           <View style={styles.divider} />
           <MenuRow
@@ -171,6 +215,44 @@ export default function SettingsScreen() {
             <View style={styles.modalActions}>
               <GoldButton title="إلغاء" variant="ghost" onPress={() => setPwOpen(false)} />
               <GoldButton title="حفظ" onPress={submitPassword} disabled={busy} />
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={emailOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setEmailOpen(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>ربط البريد الإلكتروني</Text>
+            <Text style={styles.modalSub}>
+              اربط بريدك لتأمين حسابك واستعادة الوصول عند الحاجة
+            </Text>
+            <TextInput
+              style={styles.pwInput}
+              placeholder="you@example.com"
+              placeholderTextColor={COLORS.textFaint}
+              value={email}
+              onChangeText={setEmail}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="email-address"
+              textContentType="emailAddress"
+            />
+            {emailErr && <Text style={styles.pwErr}>{emailErr}</Text>}
+            {emailMsg && <Text style={styles.pwOk}>{emailMsg}</Text>}
+            <View style={styles.modalActions}>
+              <GoldButton title="إلغاء" variant="ghost" onPress={() => setEmailOpen(false)} />
+              <GoldButton
+                title="حفظ"
+                onPress={submitEmail}
+                disabled={emailBusy}
+                loading={emailBusy}
+              />
             </View>
           </View>
         </View>

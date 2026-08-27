@@ -13,7 +13,7 @@ import {
   Platform,
   ScrollView,
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import Screen from '../../components/ui/Screen';
 import GoldButton from '../../components/ui/GoldButton';
 import Input from '../../components/ui/Input';
@@ -164,6 +164,22 @@ export default function LoginScreen() {
             loading={busy}
           />
 
+          <View style={styles.forgotRow}>
+            <Pressable
+              onPress={() => router.push('/(auth)/forgot-password' as Href)}
+              hitSlop={8}
+            >
+              <Text style={styles.forgotLink}>نسيت كلمة المرور؟</Text>
+            </Pressable>
+            <Text style={styles.forgotSep}>•</Text>
+            <Pressable
+              onPress={() => router.push('/(auth)/forgot-password?mode=username' as Href)}
+              hitSlop={8}
+            >
+              <Text style={styles.forgotLink}>نسيت اسم المستخدم؟</Text>
+            </Pressable>
+          </View>
+
           <View style={styles.switchRow}>
             <Text style={styles.switchText}>ليس لديك حساب؟</Text>
             <Pressable onPress={() => router.push('/(auth)/profile-setup')} hitSlop={8}>
@@ -255,6 +271,25 @@ const styles = StyleSheet.create({
     lineHeight: TYPE.small.lineHeight,
     color: COLORS.crimson,
     textAlign: 'center',
+  },
+  forgotRow: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexWrap: 'wrap',
+    gap: SPACING.sm,
+    marginTop: SPACING.lg,
+  },
+  forgotLink: {
+    fontFamily: FONTS.ar.semibold,
+    fontSize: TYPE.small.fontSize,
+    lineHeight: TYPE.small.lineHeight,
+    color: COLORS.gold,
+  },
+  forgotSep: {
+    fontFamily: FONTS.ar.regular,
+    fontSize: TYPE.caption.fontSize,
+    color: COLORS.textFaint,
   },
   switchRow: {
     flexDirection: 'row-reverse',

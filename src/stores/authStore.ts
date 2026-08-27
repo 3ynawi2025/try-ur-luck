@@ -34,7 +34,11 @@ interface AuthState {
   login: (username: string, password: string) => Promise<void>;
   /** تعيين/تغيير كلمة المرور لحساب قائم (للحسابات القديمة بلا كلمة مرور) */
   setPassword: (password: string) => Promise<void>;
-  bindEmail: (email: string) => void;
+  bindEmail: (email: string) => Promise<void>;
+  /** طلب رابط استعادة كلمة المرور (يرسل بريدًا إن كان مسجلًا) */
+  forgotPassword: (email: string) => Promise<{ ok: boolean }>;
+  /** تذكير باسم المستخدم عبر البريد */
+  forgotUsername: (email: string) => Promise<{ found: boolean; usernameMasked?: string }>;
   signOut: () => Promise<void>;
   deleteAccount: () => Promise<void>;
 }
@@ -156,11 +160,39 @@ export const useAuthStore = create<AuthState>()(
         });
       },
 
-      // ملاحظة: ربط البريد محلي مؤقت فقط — ربط البريد على السيرفر معلّق حتى يُضاف لاحقًا.
-      bindEmail: (email) =>
-        set((state) => ({
-          profile: state.profile ? { ...state.profile, email: email.trim() } : state.profile,
-        })),
+      // ربط البريد الإلكتروني: يرسل البريد للسيرفر (خلف توكن) ليرسل رابط تأكيد.
+      // أخطاء السيرفر تُرمى برموزها الواضحة:
+      // EMAIL_INVALID / EMAIL_TAKEN / EMAIL_SERVICE_UNAVAILABLE / BIND_EMAIL_FAILED
+      bindEmail: async (email) => {
+        await apiFetch('/api/auth/bind-email', {
+          method: 'POST',
+          body: JSON.stringify({ email }),
+        });
+      },
+
+      // طلب رابط استعادة كلمة المرور — يرمي EMAIL_SERVICE_UNAVAILABLE / EMAIL_INVALID
+      forgotPassword: async (email) => {
+        await apiFetch('/api/auth/forgot-password', {
+          method: 'POST',
+          body: JSON.stringify({ email }),
+        });
+        return { ok: true };
+      },
+
+      // تذكير باسم المستخدم عبر البريد — يعيد ما إذا وُجد حساب بهذا البريد
+      forgotUsername: async (email) => {
+        const res = await apiFetch<{ found: boolean; usernameMasked?: string }>(
+          '/api/auth/forgot-username',
+          {
+            method: 'POST',
+            body: JSON.stringify({ email }),
+          }
+        );
+        return {
+          found: Boolean(res?.found),
+          ...(res?.usernameMasked ? { usernameMasked: res.usernameMasked } : {}),
+        };
+      },
 
       signOut: async () => {
         set({ profile: null, isAuthenticated: false });

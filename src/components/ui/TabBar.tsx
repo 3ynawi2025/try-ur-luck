@@ -127,12 +127,21 @@ function TabItem({
 export default function TabBar({ state, descriptors, navigation }: TabBarProps) {
   const insets = useSafeAreaInsets();
 
-  // شاشات اللعب تطلب إخفاء الشريط عبر tabBarStyle.display
-  const focusedOptions = descriptors[state.routes[state.index].key].options;
-  const tabBarStyle = StyleSheet.flatten(focusedOptions.tabBarStyle) as
-    | { display?: 'none' | 'flex' }
-    | undefined;
-  if (tabBarStyle?.display === 'none') return null;
+  // شاشات اللعب تُخفي الشريط — لكن نحسب الإخفاء من اسم المسار المركّز
+  // (بدل tabBarStyle وحده) كي لا يعلق الشريط مخفيًا إذا علق التركيز على شاشة لعب
+  // (كان يسبب منطقة بيضاء فارغة غير مستجيبة في الأسفل على iPad).
+  const GAME_ROUTES = new Set([
+    'table/[id]',
+    'majlis/[id]',
+    'blackjack/[id]',
+    'three-card/[id]',
+    'russian/[id]',
+    'roulette/[id]',
+  ]);
+
+  const focusedRoute = state.routes[state.index];
+  if (!focusedRoute || !descriptors[focusedRoute.key]) return null;
+  if (GAME_ROUTES.has(focusedRoute.name)) return null;
 
   return (
     <View style={[styles.bar, { paddingBottom: Math.max(insets.bottom, SPACING.sm) }]}>
@@ -140,7 +149,9 @@ export default function TabBar({ state, descriptors, navigation }: TabBarProps) 
       <BlurView intensity={34} tint="dark" style={styles.blurSurface}>
         <View style={styles.row}>
           {state.routes.map((route, index) => {
-            const { options } = descriptors[route.key];
+            const descriptor = descriptors[route.key];
+            if (!descriptor) return null;
+            const { options } = descriptor;
             // التبويبات المخفية (href: null من expo-router) لا تُعرض
             if ((options as { href?: string | null }).href === null) return null;
 

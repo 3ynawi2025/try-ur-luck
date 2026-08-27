@@ -21,7 +21,7 @@ Copyright:
 © 2026 Salem Al Yahyaee
 
 Review Notes (English):
-App name: "جرب حظك" (Try Your Luck)
+App name: "Midnight Royale" (جرب حظك)
 What it is: A social casino card game played entirely with virtual chips. There is no real-money wagering, no purchase of chips with real money, and no cash-out or exchange of chips for anything of value. This is a social/entertainment game only, not real-money gambling.
 How to get chips: Every new account receives a free starting balance. Additional free chips come from daily login rewards, a daily lucky wheel, and occasional admin gifts. There is no way to buy chips with real money anywhere in the app.
 Sign-in: The app requires an account. Register with any username + password (min 6 characters) — no email or phone needed. To test: install the app, tap register, choose a username and password. The Gold membership store has a free "test activation" button to unlock private tables for testing premium features.

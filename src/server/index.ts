@@ -1,5 +1,5 @@
 // ============================================================
-// جرب حظك — Game Server Entry Point
+// Midnight Royale — Game Server Entry Point
 // ============================================================
 
 // تحميل .env محليًا عند التطوير (Node ≥ 20.12) — في Render تأتي من البيئة مباشرة
@@ -57,12 +57,12 @@ const SUPPORT_HTML = `<!DOCTYPE html>
 <html lang="ar" dir="rtl"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>الدعم — جرب حظك</title>
+<title>الدعم — Midnight Royale</title>
 <style>${PUBLIC_PAGE_STYLE}</style>
 </head><body>
 <div class="wrap">
-  <h1>الدعم — جرب حظك 🎰</h1>
-  <p>مرحبًا بك في صفحة دعم لعبة <strong>جرب حظك</strong>. يسعدنا مساعدتك في أي استفسار أو مشكلة تواجهها أثناء اللعب.</p>
+  <h1>الدعم — Midnight Royale 🎰</h1>
+  <p>مرحبًا بك في صفحة دعم لعبة <strong>Midnight Royale</strong>. يسعدنا مساعدتك في أي استفسار أو مشكلة تواجهها أثناء اللعب.</p>
 
   <div class="card">
     <h2>تواصل معنا</h2>
@@ -85,7 +85,7 @@ const SUPPORT_HTML = `<!DOCTYPE html>
     <p>لا، المكالمات الصوتية بين اللاعبين مباشرة ولا تُسجَّل ولا تُخزَّن.</p>
   </div>
 
-  <div class="footer">جرب حظك — الإصدار 1.0.0</div>
+  <div class="footer">Midnight Royale — الإصدار 1.0.0</div>
 </div>
 </body></html>`;
 
@@ -93,13 +93,13 @@ const PRIVACY_HTML = `<!DOCTYPE html>
 <html lang="ar" dir="rtl"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>سياسة الخصوصية — جرب حظك</title>
+<title>سياسة الخصوصية — Midnight Royale</title>
 <style>${PUBLIC_PAGE_STYLE}</style>
 </head><body>
 <div class="wrap">
-  <h1>سياسة الخصوصية — جرب حظك</h1>
+  <h1>سياسة الخصوصية — Midnight Royale</h1>
   <p class="muted">آخر تحديث: نسخة 1.0.0</p>
-  <p>نحترم خصوصيتك. توضح هذه السياسة البيانات التي نجمعها وكيف نستخدمها ونحميها عند استخدامك لعبة <strong>جرب حظك</strong>.</p>
+  <p>نحترم خصوصيتك. توضح هذه السياسة البيانات التي نجمعها وكيف نستخدمها ونحميها عند استخدامك لعبة <strong>Midnight Royale</strong>.</p>
 
   <h2>البيانات التي نجمعها</h2>
   <p>لإنشاء حسابك وتأمينه، قد نجمع:</p>
@@ -135,7 +135,7 @@ const PRIVACY_HTML = `<!DOCTYPE html>
   <h2>التغييرات على السياسة</h2>
   <p>قد نحدّث هذه السياسة من وقت لآخر، وسننشر أي تغييرات على هذه الصفحة مع تحديث تاريخها.</p>
 
-  <div class="footer">جرب حظك — سياسة الخصوصية — الإصدار 1.0.0</div>
+  <div class="footer">Midnight Royale — سياسة الخصوصية — الإصدار 1.0.0</div>
 </div>
 </body></html>`;
 
@@ -289,5 +289,5 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
 
 const PORT = process.env.PORT || 3000;
 httpServer.listen(PORT, () => {
-  console.log(`🎰 جرب حظك server running on port ${PORT}`);
+  console.log(`🎰 Midnight Royale server running on port ${PORT}`);
 });
