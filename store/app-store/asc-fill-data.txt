@@ -28,7 +28,7 @@ Sign-in: The app requires an account. Register with any username + password (min
 Moderation (UGC): The app includes a report button (flag) on every player, a block list, and an admin panel for muting/banning offenders, plus an in-app Code of Conduct screen.
 Note: All chips are virtual and cannot be converted to anything of value.
 
-Sign-In Information: ضع علامة "Sign-in required" = NO (غير مطلوب — التسجيل باسم مستخدم فقط)، واشرح ذلك في Notes أعلاه.
+Sign-In Information: ضع علامة "Sign-in required" = YES (نعم) — حساب تجريبي: user name = demo / password = demo1234 — واذكر ذلك في Notes أعلاه.
 
 Contact Information (App Review):
 First name: Salem

@@ -1,8 +1,8 @@
 # Midnight Royale — بيانات متجر App Store (اللغة الأساسية: العربية)
 
 > Bundle ID: `com.al3ynawi.jarebhazzak`
-> الإصدار: 1.0.0 (Build 1)
-> المنصة: iOS — iPhone فقط (`supportsTablet: false`)
+> الإصدار: 1.0.0 (Build 8)
+> المنصة: iOS — iPhone و iPad (`supportsTablet: true`)
 > اللغة الأساسية: العربية (Arabic)
 
 ---
@@ -117,7 +117,7 @@ https://jareb-hazzak-server.onrender.com/support
 
 ## Review Notes (بالإنكليزية — App Review)
 
-> App name: "جرب حظك" (Try Your Luck)
+> App name: "Midnight Royale" (Arabic brand: جرب حظك)
 > What it is: A social casino card game played entirely with virtual chips. There is no real-money wagering, no purchase of chips with real money, and no cash-out or exchange of chips for anything of value. This is a social/entertainment game only, not real-money gambling.
 
 How to get chips (for review):
@@ -125,8 +125,8 @@ How to get chips (for review):
 - Players earn additional free chips from daily login rewards, the daily lucky wheel, and occasional admin gifts.
 - There is no way to buy chips with real money anywhere in the app.
 
-Demo account:
-- A test/demo account will be provided in the "Demo Account" field (a simple account such as `ssss`). It has a pre-loaded chip balance so you can join any table immediately.
+Demo account (Sign-in required = YES):
+- User name: `demo` / Password: `demo1234`. It has a pre-loaded chip balance so you can join any table immediately.
 
 Gold membership / IAP disclosure:
 - The "Gold" membership is currently a test-only activation — no real payment is processed and there are no live In-App Purchases in this build. We will add IAP in a later build with full Apple compliance.

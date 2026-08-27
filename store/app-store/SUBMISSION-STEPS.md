@@ -19,7 +19,7 @@
 1. افتح https://appstoreconnect.apple.com → **My Apps** → زر ➕ → **New App**.
 2. املأ:
    - Platform: **iOS**
-   - Name: **جرب حظك** (من `metadata-ar.md`)
+   - Name: **Midnight Royale** (العلامة العربية داخل التطبيق: جرب حظك)
    - Primary Language: **Arabic**
    - Bundle ID: `com.al3ynawi.jarebhazzak`
    - SKU: `jareb-hazzak-001`

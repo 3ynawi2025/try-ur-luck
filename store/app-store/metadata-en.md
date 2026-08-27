@@ -1,8 +1,8 @@
 # Midnight Royale (جرب حظك) — App Store Metadata (English / Secondary Localization)
 
 > Bundle ID: `com.al3ynawi.jarebhazzak`
-> Version: 1.0.0 (Build 1)
-> Platform: iOS — iPhone only (`supportsTablet: false`)
+> Version: 1.0.0 (Build 8)
+> Platform: iOS — iPhone and iPad (`supportsTablet: true`)
 > Purpose: Reference / secondary (English) localization. Primary language is Arabic.
 
 ---

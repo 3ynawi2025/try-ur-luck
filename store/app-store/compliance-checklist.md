@@ -1,6 +1,6 @@
 # 🛡️ App Store Review Guidelines — Compliance Checklist
 
-> **App:** جرب حظك (Try Your Luck) — `com.al3ynawi.jarebhazzak` — v1.0.0
+> **App:** Midnight Royale (العلامة العربية: جرب حظك) — `com.al3ynawi.jarebhazzak` — v1.0.0 (Build 8)
 > الغرض: مطابقة كل بند من بنود المراجعة مع ما يفعله التطبيق فعليًا + الإجابة/الدليل.
 
 ---
@@ -52,7 +52,7 @@
 ## 3. متطلبات لقطات الشاشة (Screenshots)
 
 - المقاسات المطلوبة: **iPhone 6.7"** (مثل 1290×2796) و **iPhone 5.5"** (1242×2208).
-- التطبيق **iPhone فقط** (`supportsTablet: false`) ⇒ **لا يلزم لقطات iPad**.
+- التطبيق يدعم iPad (`supportsTablet: true`) — لقطات iPad موجودة في `store/app-store/screenshots/ipad/` (تُرفع من تبويب iPad في Media Manager).
 - من 1 إلى 10 لقطات لكل مقاس. المقترح: اللوبي الرئيسي → طاولة هولدم → بلاك جاك → الروليت → الأصدقاء/المجالس → المكافآت/العجلة.
 - بدون إطارات أجهزة، وبدون نصوص تسويقية فوق اللقطة.
 
