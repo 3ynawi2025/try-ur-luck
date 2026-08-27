@@ -107,3 +107,19 @@ https://expo.dev/artifacts/eas/LTuTtjsKTcxY_kZvlOLXQYnRhfrtaWGMzG7PGvzeYfI.apk
 
 - لإعادة بنائه لاحقًا: `npx eas-cli build --platform android --profile preview`.
 - الرابط الناتج يفتح على جهاز الأندرويد فيُثبَّت مباشرة. هذه النسخة بقناة `preview` — التحديثات تصل جوًا عبر OTA.
+
+---
+
+## 6. إعادة التقديم بعد الرفض (سجل جولة 28 أغسطس 2026)
+
+الرفض الأول (27 أغسطس، Submission 47638f2a-2e57-44d1-baa0-69677890e870، iPad Air 11" M3 / iPadOS 26.6):
+- **2.1(a)**: أقسام القائمة السفلية لم تكن مستجيبة على iPad → أصلحناه في `TabBar.tsx` (حماية `descriptors[route.key]` + إخفاء التبويب فقط في شاشات اللعب).
+- **2.3.8**: الأيقونات تبدو مؤقتة → اعتمدنا أيقونة المستخدم `midnight_royale_app_icon_playing_cards_version.png` (1024×1024 بلا شفافية) لكل `icon.png` و `splash-icon.png` و `adaptive-icon.png`.
+
+خطوات إعادة التقديم (28 أغسطس):
+1. بناء الإنتاج 8 (`0b2b3dab-a19c-406c-8e7d-d92eb751c06a`) وتقديمه عبر `eas submit` — ظهر في TestFlight كـ 1.0.0 (8).
+2. OTA إلى فرعي `production` و `preview` (commit fa70a33).
+3. في ASC: ربط build 8 بالنسخة 1.0.0 (حذف build 7 ثم Add Build).
+4. App Review Information: تفعيل "Sign-in required" + حساب تجريبي **demo / demo1234** + ملاحظات تشرح إصلاح iPad والأيقونة.
+5. **مهم — Privacy Policy URL مطلوبة لكل لغة**: App Privacy → Privacy Policy → أضف الرابط في تبويب **English (U.S.)** أيضًا (كان مفقودًا وأوقف Add for Review).
+6. زر "Update Review" في صفحة النسخة → الحالة "Ready for Review" → "Resubmit to App Review" → الحالة **Waiting for Review**.
