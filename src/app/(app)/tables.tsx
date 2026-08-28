@@ -18,6 +18,7 @@ import {
   PlusIcon,
   CrownIcon,
 } from '../../components/icons/GameIcons';
+import { GameLogo, type GameLogoKind } from '../../components/icons/GameLogos';
 import {
   COLORS,
   FONTS,
@@ -49,6 +50,15 @@ const GAME_NAMES: Record<string, string> = {
   three_card: 'ثلاث أوراق بوكر',
   russian: 'بوكر روسي',
   roulette: 'روليت',
+};
+
+/** ربط نوع اللعبة بالشعار المصمم لها */
+const GAME_LOGO_KIND: Record<string, GameLogoKind> = {
+  texas_holdem: 'holdem',
+  blackjack: 'blackjack',
+  three_card: 'three_card',
+  russian: 'russian',
+  roulette: 'roulette',
 };
 
 const FILTERS: { key: GameFilter; label: string }[] = [
@@ -129,6 +139,9 @@ function TableRow({ table }: { table: TableRowData }) {
           <View style={styles.rowTop}>
             <View style={styles.titleCol}>
               <View style={styles.titleLine}>
+                {GAME_LOGO_KIND[table.gameType] && (
+                  <GameLogo kind={GAME_LOGO_KIND[table.gameType]} size={30} />
+                )}
                 {table.isPrivate && <LockIcon size={15} color={COLORS.textDim} />}
                 <Text style={styles.tableName}>{table.name}</Text>
               </View>

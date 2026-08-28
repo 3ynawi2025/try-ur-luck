@@ -25,6 +25,7 @@ import { useAuthStore } from '../../stores/authStore';
 import { apiFetch } from '../../lib/api';
 import { useReducedMotion } from '../../constants/motion';
 import { ChevronIcon } from '../../components/icons/GameIcons';
+import { GameLogo, type GameLogoKind } from '../../components/icons/GameLogos';
 import {
   COLORS,
   FONTS,
@@ -80,6 +81,7 @@ function GameCard({
   wide,
   onPress,
   index,
+  logoKind,
 }: {
   en: string;
   title: string;
@@ -88,6 +90,7 @@ function GameCard({
   wide?: boolean;
   onPress: () => void;
   index: number;
+  logoKind?: GameLogoKind;
 }) {
   const scale = useRef(new Animated.Value(1)).current;
   const enter = useRef(new Animated.Value(0)).current;
@@ -144,7 +147,11 @@ function GameCard({
         />
         {/* زخرفة دائرية هادئة */}
         <View style={[styles.gameOrnament, tone === 'vip' && styles.gameOrnamentVip]} pointerEvents="none">
-          <Text style={styles.gameOrnamentText}>{title.slice(0, 1)}</Text>
+          {logoKind ? (
+            <GameLogo kind={logoKind} size={52} />
+          ) : (
+            <Text style={styles.gameOrnamentText}>{title.slice(0, 1)}</Text>
+          )}
         </View>
         {/* التسمية */}
         <View style={styles.gameLabel}>
@@ -274,6 +281,7 @@ export default function LobbyScreen() {
               subtitle={g.subtitle}
               tone={g.tone}
               index={i}
+              logoKind={g.key as GameLogoKind}
               onPress={() => router.push(g.route as never)}
             />
           ))}
@@ -284,6 +292,7 @@ export default function LobbyScreen() {
             tone="vip"
             wide
             index={FLOOR_GAMES.length}
+            logoKind="vip"
             onPress={() => router.push(VIP_CARD.route as never)}
           />
         </View>
