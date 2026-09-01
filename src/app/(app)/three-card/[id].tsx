@@ -3,7 +3,7 @@
 // نفس نسق البلاك جاك — لا تغيير في الثيم.
 // ============================================================
 
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, Animated, ScrollView } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -24,6 +24,7 @@ import { ThreeCardSnapshot, ThreeCardCategory } from '../../../server/game/three
 import { Card } from '../../../server/game/deck';
 import { useSoloGame } from '../../../hooks/useSoloGame';
 import { useScale, scaleSize } from '../../../hooks/useScale';
+import { sfx } from '../../../lib/sounds';
 import {
   COLORS,
   FONTS,
@@ -85,7 +86,9 @@ export default function ThreeCardScreen() {
   };
   const snap: ThreeCardSnapshot = (snapshot as ThreeCardSnapshot) ?? EMPTY_SNAP;
 
-  const deal = () =>
+  const deal = () => {
+    sfx.chip();
+    sfx.shuffle();
     sendAction('bet', {
       wagers: {
         ante,
@@ -93,8 +96,12 @@ export default function ThreeCardScreen() {
         sixCardBonus: sixCardOn ? ante : 0,
       },
     });
+  };
 
-  const decide = (playNow: boolean) => sendAction(playNow ? 'play' : 'fold');
+  const decide = (playNow: boolean) => {
+    if (playNow) sfx.chip();
+    sendAction(playNow ? 'play' : 'fold');
+  };
 
   const newRound = () => sendAction('next');
 
@@ -102,6 +109,38 @@ export default function ThreeCardScreen() {
   const placed = snap.wagers.ante + snap.wagers.play + snap.wagers.pairPlus + snap.wagers.sixCardBonus;
   const net = round ? round.totalNet + round.returnedStakes - placed : 0;
   const isSettled = snap.phase === 'SETTLED' || snap.phase === 'REVEALING';
+
+  // ===== المؤثرات الصوتية (توزيع + نتيجة) =====
+  const prevPhaseRef = useRef<string | null>(null);
+  const prevRoundIdRef = useRef<number | null>(null);
+  useEffect(() => {
+    const prevPhase = prevPhaseRef.current;
+    const prevRoundId = prevRoundIdRef.current;
+    prevPhaseRef.current = snap.phase;
+    prevRoundIdRef.current = snap.roundId;
+
+    // توزيع الأوراق الثلاث
+    if (snap.phase === 'DECISION' && prevPhase !== 'DECISION') {
+      const t = setTimeout(() => sfx.deal(), 350);
+      return () => clearTimeout(t);
+    }
+    // نتيجة الجولة
+    if (
+      (snap.phase === 'SETTLED' || snap.phase === 'REVEALING') &&
+      prevPhase !== 'SETTLED' &&
+      prevPhase !== 'REVEALING' &&
+      prevRoundId !== snap.roundId &&
+      round
+    ) {
+      const t = setTimeout(() => {
+        if (round.outcome === 'PLAYER_WINS' || round.outcome === 'DEALER_NOT_QUALIFIED') sfx.win();
+        else if (round.outcome === 'DEALER_WINS') sfx.lose();
+      }, 650);
+      return () => clearTimeout(t);
+    }
+    return undefined;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [snap.phase, snap.roundId, round?.outcome]);
 
   // ===== لحظة الفوز السينمائية =====
   const tcWin =

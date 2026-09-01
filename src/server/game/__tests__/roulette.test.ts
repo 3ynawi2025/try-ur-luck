@@ -8,6 +8,7 @@ import {
   EUROPEAN_WHEEL,
   ROULETTE_PAYOUTS,
   RECOMMENDED_ROULETTE_CONFIG,
+  wheelNeighbors,
 } from '../roulette';
 import { seededRng } from '../deck';
 
@@ -201,5 +202,88 @@ describe('roulette forced payouts', () => {
     expect(e.placeBet('straight', [17], NaN)).not.toBeNull();
     expect(e.placeBet('straight', [17], 10.5)).not.toBeNull();
     expect(e.snapshot().balance).toBe(1000);
+  });
+});
+
+// ============================================================
+// الرهانات الجديدة: جيران (نيبر) + ثلاثي + ركن الصفر + المعلنة
+// ============================================================
+
+describe('roulette new bets (neighbors, trio, first four, call bets)', () => {
+  const forced = (win: number) => new RouletteEngine(10000, {}, () => (win + 0.5) / 37);
+
+  it('wheelNeighbors(17,2) = [2,25,17,34,6] (wheel order)', () => {
+    expect(wheelNeighbors(17, 2)).toEqual([2, 25, 17, 34, 6]);
+    expect(wheelNeighbors(0, 2)).toEqual([3, 26, 0, 32, 15]);
+  });
+
+  it('neighbors bet accepted for contiguous wheel arcs and pays 35:1', () => {
+    const e = forced(26);
+    expect(e.placeBet('neighbors', wheelNeighbors(0, 2), 100)).toBeNull();
+    e.spin();
+    const s = e.snapshot();
+    expect(s.winningNumber).toBe(26);
+    expect(s.result?.netWin).toBe(3500);
+  });
+
+  it('neighbors rejects non-contiguous wheel sets and even-length arcs', () => {
+    const e = new RouletteEngine(10000, {}, () => 0.5);
+    expect(e.placeBet('neighbors', [0, 1, 2, 3, 4], 100)).not.toBeNull();
+    expect(e.placeBet('neighbors', [0, 32, 15, 19], 100)).not.toBeNull();
+    expect(e.placeBet('neighbors', wheelNeighbors(7, 1), 100)).toBeNull(); // 3 أرقام
+  });
+
+  it('trio accepts only 0-1-2 and 0-2-3 and pays 11:1', () => {
+    const e = new RouletteEngine(10000, {}, () => 0.5);
+    expect(e.placeBet('trio', [0, 1, 2], 100)).toBeNull();
+    expect(e.placeBet('trio', [0, 2, 3], 50)).toBeNull();
+    expect(e.placeBet('trio', [0, 1, 3], 50)).not.toBeNull();
+    expect(e.placeBet('trio', [1, 2, 3], 50)).not.toBeNull();
+
+    const f = forced(2);
+    expect(f.placeBet('trio', [0, 1, 2], 100)).toBeNull();
+    f.spin();
+    expect(f.snapshot().result?.netWin).toBe(1100);
+  });
+
+  it('first four corner 0-1-2-3 accepted; other zero-corners rejected', () => {
+    const e = new RouletteEngine(10000, {}, () => 0.5);
+    expect(e.placeBet('corner', [0, 1, 2, 3], 100)).toBeNull();
+    expect(e.placeBet('corner', [0, 2, 3, 5], 100)).not.toBeNull();
+
+    const f = forced(3);
+    expect(f.placeBet('corner', [0, 1, 2, 3], 100)).toBeNull();
+    f.spin();
+    expect(f.snapshot().result?.netWin).toBe(800);
+  });
+
+  it('call bet decompositions are all valid engine bets', () => {
+    // التأكد من أن كل وحدات الرهانات المعلنة تقبلها قواعد المحرك
+    const units: { type: any; numbers: number[] }[] = [
+      { type: 'trio', numbers: [0, 2, 3] },
+      { type: 'split', numbers: [4, 7] },
+      { type: 'split', numbers: [12, 15] },
+      { type: 'split', numbers: [18, 21] },
+      { type: 'split', numbers: [19, 22] },
+      { type: 'corner', numbers: [25, 26, 28, 29] },
+      { type: 'split', numbers: [32, 35] },
+      { type: 'split', numbers: [5, 8] },
+      { type: 'split', numbers: [10, 11] },
+      { type: 'split', numbers: [13, 16] },
+      { type: 'split', numbers: [23, 24] },
+      { type: 'split', numbers: [27, 30] },
+      { type: 'split', numbers: [33, 36] },
+      { type: 'straight', numbers: [1] },
+      { type: 'split', numbers: [6, 9] },
+      { type: 'split', numbers: [14, 17] },
+      { type: 'split', numbers: [17, 20] },
+      { type: 'split', numbers: [31, 34] },
+      { type: 'split', numbers: [0, 3] },
+      { type: 'straight', numbers: [26] },
+    ];
+    const e = new RouletteEngine(100000, {}, () => 0.5);
+    for (const u of units) {
+      expect(e.placeBet(u.type, u.numbers, 10)).toBeNull();
+    }
   });
 });

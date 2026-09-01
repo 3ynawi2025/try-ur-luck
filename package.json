@@ -26,6 +26,7 @@
     "cors": "^2.8.6",
     "expo": "~57.0.14",
     "expo-asset": "~57.0.10",
+    "expo-audio": "~57.0.4",
     "expo-blur": "~57.0.2",
     "expo-constants": "~57.0.10",
     "expo-font": "~57.0.1",

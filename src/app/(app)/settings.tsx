@@ -12,6 +12,7 @@ import {
   Pressable,
   Modal,
   TextInput,
+  Switch,
 } from 'react-native';
 import * as Linking from 'expo-linking';
 import Screen from '../../components/ui/Screen';
@@ -25,10 +26,14 @@ import {
   SendIcon,
   ChevronIcon,
   KeyIcon,
+  SpeakerIcon,
+  SpeakerOffIcon,
 } from '../../components/icons/GameIcons';
 import { COLORS, FONTS, TYPE, SPACING, SIZES, RADIUS } from '../../constants/theme';
 import { router } from 'expo-router';
 import { useAuthStore } from '../../stores/authStore';
+import { useSettingsStore } from '../../stores/settingsStore';
+import { sfx } from '../../lib/sounds';
 
 const PRIVACY_URL = 'https://jareb-hazzak-server.onrender.com/privacy';
 const SUPPORT_URL = 'https://jareb-hazzak-server.onrender.com/support';
@@ -57,6 +62,8 @@ export default function SettingsScreen() {
   const setPassword = useAuthStore((s) => s.setPassword);
   const bindEmail = useAuthStore((s) => s.bindEmail);
   const busy = useAuthStore((s) => s.busy);
+  const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+  const setSoundEnabled = useSettingsStore((s) => s.setSoundEnabled);
   const [pwOpen, setPwOpen] = useState(false);
   const [pw, setPw] = useState('');
   const [pw2, setPw2] = useState('');
@@ -138,6 +145,26 @@ export default function SettingsScreen() {
         </View>
 
         <GlassCard padding={SPACING.sm} style={styles.block}>
+          <View style={styles.menuRow}>
+            <View style={styles.menuLeft}>
+              {soundEnabled ? (
+                <SpeakerIcon size={19} color={COLORS.gold} />
+              ) : (
+                <SpeakerOffIcon size={19} color={COLORS.textDim} />
+              )}
+              <Text style={styles.menuLabel}>المؤثرات الصوتية</Text>
+            </View>
+            <Switch
+              value={soundEnabled}
+              onValueChange={(v) => {
+                setSoundEnabled(v);
+                if (v) sfx.chip();
+              }}
+              trackColor={{ false: 'rgba(255,255,255,0.12)', true: 'rgba(201,169,97,0.35)' }}
+              thumbColor={soundEnabled ? COLORS.goldLight : COLORS.textDim}
+            />
+          </View>
+          <View style={styles.divider} />
           <MenuRow
             icon={<KeyIcon size={19} color={COLORS.gold} />}
             label="تعيين كلمة المرور"

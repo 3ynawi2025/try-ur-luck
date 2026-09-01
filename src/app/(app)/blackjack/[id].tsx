@@ -4,7 +4,7 @@
 // الشاشة مبنية على الغلاف المشترك SoloGameScreen.
 // ============================================================
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -33,6 +33,7 @@ import {
   RADIUS,
   formatCompact,
 } from '../../../constants/theme';
+import { sfx } from '../../../lib/sounds';
 
 // ===== حالة اليد وألوانها =====
 const STATUS_TONE: Record<string, { bg: string; bd: string; fg: string; label: string }> = {
@@ -128,10 +129,15 @@ export default function BlackjackScreen() {
   const myScore = activeHand ? handTotal(activeHand.cards) : 0;
 
   // ===== الإجراءات =====
-  const deal = () => sendAction('bet', { amount: bet });
+  const deal = () => {
+    sfx.chip();
+    sendAction('bet', { amount: bet });
+  };
 
   const act = (action: 'hit' | 'stand' | 'double' | 'split' | 'surrender') => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    if (action === 'hit' || action === 'double' || action === 'split') sfx.deal();
+    if (action === 'double') sfx.chip();
     sendAction(action);
   };
 
@@ -181,6 +187,41 @@ export default function BlackjackScreen() {
       key: `bj-${snap.roundNumber}`,
       magnitude: (isNatural ? 3 : 2) as 1 | 2 | 3,
     };
+  }, [snap.phase, snap.roundNumber, snap.results, me?.id]);
+
+  // ===== المؤثرات الصوتية (توزيع الورق + النتيجة) =====
+  const prevPhaseRef = useRef<string | null>(null);
+  const prevRoundRef = useRef<number>(0);
+  useEffect(() => {
+    const prevPhase = prevPhaseRef.current;
+    const prevRound = prevRoundRef.current;
+    prevPhaseRef.current = snap.phase;
+    prevRoundRef.current = snap.roundNumber;
+
+    // بدء التوزيع: بطاقات أولى تُوزَّع
+    if (snap.phase === 'playing' && prevPhase !== 'playing') {
+      const t = setTimeout(() => sfx.deal(), 400);
+      return () => clearTimeout(t);
+    }
+    // انتهاء الجولة: فوز أو خسارة
+    if (
+      snap.phase === 'complete' &&
+      prevPhase !== 'complete' &&
+      snap.roundNumber !== prevRound &&
+      snap.results?.length
+    ) {
+      const mine = snap.results.filter((r) => r.playerId === me?.id);
+      const hasWin = mine.some(
+        (r) => r.result === 'win' || r.result === 'blackjack' || r.result === 'charlie'
+      );
+      const hasLoss = mine.some((r) => r.result === 'lose');
+      const t = setTimeout(() => {
+        if (hasWin) sfx.win();
+        else if (hasLoss) sfx.lose();
+      }, 700);
+      return () => clearTimeout(t);
+    }
+    return undefined;
   }, [snap.phase, snap.roundNumber, snap.results, me?.id]);
 
   // عدّاد رصيد متدحرج

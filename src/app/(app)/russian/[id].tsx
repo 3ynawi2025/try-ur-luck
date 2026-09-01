@@ -3,7 +3,7 @@
 // نفس نسق البلاك جاك — لا تغيير في الثيم.
 // ============================================================
 
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, Animated, ScrollView } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -24,6 +24,7 @@ import { RussianSnapshot, RussianCategory } from '../../../server/game/russianPo
 import { Card } from '../../../server/game/deck';
 import { useSoloGame } from '../../../hooks/useSoloGame';
 import { useScale, scaleSize } from '../../../hooks/useScale';
+import { sfx } from '../../../lib/sounds';
 import {
   COLORS,
   FONTS,
@@ -97,17 +98,54 @@ export default function RussianScreen() {
 
   const deal = () => {
     setSelected(new Set());
+    sfx.chip();
+    sfx.shuffle();
     sendAction('ante', { amount: ante });
   };
 
   const betOrFold = (betNow: boolean) => {
+    if (betNow) sfx.chip();
     sendAction(betNow ? 'bet2x' : 'fold');
   };
 
   const doExchange = () => {
+    sfx.deal();
     sendAction('exchange', { cardIds: [...selected] });
     setSelected(new Set());
   };
+
+  // ===== المؤثرات الصوتية (توزيع + نتيجة) =====
+  const prevPhaseRef = useRef<string | null>(null);
+  const prevHandIdRef = useRef<number | null>(null);
+  useEffect(() => {
+    const prevPhase = prevPhaseRef.current;
+    const prevHandId = prevHandIdRef.current;
+    prevPhaseRef.current = snap.phase;
+    prevHandIdRef.current = snap.handId;
+
+    // توزيع الأوراق الخمس
+    if (snap.phase === 'DEALT' && prevPhase !== 'DEALT') {
+      const t = setTimeout(() => sfx.deal(), 350);
+      return () => clearTimeout(t);
+    }
+    // نتيجة الجولة
+    if (
+      (snap.phase === 'SETTLE' || snap.phase === 'COMPLETE') &&
+      prevPhase !== 'SETTLE' &&
+      prevPhase !== 'COMPLETE' &&
+      prevHandId !== snap.handId &&
+      snap.settlement
+    ) {
+      const out = snap.settlement.outcome;
+      const t = setTimeout(() => {
+        if (out === 'PLAYER_WINS' || out === 'DEALER_NO_QUALIFY') sfx.win();
+        else if (out === 'DEALER_WINS') sfx.lose();
+      }, 650);
+      return () => clearTimeout(t);
+    }
+    return undefined;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [snap.phase, snap.handId, snap.settlement?.outcome]);
 
   const toggleCard = (key: string) => {
     if (snap.phase !== 'DEALT' || snap.hasExchanged) return;

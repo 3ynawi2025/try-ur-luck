@@ -10,8 +10,10 @@ export type RouletteBetType =
   | 'straight'   // رقم واحد 35:1
   | 'split'      // رقمان متجاوران 17:1
   | 'street'     // صف 3 أرقام 11:1
+  | 'trio'       // ثلاثي مع الصفر (0-1-2 أو 0-2-3) 11:1
   | 'corner'     // 4 أرقام 8:1
   | 'sixline'    // صفّان 6 أرقام 5:1
+  | 'neighbors'  // جيران رقم على العجلة (2N+1 رقمًا) 35:1
   | 'dozen'      // دزينة 12 رقمًا 2:1
   | 'column'     // عمود 12 رقمًا 2:1
   | 'red' | 'black' | 'odd' | 'even' | 'low' | 'high'; // 1:1
@@ -20,8 +22,10 @@ export const ROULETTE_PAYOUTS: Record<RouletteBetType, number> = {
   straight: 35,
   split: 17,
   street: 11,
+  trio: 11,
   corner: 8,
   sixline: 5,
+  neighbors: 35,
   dozen: 2,
   column: 2,
   red: 1,
@@ -44,6 +48,88 @@ export const EUROPEAN_WHEEL = [
 
 export const numberColor = (n: number): 'red' | 'black' | 'green' =>
   n === 0 ? 'green' : ROULETTE_RED.has(n) ? 'red' : 'black';
+
+/**
+ * جيران رقم على العجلة (نيبر): الرقم + N أرقام يمينًا وN يسارًا (دائريًا).
+ * القياسي N=2 → 5 أرقام. الترتيب: من الأبعد يسارًا إلى الأبعد يمينًا.
+ */
+export function wheelNeighbors(n: number, sideCount = 2): number[] {
+  const idx = EUROPEAN_WHEEL.indexOf(n);
+  if (idx < 0) return [];
+  const out: number[] = [];
+  for (let k = -sideCount; k <= sideCount; k++) {
+    out.push(EUROPEAN_WHEEL[(idx + k + EUROPEAN_WHEEL.length) % EUROPEAN_WHEEL.length]);
+  }
+  return out;
+}
+
+/** هل المجموعة قوس متصل على العجلة بطول فردي (3..19)؟ */
+function isWheelArc(numbers: number[]): boolean {
+  const uniq = [...new Set(numbers)];
+  if (uniq.length < 3 || uniq.length > 19 || uniq.length % 2 === 0) return false;
+  const positions = uniq
+    .map((n) => EUROPEAN_WHEEL.indexOf(n))
+    .filter((p) => p >= 0)
+    .sort((a, b) => a - b);
+  if (positions.length !== uniq.length) return false;
+  // متصل مباشرة (فرق 1 بين كل متجاورين)؟
+  let contiguous = true;
+  for (let i = 1; i < positions.length; i++) {
+    if (positions[i] - positions[i - 1] !== 1) {
+      contiguous = false;
+      break;
+    }
+  }
+  if (contiguous) return true;
+  // التفاف دائري: بادئة متصلة تبدأ من 0 + ذيل متصل ينتهي عند 36
+  let prefix = 0;
+  while (prefix < positions.length && positions[prefix] === prefix) prefix++;
+  let suffix = positions.length - 1;
+  while (suffix >= 0 && positions[suffix] === 36 - (positions.length - 1 - suffix)) suffix--;
+  return prefix + (positions.length - 1 - suffix) === positions.length;
+}
+
+// ===== الرهانات المعلنة (الفرنسية) — تفكيكها إلى رهانات قياسية =====
+/** كل وحدة: {type, numbers, multiplier} — multiplier = عدد الرقائق على نفس الموضع */
+export interface CallBetUnit {
+  type: RouletteBetType;
+  numbers: number[];
+  multiplier: number;
+}
+
+export const VOISINS_DU_ZERO: CallBetUnit[] = [
+  { type: 'trio', numbers: [0, 2, 3], multiplier: 2 },
+  { type: 'split', numbers: [4, 7], multiplier: 1 },
+  { type: 'split', numbers: [12, 15], multiplier: 1 },
+  { type: 'split', numbers: [18, 21], multiplier: 1 },
+  { type: 'split', numbers: [19, 22], multiplier: 1 },
+  { type: 'corner', numbers: [25, 26, 28, 29], multiplier: 2 },
+  { type: 'split', numbers: [32, 35], multiplier: 1 },
+];
+
+export const TIERS_DU_CYLINDRE: CallBetUnit[] = [
+  { type: 'split', numbers: [5, 8], multiplier: 1 },
+  { type: 'split', numbers: [10, 11], multiplier: 1 },
+  { type: 'split', numbers: [13, 16], multiplier: 1 },
+  { type: 'split', numbers: [23, 24], multiplier: 1 },
+  { type: 'split', numbers: [27, 30], multiplier: 1 },
+  { type: 'split', numbers: [33, 36], multiplier: 1 },
+];
+
+export const ORPHELINS: CallBetUnit[] = [
+  { type: 'straight', numbers: [1], multiplier: 1 },
+  { type: 'split', numbers: [6, 9], multiplier: 1 },
+  { type: 'split', numbers: [14, 17], multiplier: 1 },
+  { type: 'split', numbers: [17, 20], multiplier: 1 },
+  { type: 'split', numbers: [31, 34], multiplier: 1 },
+];
+
+export const JEU_ZERO: CallBetUnit[] = [
+  { type: 'split', numbers: [0, 3], multiplier: 1 },
+  { type: 'split', numbers: [12, 15], multiplier: 1 },
+  { type: 'straight', numbers: [26], multiplier: 1 },
+  { type: 'split', numbers: [32, 35], multiplier: 1 },
+];
 
 export interface RouletteBet {
   id: string;
@@ -119,10 +205,25 @@ function validateNumbers(type: RouletteBetType, numbers: number[]): string | nul
       const rows = uniq.filter((n) => n >= 1).map((n) => Math.ceil(n / 3));
       return rows.every((r) => r === rows[0]) && rows.length === 3 ? null : 'الصف يتطلب أرقام صف واحد';
     }
+    case 'trio': {
+      if (uniq.length !== 3) return 'الثلاثي يتطلب 3 أرقام';
+      const set = [...uniq].sort((a, b) => a - b).join(',');
+      return set === '0,1,2' || set === '0,2,3' ? null : 'الثلاثي صالح فقط مع 0-1-2 أو 0-2-3';
+    }
+    case 'neighbors': {
+      if (uniq.length < 3 || uniq.length > 19 || uniq.length % 2 === 0)
+        return 'الجيران يتطلبون قوسًا فرديًا من 3 إلى 19 رقمًا';
+      return isWheelArc(uniq) ? null : 'الجيران يتطلبون أرقامًا متصلة على العجلة';
+    }
     case 'corner': {
       if (uniq.length !== 4) return 'الزاوية تتطلب 4 أرقام';
       const ns = uniq.filter((n) => n >= 1);
-      if (ns.length !== 4) return 'الزاوية لا تشمل الصفر';
+      // أول أربعة: 0-1-2-3
+      if (uniq.includes(0)) {
+        const set = [...uniq].sort((a, b) => a - b).join(',');
+        return set === '0,1,2,3' ? null : 'الزاوية مع الصفر صالحة فقط لـ 0-1-2-3';
+      }
+      if (ns.length !== 4) return 'زاوية غير صالحة';
       const rows = ns.map((n) => Math.ceil(n / 3));
       const rMin = Math.min(...rows);
       const rMax = Math.max(...rows);

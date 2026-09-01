@@ -17,11 +17,18 @@ import SoloTableBar from '../../../components/game/SoloTableBar';
 import { CrownIcon } from '../../../components/icons/GameIcons';
 import { useErrorToast } from '../../../hooks/useErrorToast';
 import { useCountUp } from '../../../hooks/useCountUp';
+import { sfx } from '../../../lib/sounds';
 import {
   RouletteSnapshot,
   RouletteBetType,
   EUROPEAN_WHEEL,
   numberColor,
+  wheelNeighbors,
+  VOISINS_DU_ZERO,
+  TIERS_DU_CYLINDRE,
+  ORPHELINS,
+  JEU_ZERO,
+  type CallBetUnit,
 } from '../../../server/game/roulette';
 import { useSoloGame } from '../../../hooks/useSoloGame';
 import {
@@ -43,6 +50,80 @@ const CELL_COLOR: Record<string, string> = {
   black: '#1B2230',
   green: COLORS.emeraldContainer,
 };
+
+// ===== أوضاع الرهان الإضافية =====
+type BetMode = 'straight' | 'split' | 'trio' | 'street' | 'corner' | 'sixline' | 'neighbors';
+
+const rowOf = (n: number) => Math.ceil(n / 3);
+const colOf = (n: number) => ((n - 1) % 3) + 1;
+const rowNumbers = (r: number) => [r * 3 - 2, r * 3 - 1, r * 3];
+const pairRows = (r1: number, r2: number) => [...rowNumbers(r1), ...rowNumbers(r2)];
+
+/** خيارات الرهان القانونية للرقم n حسب الوضع المختار */
+function candidatesFor(mode: BetMode, n: number): number[][] {
+  switch (mode) {
+    case 'straight':
+      return [[n]];
+    case 'split': {
+      if (n === 0) return [[0, 1], [0, 2], [0, 3]];
+      const out: number[][] = [];
+      if (colOf(n) !== 3) out.push([n, n + 1]);
+      if (colOf(n) !== 1) out.push([n, n - 1]);
+      if (rowOf(n) <= 11) out.push([n, n + 3]);
+      if (rowOf(n) >= 2) out.push([n, n - 3]);
+      if (n === 1) out.push([0, 1]);
+      if (n === 2) out.push([0, 2]);
+      if (n === 3) out.push([0, 3]);
+      return out;
+    }
+    case 'trio': {
+      if (n === 0) return [[0, 1, 2], [0, 2, 3]];
+      if (n === 1) return [[0, 1, 2]];
+      if (n === 2) return [[0, 1, 2], [0, 2, 3]];
+      if (n === 3) return [[0, 2, 3]];
+      return [];
+    }
+    case 'street':
+      return n === 0 ? [] : [rowNumbers(rowOf(n))];
+    case 'corner': {
+      if (n === 0) return [[0, 1, 2, 3]];
+      const out: number[][] = [];
+      if (colOf(n) <= 2 && rowOf(n) <= 11) out.push([n, n + 1, n + 3, n + 4]);
+      if (colOf(n) >= 2 && rowOf(n) <= 11) out.push([n - 1, n, n + 2, n + 3]);
+      if (colOf(n) <= 2 && rowOf(n) >= 2) out.push([n - 3, n - 2, n, n + 1]);
+      if (colOf(n) >= 2 && rowOf(n) >= 2) out.push([n - 4, n - 3, n - 1, n]);
+      return out;
+    }
+    case 'sixline': {
+      const r = rowOf(n);
+      const out: number[][] = [];
+      if (r >= 2) out.push(pairRows(r - 1, r));
+      if (r <= 11) out.push(pairRows(r, r + 1));
+      return out;
+    }
+    case 'neighbors':
+      return [wheelNeighbors(n, 2)];
+    default:
+      return [];
+  }
+}
+
+const MODE_LABELS: { key: BetMode; label: string }[] = [
+  { key: 'straight', label: 'رقم' },
+  { key: 'split', label: 'رقمان' },
+  { key: 'trio', label: 'ثلاثي' },
+  { key: 'street', label: 'صف' },
+  { key: 'corner', label: 'مربع' },
+  { key: 'sixline', label: 'ستة' },
+  { key: 'neighbors', label: 'جيران' },
+];
+
+const CALL_BETS: { label: string; units: CallBetUnit[]; hint: string }[] = [
+  { label: 'جيران الصفر', units: VOISINS_DU_ZERO, hint: '17 رقمًا — 9 رقائق' },
+  { label: 'ثلث العجلة', units: TIERS_DU_CYLINDRE, hint: '12 رقمًا — 6 رقائق' },
+  { label: 'الأيتام', units: ORPHELINS, hint: '8 أرقام — 5 رقائق' },
+  { label: 'لعبة الصفر', units: JEU_ZERO, hint: '7 أرقام — 4 رقائق' },
+];
 
 // ===== عجلة الروليت (SVG) — الحجم قابل للضبط (للنافذة السينمائية) =====
 function Wheel({ spinAngle, size = 300 }: { spinAngle: Animated.Value; size?: number }) {
@@ -198,6 +279,10 @@ export default function RouletteScreen() {
   const [chip, setChip] = useState(MIN_BET);
   const { showError, errorNode } = useErrorToast();
   const [spinning, setSpinning] = useState(false);
+  // وضع الرهان: رقم / رقمان / ثلاثي / صف / مربع / ستة / جيران
+  const [betMode, setBetMode] = useState<BetMode>('straight');
+  // نافذة خيارات الرهان المركّب (عند تعدد الخيارات لخلية واحدة)
+  const [anchorOpts, setAnchorOpts] = useState<{ type: RouletteBetType; options: number[][] } | null>(null);
   // إغلاق يدوي لنافذة القرص (تظهر تلقائيًا في الدورة القادمة)
   const [wheelDismissedAt, setWheelDismissedAt] = useState(0);
   const spinAngle = useRef(new Animated.Value(0)).current;
@@ -229,7 +314,32 @@ export default function RouletteScreen() {
   const roomBetting = rouletteRoom ? rouletteRoom.phase === 'betting' : snap.phase === 'BETTING';
   const place = (type: RouletteBetType, numbers: number[]) => {
     if (spinning || !roomBetting) return;
+    sfx.chip();
     sendAction('placeBet', { type, numbers, amount: chip });
+  };
+
+  /** ضغط خلية أرقام: مباشر في وضع الرقم، وإلا يفتح خيارات الرهان المركّب */
+  const handleCellPress = (n: number) => {
+    if (spinning || !roomBetting) return;
+    setAnchorOpts(null);
+    const candidates = candidatesFor(betMode, n);
+    if (candidates.length === 0) return;
+    if (candidates.length === 1) {
+      place(betMode, candidates[0]);
+      return;
+    }
+    setAnchorOpts({ type: betMode, options: candidates });
+  };
+
+  /** الرهانات المعلنة الفرنسية — تُوضع كوحدات متعددة بقيمة الشريحة المختارة */
+  const placeCallBet = (units: CallBetUnit[]) => {
+    if (spinning || !roomBetting) return;
+    setAnchorOpts(null);
+    for (const u of units) {
+      for (let i = 0; i < u.multiplier; i++) {
+        place(u.type, u.numbers);
+      }
+    }
   };
 
   const clear = () => sendAction('clearBets');
@@ -304,6 +414,28 @@ export default function RouletteScreen() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [snap.result?.winningNumber, spinning]);
+
+  // ===== الأصوات: دقات الكرة أثناء الدوران + نتيجة الرهان =====
+  useEffect(() => {
+    if (!spinning) return;
+    const iv = setInterval(() => sfx.tick(), 270);
+    return () => clearInterval(iv);
+  }, [spinning]);
+
+  const lastResultKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    const res = snap.result;
+    if (!res || spinning) return;
+    const key = `${snap.roundNumber}-${res.winningNumber}`;
+    if (lastResultKeyRef.current === key) return;
+    lastResultKeyRef.current = key;
+    const t = setTimeout(() => {
+      if (res.netWin > 0) sfx.win();
+      else if (res.netWin < 0) sfx.lose();
+    }, 350);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [snap.result?.winningNumber, snap.roundNumber, spinning]);
 
   // ===== حساب إجمالي كل خلية (للعرض: رهاناتي + رهانات الآخرين) =====
   const sameNumbers = (a: number[], b: number[]) =>
@@ -501,6 +633,24 @@ export default function RouletteScreen() {
           </View>
         </View>
 
+        {/* شريط أوضاع الرهان: رقم / رقمان / ثلاثي / صف / مربع / ستة / جيران */}
+        <View style={styles.modeRow}>
+          {MODE_LABELS.map((m) => (
+            <Pressable
+              key={m.key}
+              onPress={() => {
+                setBetMode(m.key);
+                setAnchorOpts(null);
+              }}
+              style={[styles.modeChip, betMode === m.key && styles.modeChipActive]}
+            >
+              <Text style={[styles.modeChipText, betMode === m.key && styles.modeChipTextActive]}>
+                {m.label}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+
         {/* سطح الطاولة ثلاثي الأبعاد */}
         <View style={styles.table3d}>
           <LinearGradient colors={['#0E4635', '#0A3D2E', '#02150F']} style={StyleSheet.absoluteFill} />
@@ -514,12 +664,12 @@ export default function RouletteScreen() {
           <ScrollView contentContainerStyle={styles.gridWrap} showsVerticalScrollIndicator={false}>
           {/* صف الأصفار + أول صف */}
           <View style={styles.gridRow}>
-            <BetCell label="0" numbers={[0]} type="straight" color={CELL_COLOR.green} height={zeroH} flex={0.9} onPress={place} total={cellTotal('straight', [0])} others={othersOn('straight', [0])} crowned={!spinning && !!res && res.winningNumber === 0} />
+            <BetCell label="0" numbers={[0]} type="straight" color={CELL_COLOR.green} height={zeroH} flex={0.9} onPress={() => handleCellPress(0)} total={cellTotal('straight', [0])} others={othersOn('straight', [0])} crowned={!spinning && !!res && res.winningNumber === 0} />
             <View style={styles.gridCol}>
               {rows.map((row, ri) => (
                 <View key={ri} style={styles.gridRow}>
                   {row.map((n) => (
-                    <BetCell key={n} label={String(n)} numbers={[n]} type="straight" color={CELL_COLOR[numberColor(n)]} height={cellH} onPress={place} total={cellTotal('straight', [n])} others={othersOn('straight', [n])} crowned={!spinning && !!res && res.winningNumber === n} />
+                    <BetCell key={n} label={String(n)} numbers={[n]} type="straight" color={CELL_COLOR[numberColor(n)]} height={cellH} onPress={() => handleCellPress(n)} total={cellTotal('straight', [n])} others={othersOn('straight', [n])} crowned={!spinning && !!res && res.winningNumber === n} />
                   ))}
                 </View>
               ))}
@@ -561,8 +711,42 @@ export default function RouletteScreen() {
               <BetCell key={type} label={label} numbers={[]} type={type} color={type === 'red' ? CELL_COLOR.red : '#1B2230'} height={cellH} onPress={place} total={cellTotal(type, [])} others={othersOn(type, [])} />
             ))}
           </View>
+
+          {/* الرهانات المعلنة الفرنسية */}
+          <View style={styles.callRow}>
+            {CALL_BETS.map((c) => (
+              <Pressable key={c.label} style={styles.callBtn} onPress={() => placeCallBet(c.units)}>
+                <Text style={styles.callBtnLabel}>{c.label}</Text>
+                <Text style={styles.callBtnHint}>{c.hint}</Text>
+              </Pressable>
+            ))}
+          </View>
           </ScrollView>
         </View>
+
+        {/* نافذة اختيار الرهان المركّب */}
+        {anchorOpts && !spinning && roomBetting && (
+          <View style={styles.anchorOverlay}>
+            <Text style={styles.anchorTitle}>اختر الرهان المطلوب</Text>
+            <View style={styles.anchorOptions}>
+              {anchorOpts.options.map((opt, i) => (
+                <Pressable
+                  key={i}
+                  style={styles.anchorChip}
+                  onPress={() => {
+                    place(anchorOpts.type, opt);
+                    setAnchorOpts(null);
+                  }}
+                >
+                  <Text style={styles.anchorChipText}>{[...opt].sort((a, b) => a - b).join(' · ')}</Text>
+                </Pressable>
+              ))}
+            </View>
+            <Pressable style={styles.anchorCancel} onPress={() => setAnchorOpts(null)}>
+              <Text style={styles.anchorCancelText}>إلغاء</Text>
+            </Pressable>
+          </View>
+        )}
 
         {/* صينية الرقاقات */}
         <View style={styles.trayRow}>
@@ -819,6 +1003,108 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.rail,
     borderTopWidth: 1,
     borderTopColor: 'rgba(58,42,25,0.7)',
+  },
+  modeRow: {
+    flexDirection: 'row',
+    gap: 4,
+    paddingVertical: 4,
+    paddingHorizontal: 2,
+  },
+  modeChip: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 6,
+    borderRadius: RADIUS.sm,
+    backgroundColor: 'rgba(0,0,0,0.28)',
+    borderWidth: 1,
+    borderColor: 'rgba(242,239,233,0.08)',
+  },
+  modeChipActive: {
+    backgroundColor: 'rgba(201,169,97,0.16)',
+    borderColor: COLORS.hairlineGold,
+  },
+  modeChipText: {
+    fontFamily: FONTS.ar.medium,
+    fontSize: 11,
+    color: COLORS.textDim,
+  },
+  modeChipTextActive: {
+    color: COLORS.goldLight,
+  },
+  callRow: {
+    flexDirection: 'row',
+    gap: 4,
+    marginTop: 2,
+  },
+  callBtn: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 6,
+    borderRadius: RADIUS.sm,
+    backgroundColor: 'rgba(201,169,97,0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(201,169,97,0.30)',
+  },
+  callBtnLabel: {
+    fontFamily: FONTS.ar.bold,
+    fontSize: 11,
+    color: COLORS.goldLight,
+  },
+  callBtnHint: {
+    fontFamily: FONTS.ar.regular,
+    fontSize: 9,
+    color: COLORS.textFaint,
+    marginTop: 1,
+  },
+  anchorOverlay: {
+    position: 'absolute',
+    left: 12,
+    right: 12,
+    bottom: 8,
+    zIndex: 30,
+    backgroundColor: 'rgba(10,13,18,0.96)',
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    borderColor: COLORS.hairlineGold,
+    padding: SPACING.md,
+    ...SHADOWS.e2,
+  },
+  anchorTitle: {
+    fontFamily: FONTS.ar.bold,
+    fontSize: 12,
+    color: COLORS.goldLight,
+    marginBottom: SPACING.sm,
+    textAlign: 'center',
+  },
+  anchorOptions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    justifyContent: 'center',
+  },
+  anchorChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: RADIUS.sm,
+    backgroundColor: 'rgba(201,169,97,0.14)',
+    borderWidth: 1,
+    borderColor: 'rgba(201,169,97,0.4)',
+  },
+  anchorChipText: {
+    fontFamily: FONTS.ar.bold,
+    fontSize: 12,
+    color: COLORS.text,
+  },
+  anchorCancel: {
+    alignSelf: 'center',
+    marginTop: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: 4,
+  },
+  anchorCancelText: {
+    fontFamily: FONTS.ar.medium,
+    fontSize: 12,
+    color: COLORS.textDim,
   },
   table3d: {
     flex: 1,

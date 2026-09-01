@@ -48,6 +48,7 @@ import { useScale, scaleSize } from '../../../hooks/useScale';
 import { useFriendsStore } from '../../../stores/friendsStore';
 import { useAuthStore } from '../../../stores/authStore';
 import { AGORA_APP_ID } from '../../../lib/config';
+import { sfx } from '../../../lib/sounds';
 
 /**
  * مواقع المقاعد على حافة البيضاوي (٠ = أنت، أسفل الوسط).
@@ -401,6 +402,41 @@ export default function PokerTableScreen() {
     ]).start(() => setError(null));
   }, [error]);
 
+  // --- المؤثرات الصوتية حسب مرحلة اليد ---
+  const prevPhaseRef = useRef<string | null>(null);
+  const prevHandRef = useRef<number>(0);
+  useEffect(() => {
+    const ph = snapshot?.phase ?? null;
+    const hand = snapshot?.handNumber ?? 0;
+    const prevPhase = prevPhaseRef.current;
+    const prevHand = prevHandRef.current;
+    prevPhaseRef.current = ph;
+    prevHandRef.current = hand;
+    if (!ph || ph === prevPhase) return;
+
+    // توزيع أولي
+    if (ph === 'preflop' && hand !== prevHand) {
+      sfx.shuffle();
+      const t = setTimeout(() => sfx.deal(), 550);
+      return () => clearTimeout(t);
+    }
+    // كشف أوراق المجتمع
+    if (ph === 'flop' || ph === 'turn' || ph === 'river') {
+      const t = setTimeout(() => sfx.deal(), 320);
+      return () => clearTimeout(t);
+    }
+    // المواجهة النهائية
+    if (ph === 'showdown' && hand !== prevHand) {
+      const t = setTimeout(() => {
+        if ((snapshot?.winners ?? []).some((w) => w.playerId === myId)) sfx.win();
+        else sfx.lose();
+      }, 900);
+      return () => clearTimeout(t);
+    }
+    return undefined;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [snapshot?.phase, snapshot?.handNumber, myId]);
+
   // --- إظهار الإشعار ثم إخفاؤه ---
   useEffect(() => {
     if (!notice) return;
@@ -429,6 +465,7 @@ export default function PokerTableScreen() {
 
   const handleAction = useCallback(
     (action: 'fold' | 'check' | 'call' | 'raise' | 'all_in' | 'bet', amount?: number) => {
+      if (action === 'call' || action === 'raise' || action === 'bet' || action === 'all_in') sfx.chip();
       performAction(tableId, myId, action, amount);
     },
     [performAction, tableId, myId]
