@@ -215,6 +215,8 @@ function BetCell({
   total,
   crowned = false,
   others = 0,
+  suggested = false,
+  isAnchor = false,
 }: {
   label: string;
   numbers: number[];
@@ -227,8 +229,20 @@ function BetCell({
   crowned?: boolean;
   /** إجمالي رهانات بقية اللاعبين على هذه الخلية */
   others?: number;
+  /** خلية مقترحة لإتمام رهان مركّب (علامة ذهبية) */
+  suggested?: boolean;
+  /** خلية المرساة الحالية (الرقم المختار أولًا) */
+  isAnchor?: boolean;
 }) {
   const scale = useRef(new Animated.Value(1)).current;
+  const glow = useRef(new Animated.Value(suggested ? 1 : 0)).current;
+  useEffect(() => {
+    Animated.timing(glow, {
+      toValue: suggested ? 1 : 0,
+      duration: 200,
+      useNativeDriver: true,
+    }).start();
+  }, [suggested, glow]);
   return (
     <Animated.View style={[{ flex: flex ?? 1, height: height ?? 54 }, { transform: [{ scale }] }]}>
       <Pressable
@@ -242,6 +256,25 @@ function BetCell({
           onPress(type, numbers);
         }}
       >
+        {suggested && (
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              styles.cellSuggestGlow,
+              {
+                opacity: glow.interpolate({ inputRange: [0, 1], outputRange: [0, 0.9] }),
+                transform: [{ scale: glow.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1] }) }],
+              },
+            ]}
+          >
+            <View style={styles.cellSuggestDot} />
+          </Animated.View>
+        )}
+        {isAnchor && (
+          <View style={styles.cellAnchorRing} pointerEvents="none">
+            <View style={styles.cellAnchorDot} />
+          </View>
+        )}
         {crowned && (
           <View style={styles.cellCrown} pointerEvents="none">
             <PawnMarker size={20} />
@@ -281,8 +314,10 @@ export default function RouletteScreen() {
   const [spinning, setSpinning] = useState(false);
   // وضع الرهان: رقم / رقمان / ثلاثي / صف / مربع / ستة / جيران
   const [betMode, setBetMode] = useState<BetMode>('straight');
-  // نافذة خيارات الرهان المركّب (عند تعدد الخيارات لخلية واحدة)
-  const [anchorOpts, setAnchorOpts] = useState<{ type: RouletteBetType; options: number[][] } | null>(null);
+  // المرساة: الرقم المختار أولًا في الرهانات المركّبة — تُضيء مقترحاته على اللوحة
+  const [anchor, setAnchor] = useState<{ mode: BetMode; n: number } | null>(null);
+  // نافذة احتياطية فقط عند تعارض خيارين على نفس الخلية
+  const [popupOpts, setPopupOpts] = useState<{ type: RouletteBetType; options: number[][] } | null>(null);
   // إغلاق يدوي لنافذة القرص (تظهر تلقائيًا في الدورة القادمة)
   const [wheelDismissedAt, setWheelDismissedAt] = useState(0);
   const spinAngle = useRef(new Animated.Value(0)).current;
@@ -318,23 +353,61 @@ export default function RouletteScreen() {
     sendAction('placeBet', { type, numbers, amount: chip });
   };
 
-  /** ضغط خلية أرقام: مباشر في وضع الرقم، وإلا يفتح خيارات الرهان المركّب */
+  /**
+   * ضغط خلية أرقام:
+   * - وضع الرقم: رهان مباشر.
+   * - وضع مركّب: أول ضغطة تعيّن المرساة وتُضيء مقترحاتها ذهبيًا على اللوحة،
+   *   والضغطة الثانية على خلية مذهّبة تُنفّذ الرهان (أو نافذة صغيرة عند التعارض).
+   * - الضغط على المرساة نفسها يلغي التحديد.
+   */
   const handleCellPress = (n: number) => {
     if (spinning || !roomBetting) return;
-    setAnchorOpts(null);
-    const candidates = candidatesFor(betMode, n);
-    if (candidates.length === 0) return;
-    if (candidates.length === 1) {
-      place(betMode, candidates[0]);
+    setPopupOpts(null);
+    if (betMode === 'straight') {
+      place('straight', [n]);
       return;
     }
-    setAnchorOpts({ type: betMode, options: candidates });
+    if (anchor) {
+      // إلغاء عند الضغط على المرساة نفسها
+      if (anchor.n === n && anchor.mode === betMode) {
+        setAnchor(null);
+        return;
+      }
+      const cands = candidatesFor(anchor.mode, anchor.n).filter((c) => c.includes(n));
+      if (cands.length === 1) {
+        place(anchor.mode, cands[0]);
+        setAnchor(null);
+        return;
+      }
+      if (cands.length > 1) {
+        // تعارض نادر (مثل تقاطع مربعين) — نافذة اختيار صغيرة
+        setPopupOpts({ type: anchor.mode, options: cands });
+        return;
+      }
+      // خلية خارج المقترحات → انقل المرساة إليها
+      setAnchor({ mode: betMode, n });
+      return;
+    }
+    setAnchor({ mode: betMode, n });
   };
+
+  /** خلايا المقترحات الذهبية لمرساة الرهان الحالية */
+  const suggestedNumbers = (() => {
+    if (!anchor) return new Set<number>();
+    const set = new Set<number>();
+    for (const c of candidatesFor(anchor.mode, anchor.n)) {
+      for (const num of c) {
+        if (num !== anchor.n) set.add(num);
+      }
+    }
+    return set;
+  })();
 
   /** الرهانات المعلنة الفرنسية — تُوضع كوحدات متعددة بقيمة الشريحة المختارة */
   const placeCallBet = (units: CallBetUnit[]) => {
     if (spinning || !roomBetting) return;
-    setAnchorOpts(null);
+    setPopupOpts(null);
+    setAnchor(null);
     for (const u of units) {
       for (let i = 0; i < u.multiplier; i++) {
         place(u.type, u.numbers);
@@ -640,7 +713,8 @@ export default function RouletteScreen() {
               key={m.key}
               onPress={() => {
                 setBetMode(m.key);
-                setAnchorOpts(null);
+                setAnchor(null);
+                setPopupOpts(null);
               }}
               style={[styles.modeChip, betMode === m.key && styles.modeChipActive]}
             >
@@ -650,6 +724,13 @@ export default function RouletteScreen() {
             </Pressable>
           ))}
         </View>
+
+        {/* تلميح المرساة: الخلايا المذهّبة تُكمل الرهان */}
+        {anchor && !spinning && roomBetting && (
+          <Text style={styles.anchorHint}>
+            ✦ اضغط خلية مذهّبة لإتمام الرهان — أو اضغط الرقم المحدد للإلغاء
+          </Text>
+        )}
 
         {/* سطح الطاولة ثلاثي الأبعاد */}
         <View style={styles.table3d}>
@@ -664,12 +745,12 @@ export default function RouletteScreen() {
           <ScrollView contentContainerStyle={styles.gridWrap} showsVerticalScrollIndicator={false}>
           {/* صف الأصفار + أول صف */}
           <View style={styles.gridRow}>
-            <BetCell label="0" numbers={[0]} type="straight" color={CELL_COLOR.green} height={zeroH} flex={0.9} onPress={() => handleCellPress(0)} total={cellTotal('straight', [0])} others={othersOn('straight', [0])} crowned={!spinning && !!res && res.winningNumber === 0} />
+            <BetCell label="0" numbers={[0]} type="straight" color={CELL_COLOR.green} height={zeroH} flex={0.9} onPress={() => handleCellPress(0)} total={cellTotal('straight', [0])} others={othersOn('straight', [0])} crowned={!spinning && !!res && res.winningNumber === 0} suggested={suggestedNumbers.has(0)} isAnchor={anchor?.n === 0} />
             <View style={styles.gridCol}>
               {rows.map((row, ri) => (
                 <View key={ri} style={styles.gridRow}>
                   {row.map((n) => (
-                    <BetCell key={n} label={String(n)} numbers={[n]} type="straight" color={CELL_COLOR[numberColor(n)]} height={cellH} onPress={() => handleCellPress(n)} total={cellTotal('straight', [n])} others={othersOn('straight', [n])} crowned={!spinning && !!res && res.winningNumber === n} />
+                    <BetCell key={n} label={String(n)} numbers={[n]} type="straight" color={CELL_COLOR[numberColor(n)]} height={cellH} onPress={() => handleCellPress(n)} total={cellTotal('straight', [n])} others={othersOn('straight', [n])} crowned={!spinning && !!res && res.winningNumber === n} suggested={suggestedNumbers.has(n)} isAnchor={anchor?.n === n} />
                   ))}
                 </View>
               ))}
@@ -724,25 +805,26 @@ export default function RouletteScreen() {
           </ScrollView>
         </View>
 
-        {/* نافذة اختيار الرهان المركّب */}
-        {anchorOpts && !spinning && roomBetting && (
+        {/* نافذة احتياطية صغيرة عند تعارض خيارين على نفس الخلية */}
+        {popupOpts && !spinning && roomBetting && (
           <View style={styles.anchorOverlay}>
             <Text style={styles.anchorTitle}>اختر الرهان المطلوب</Text>
             <View style={styles.anchorOptions}>
-              {anchorOpts.options.map((opt, i) => (
+              {popupOpts.options.map((opt, i) => (
                 <Pressable
                   key={i}
                   style={styles.anchorChip}
                   onPress={() => {
-                    place(anchorOpts.type, opt);
-                    setAnchorOpts(null);
+                    place(popupOpts.type, opt);
+                    setPopupOpts(null);
+                    setAnchor(null);
                   }}
                 >
                   <Text style={styles.anchorChipText}>{[...opt].sort((a, b) => a - b).join(' · ')}</Text>
                 </Pressable>
               ))}
             </View>
-            <Pressable style={styles.anchorCancel} onPress={() => setAnchorOpts(null)}>
+            <Pressable style={styles.anchorCancel} onPress={() => setPopupOpts(null)}>
               <Text style={styles.anchorCancelText}>إلغاء</Text>
             </Pressable>
           </View>
@@ -1183,6 +1265,59 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.num.bold,
     fontSize: 8,
     color: COLORS.onGold,
+  },
+  cellSuggestGlow: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: COLORS.goldLight,
+    backgroundColor: 'rgba(201,169,97,0.25)',
+    zIndex: 4,
+  },
+  cellSuggestDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: COLORS.goldLight,
+    shadowColor: COLORS.goldLight,
+    shadowOpacity: 0.9,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 0 },
+  },
+  cellAnchorRing: {
+    position: 'absolute',
+    top: -3,
+    left: -3,
+    right: -3,
+    bottom: -3,
+    borderRadius: RADIUS.sm,
+    borderWidth: 2,
+    borderColor: COLORS.gold,
+    zIndex: 3,
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+    paddingLeft: 3,
+  },
+  cellAnchorDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: COLORS.goldLight,
+    borderWidth: 1,
+    borderColor: '#171007',
+  },
+  anchorHint: {
+    fontFamily: FONTS.ar.medium,
+    fontSize: 11,
+    color: COLORS.goldLight,
+    textAlign: 'center',
+    paddingVertical: 3,
   },
 
   trayRow: {
