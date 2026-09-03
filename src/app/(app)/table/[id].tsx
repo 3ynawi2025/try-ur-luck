@@ -12,6 +12,8 @@ import {
   Easing,
   Modal,
   TextInput,
+  ScrollView,
+  useWindowDimensions,
 } from 'react-native';
 import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -45,6 +47,7 @@ import { useGameSocket } from '../../../hooks/useGameSocket';
 import { useAgoraVoice, agoraUidFor } from '../../../hooks/useAgoraVoice';
 import { useCountUp } from '../../../hooks/useCountUp';
 import { useScale, scaleSize } from '../../../hooks/useScale';
+import { useLandscapeLock } from '../../../hooks/useOrientationLock';
 import { useFriendsStore } from '../../../stores/friendsStore';
 import { useAuthStore } from '../../../stores/authStore';
 import { AGORA_APP_ID } from '../../../lib/config';
@@ -258,9 +261,14 @@ function Seat({
 
 // ------------------------------------------------------------
 export default function PokerTableScreen() {
+  useLandscapeLock();
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { width, height } = useWindowDimensions();
+  const landscape = width > height;
   const insets = useSafeAreaInsets();
   const sc = useScale();
+  // مقياس أصغر للعناصر المطلقة في الوضع العرضي — النسب المئوية تتكيف تلقائياً
+  const ls = landscape ? Math.min(sc, 0.92) : sc;
   const { isConnected, joinTable, leaveTable, performAction, on } = useGameSocket();
   // API الصوت الكامل (كتم الجميع + كتم فردي بربط uid الحتمي)
   const {
@@ -505,6 +513,237 @@ export default function PokerTableScreen() {
       ? { key: `he-${snapshot?.handNumber ?? 0}`, magnitude: 3 as const }
       : null;
 
+  // ===== عناصر مشتركة بين الاتجاهين (تُبنى مرة واحدة) =====
+  const headerNode = (
+    <View style={[styles.header, { paddingTop: insets.top + SPACING.sm }]}>
+      <Pressable style={styles.iconBtn} onPress={() => router.back()} hitSlop={8}>
+        <BackIcon size={20} color={COLORS.text} />
+      </Pressable>
+
+      <View style={styles.headerCenter}>
+        <Text style={styles.tableTitle}>طاولة {id === '3' ? 'VIP' : 'الرياض'}</Text>
+        <Text style={styles.phaseText}>
+          {PHASE_LABEL[snapshot?.phase || 'waiting']} · ٢٠/٤٠
+        </Text>
+      </View>
+
+      <View style={styles.headerSide}>
+        <Pressable
+          style={[styles.iconBtn, !isMuted && styles.iconBtnLive]}
+          onPress={() => toggleMute()}
+          hitSlop={8}
+        >
+          {isMuted ? (
+            <MicOffIcon size={20} color={COLORS.textDim} />
+          ) : (
+            <MicIcon size={20} color={COLORS.emerald} />
+          )}
+        </Pressable>
+
+        <Pressable
+          style={[styles.iconBtn, muteAllRemote && styles.iconBtnLive]}
+          onPress={() => toggleMuteAllRemote()}
+          hitSlop={8}
+          accessibilityLabel="كتم الجميع"
+        >
+          <Text style={styles.muteEmoji}>{muteAllRemote ? '🔇' : '🔊'}</Text>
+        </Pressable>
+
+        <Pressable
+          style={styles.iconBtn}
+          onPress={() => setHelpOpen(true)}
+          hitSlop={8}
+          accessibilityLabel="تعليمات"
+        >
+          <InfoIcon size={20} color={COLORS.textDim} />
+        </Pressable>
+      </View>
+    </View>
+  );
+
+  const feltContent = (
+    <>
+      {/* أوراق المجتمع — توزيع سينمائي من يد الموزع */}
+      <View style={styles.community}>
+        {Array.from({ length: 5 }).map((_, i) => {
+          const card = community[i];
+          return card ? (
+            <FlyCard
+              key={`c-${i}-${card.rank}${card.suit}-${handKey}`}
+              dealKey={`${handKey}-${i}`}
+              origin="dealer"
+              // الفلوب يتتابع، والتيرن/الريفر بعد وقفة ترقّب (الموزع يحرق ورقة)
+              delay={i === 3 || i === 4 ? 480 : i * 140}
+              duration={i === 3 || i === 4 ? 520 : 380}
+            >
+              <PlayingCard card={card} width={scaleSize(40, ls)} height={scaleSize(57, ls)} />
+            </FlyCard>
+          ) : (
+            <View key={`slot-${i}`} style={[styles.cardSlot, { width: scaleSize(40, ls), height: scaleSize(57, ls) }]} />
+          );
+        })}
+      </View>
+
+      {/* أوراق الفائزين عند الكشف — تطير وتُقلب من المركز */}
+      {isShowdown && winnersCards.length > 0 && (
+        <View style={styles.revealedRow} pointerEvents="none">
+          {winnersCards.map((w, i) => (
+            <FlyCard
+              key={`win-${w.id}-${i}`}
+              dealKey={`reveal-${handKey}-${i}`}
+              origin="center"
+              delay={300 + i * 160}
+              flip
+            >
+              <PlayingCard card={w.card} width={scaleSize(34, ls)} height={scaleSize(48, ls)} />
+            </FlyCard>
+          ))}
+        </View>
+      )}
+
+      {/* مجموع الرهان — عدّاد متدحرج + نبضة */}
+      <Animated.View style={[styles.pot, landscape && styles.lscPot, { transform: [{ scale: potScale }] }]}>
+        <Chip amount={Math.min(snapshot?.pot || 0, 5000)} size={scaleSize(22, ls)} stacked />
+        <View>
+          <Text style={[styles.potLabel, landscape && styles.lscPotLabel]}>مجموع الرهان</Text>
+          <Text style={[styles.potValue, landscape && styles.lscPotValue]}>{formatNumber(potDisplay)}</Text>
+        </View>
+      </Animated.View>
+    </>
+  );
+
+  const seatsNode = snapshot?.players.map((p) => {
+    const pos = SEATS[p.seatIndex % SEATS.length];
+    return (
+      <View
+        key={p.id}
+        style={[styles.seatAnchor, { top: pos.top, left: pos.left } as any]}
+      >
+        <Seat
+          player={p}
+          isMe={p.id === myId}
+          topHalf={parseFloat(pos.top) < 50}
+          winner={winnerIds.has(p.id)}
+          turnCountdown={turnCountdown}
+          remoteMuted={p.id !== myId && isRemoteMuted(agoraUidFor(p.id))}
+          onToggleRemoteMute={() => toggleRemoteMute(agoraUidFor(p.id))}
+        />
+      </View>
+    );
+  });
+
+  const myCardsNode = holeCards.length > 0 && (
+    <View style={[styles.myCards, { height: scaleSize(92, ls) }]}>
+      {holeCards.map((c, i) => (
+        <View
+          key={`${c.rank}${c.suit}-${handKey}`}
+          style={[
+            styles.myCard,
+            {
+              transform: [
+                { rotate: i === 0 ? '-7deg' : '7deg' },
+                { translateX: i === 0 ? 10 : -10 },
+              ],
+              zIndex: i,
+            },
+          ]}
+        >
+          <FlyCard
+            dealKey={`mine-${handKey}-${i}`}
+            origin="shoe"
+            delay={i * 120}
+            duration={460}
+            flip
+            flipKey={`${handKey}-${isShowdown ? 'show' : 'hide'}`}
+          >
+            <LiftCard>
+              <PlayingCard card={c} width={scaleSize(62, ls)} height={scaleSize(88, ls)} />
+            </LiftCard>
+          </FlyCard>
+        </View>
+      ))}
+    </View>
+  );
+
+  const actionsNode = showActions && (
+    <View style={[styles.actions, landscape && styles.lscActions]}>
+      <ActionButton
+        label="انسحاب"
+        colors={['#b4233a', '#8e000b'] as const}
+        onPress={() => handleAction('fold')}
+      />
+      <ActionButton
+        label={toCall > 0 ? 'مجاراة' : 'تمرير'}
+        sub={toCall > 0 ? formatNumber(toCall) : undefined}
+        colors={['#5AA0FF', '#1B4EA8'] as const}
+        onPress={() => handleAction(toCall > 0 ? 'call' : 'check')}
+      />
+      <ActionButton
+        label="مضاعفة"
+        sub={formatNumber(Math.max((snapshot?.currentBet || 0) * 2, 80))}
+        colors={['#8FCBB4', '#0A3D2E'] as const}
+        flex={1.15}
+        onPress={() => {
+          // توجيه صحيح حسب حالة الرهان + كل الرصيد عندما لا يكفي المبلغ.
+          const stack = (me?.balance ?? 0) + (me?.currentBet ?? 0);
+          const desired = minRaiseTo;
+          if (desired >= stack) handleAction('all_in');
+          else handleAction((snapshot?.currentBet || 0) > 0 ? 'raise' : 'bet', desired);
+        }}
+      />
+    </View>
+  );
+
+  const waitingNode = !showActions && !isShowdown && (
+    <View style={styles.waiting}>
+      <Text style={styles.waitingText}>
+        بانتظار {waitingPlayer?.name || 'اللاعبين'}…
+        {turnCountdown !== null ? ` (${turnCountdown} ث)` : ''}
+      </Text>
+      {(!snapshot || (snapshot?.players ?? []).length < 2) && (
+        <View style={styles.waitingHint}>
+          <Text style={styles.waitingHintText}>
+            تكساس هولدم لعبة بين اللاعبين — لكن يمكنك اللعب وحدك ضد الموزع في:
+          </Text>
+          <GoldButton title="بلاك جاك" onPress={() => router.push('/(app)/blackjack/1')} />
+          <GoldButton title="ثلاث أوراق بوكر" onPress={() => router.push('/(app)/three-card/1')} />
+          <GoldButton title="البوكر الروسي" onPress={() => router.push('/(app)/russian/1')} />
+        </View>
+      )}
+    </View>
+  );
+
+  const showdownNode = isShowdown && (
+    <View style={styles.showdown}>
+      {!!snapshot?.winners?.length && (
+        <View style={[styles.winnerRow, landscape && styles.lscWinnerRow]}>
+          <Badge
+            label={`${snapshot.winners[0].name} فاز بـ ${formatNumber(
+              snapshot.winners[0].amount
+            )}`}
+            tone="gold"
+          />
+          <Text style={styles.handName}>{snapshot.winners[0].handName}</Text>
+        </View>
+      )}
+      <ActionButton
+        label="جولة جديدة"
+        colors={['#E3C98A', '#8C6D2F'] as const}
+        darkText
+        onPress={startNewHand}
+      />
+    </View>
+  );
+
+  const leaveNode = (
+    <GoldButton
+      title="خروج من الطاولة"
+      variant="danger"
+      onPress={handleLeaveTable}
+      style={styles.leaveBtn}
+    />
+  );
+
   return (
     <View style={styles.container}>
       <LinearGradient colors={[COLORS.bgSoft, COLORS.bg, COLORS.surfaceSunken]} style={StyleSheet.absoluteFill} />
@@ -512,153 +751,178 @@ export default function PokerTableScreen() {
       {/* لحظة الفوز */}
       <WinFX trigger={heWin} />
 
-      {/* ===== الترويسة ===== */}
-      <View style={[styles.header, { paddingTop: insets.top + SPACING.sm }]}>
-        <Pressable style={styles.iconBtn} onPress={() => router.back()} hitSlop={8}>
-          <BackIcon size={20} color={COLORS.text} />
-        </Pressable>
-
-        <View style={styles.headerCenter}>
-          <Text style={styles.tableTitle}>طاولة {id === '3' ? 'VIP' : 'الرياض'}</Text>
-          <Text style={styles.phaseText}>
-            {PHASE_LABEL[snapshot?.phase || 'waiting']} · ٢٠/٤٠
-          </Text>
-        </View>
-
-        <View style={styles.headerSide}>
-          <Pressable
-            style={[styles.iconBtn, !isMuted && styles.iconBtnLive]}
-            onPress={() => toggleMute()}
-            hitSlop={8}
-          >
-            {isMuted ? (
-              <MicOffIcon size={20} color={COLORS.textDim} />
-            ) : (
-              <MicIcon size={20} color={COLORS.emerald} />
-            )}
-          </Pressable>
-
-          <Pressable
-            style={[styles.iconBtn, muteAllRemote && styles.iconBtnLive]}
-            onPress={() => toggleMuteAllRemote()}
-            hitSlop={8}
-            accessibilityLabel="كتم الجميع"
-          >
-            <Text style={styles.muteEmoji}>{muteAllRemote ? '🔇' : '🔊'}</Text>
-          </Pressable>
-
-          <Pressable
-            style={styles.iconBtn}
-            onPress={() => setHelpOpen(true)}
-            hitSlop={8}
-            accessibilityLabel="تعليمات"
-          >
-            <InfoIcon size={20} color={COLORS.textDim} />
-          </Pressable>
-        </View>
-      </View>
-
-      {/* ===== الطاولة ===== */}
-      <View style={styles.tableArea}>
-        {/* حلقة بنسبة أبعاد ثابتة — تضمن بيضاوياً عريضاً على كل الشاشات */}
-        <View style={styles.tableRing}>
-        <FeltTable style={styles.felt} radius={scaleSize(155, sc)} railWidth={scaleSize(14, sc)}>
-          {/* أوراق المجتمع — توزيع سينمائي من يد الموزع */}
-          <View style={styles.community}>
-            {Array.from({ length: 5 }).map((_, i) => {
-              const card = community[i];
-              return card ? (
-                <FlyCard
-                  key={`c-${i}-${card.rank}${card.suit}-${handKey}`}
-                  dealKey={`${handKey}-${i}`}
-                  origin="dealer"
-                  // الفلوب يتتابع، والتيرن/الريفر بعد وقفة ترقّب (الموزع يحرق ورقة)
-                  delay={i === 3 || i === 4 ? 480 : i * 140}
-                  duration={i === 3 || i === 4 ? 520 : 380}
-                >
-                  <PlayingCard card={card} width={scaleSize(40, sc)} height={scaleSize(57, sc)} />
-                </FlyCard>
-              ) : (
-                <View key={`slot-${i}`} style={[styles.cardSlot, { width: scaleSize(40, sc), height: scaleSize(57, sc) }]} />
-              );
-            })}
-          </View>
-
-          {/* أوراق الفائزين عند الكشف — تطير وتُقلب من المركز */}
-          {isShowdown && winnersCards.length > 0 && (
-            <View style={styles.revealedRow} pointerEvents="none">
-              {winnersCards.map((w, i) => (
-                <FlyCard
-                  key={`win-${w.id}-${i}`}
-                  dealKey={`reveal-${handKey}-${i}`}
-                  origin="center"
-                  delay={300 + i * 160}
-                  flip
-                >
-                  <PlayingCard card={w.card} width={scaleSize(34, sc)} height={scaleSize(48, sc)} />
-                </FlyCard>
-              ))}
-            </View>
-          )}
-
-          {/* مجموع الرهان — عدّاد متدحرج + نبضة */}
-          <Animated.View style={[styles.pot, { transform: [{ scale: potScale }] }]}>
-            <Chip amount={Math.min(snapshot?.pot || 0, 5000)} size={scaleSize(22, sc)} stacked />
-            <View>
-              <Text style={styles.potLabel}>مجموع الرهان</Text>
-              <Text style={styles.potValue}>{formatNumber(potDisplay)}</Text>
-            </View>
-          </Animated.View>
-        </FeltTable>
-
-        {/* المقاعد */}
-        {snapshot?.players.map((p) => {
-          const pos = SEATS[p.seatIndex % SEATS.length];
-          return (
-            <View
-              key={p.id}
-              style={[styles.seatAnchor, { top: pos.top, left: pos.left } as any]}
-            >
-              <Seat
-                player={p}
-                isMe={p.id === myId}
-                topHalf={parseFloat(pos.top) < 50}
-                winner={winnerIds.has(p.id)}
-                turnCountdown={turnCountdown}
-                remoteMuted={p.id !== myId && isRemoteMuted(agoraUidFor(p.id))}
-                onToggleRemoteMute={() => toggleRemoteMute(agoraUidFor(p.id))}
-              />
-            </View>
-          );
-        })}
-        </View>
-      </View>
-
-      {/* ===== تنبيه انقطاع الاتصال ===== */}
-      {!isConnected && (
-        <View style={[styles.offlineBar, { top: insets.top + 62 }]}>
-          <Text style={styles.offlineText}>
-            جارٍ الاتصال بالخادم… إذا استمرت المشكلة تأكد من تشغيل السيرفر
-          </Text>
-        </View>
-      )}
-
-      {/* ===== رسالة الخطأ ===== */}
-      {!!error && (
-        <Animated.View
+      {landscape ? (
+        <View
           style={[
-            styles.toast,
+            styles.lscRow,
             {
-              top: insets.top + 62,
-              opacity: errorAnim,
-              transform: [
-                { translateY: errorAnim.interpolate({ inputRange: [0, 1], outputRange: [-12, 0] }) },
-              ],
+              paddingLeft: insets.left + SPACING.lg,
+              paddingRight: insets.right + SPACING.lg,
+              paddingTop: insets.top,
+              paddingBottom: insets.bottom + SPACING.sm,
             },
           ]}
         >
-          <Text style={styles.toastText}>{error}</Text>
-        </Animated.View>
+          {/* العمود الأيسر: الترويسة + الطاولة البيضاوية */}
+          <View style={styles.lscFeltCol}>
+            {headerNode}
+
+            <View style={styles.lscTableArea}>
+              <View style={styles.lscTableRing}>
+                <FeltTable style={styles.lscFelt} radius={scaleSize(120, sc)} railWidth={scaleSize(12, sc)}>
+                  {feltContent}
+                </FeltTable>
+
+                {/* المقاعد */}
+                {seatsNode}
+              </View>
+            </View>
+          </View>
+
+          {/* العمود الأيمن: كل أدوات التحكم */}
+          <ScrollView
+            style={[styles.lscPanel, { width: Math.min(240, Math.max(200, Math.round(width * 0.25))) }]}
+            contentContainerStyle={[styles.lscPanelContent, { paddingBottom: insets.bottom + SPACING.md }]}
+            showsVerticalScrollIndicator={false}
+          >
+            {/* تنبيه انقطاع الاتصال */}
+            {!isConnected && (
+              <View style={styles.lscStatus}>
+                <Text style={styles.lscStatusText}>
+                  جارٍ الاتصال بالخادم… إذا استمرت المشكلة تأكد من تشغيل السيرفر
+                </Text>
+              </View>
+            )}
+
+            {/* رسالة الخطأ */}
+            {!!error && (
+              <Animated.View
+                style={[
+                  styles.lscStatus,
+                  styles.lscStatusError,
+                  {
+                    opacity: errorAnim,
+                    transform: [
+                      { translateY: errorAnim.interpolate({ inputRange: [0, 1], outputRange: [-8, 0] }) },
+                    ],
+                  },
+                ]}
+              >
+                <Text style={[styles.lscStatusText, styles.lscStatusTextError]}>{error}</Text>
+              </Animated.View>
+            )}
+
+            {/* شريط الإشعار */}
+            {!!notice && (
+              <Animated.View
+                style={[
+                  styles.lscStatus,
+                  {
+                    opacity: noticeAnim,
+                    transform: [
+                      { translateY: noticeAnim.interpolate({ inputRange: [0, 1], outputRange: [-8, 0] }) },
+                    ],
+                  },
+                ]}
+              >
+                <Text style={styles.lscStatusText}>{notice}</Text>
+              </Animated.View>
+            )}
+
+            {myCardsNode}
+            {actionsNode}
+            {waitingNode}
+            {showdownNode}
+            {leaveNode}
+          </ScrollView>
+        </View>
+      ) : (
+        <>
+          {/* ===== الترويسة ===== */}
+          {headerNode}
+
+          {/* ===== الطاولة ===== */}
+          <View style={styles.tableArea}>
+            {/* حلقة بنسبة أبعاد ثابتة — تضمن بيضاوياً عريضاً على كل الشاشات */}
+            <View style={styles.tableRing}>
+              <FeltTable style={styles.felt} radius={scaleSize(155, sc)} railWidth={scaleSize(14, sc)}>
+                {feltContent}
+              </FeltTable>
+
+              {/* المقاعد */}
+              {seatsNode}
+            </View>
+          </View>
+
+          {/* ===== تنبيه انقطاع الاتصال ===== */}
+          {!isConnected && (
+            <View style={[styles.offlineBar, { top: insets.top + 62 }]}>
+              <Text style={styles.offlineText}>
+                جارٍ الاتصال بالخادم… إذا استمرت المشكلة تأكد من تشغيل السيرفر
+              </Text>
+            </View>
+          )}
+
+          {/* ===== رسالة الخطأ ===== */}
+          {!!error && (
+            <Animated.View
+              style={[
+                styles.toast,
+                {
+                  top: insets.top + 62,
+                  opacity: errorAnim,
+                  transform: [
+                    { translateY: errorAnim.interpolate({ inputRange: [0, 1], outputRange: [-12, 0] }) },
+                  ],
+                },
+              ]}
+            >
+              <Text style={styles.toastText}>{error}</Text>
+            </Animated.View>
+          )}
+
+          {/* ===== شريط الإشعار ===== */}
+          {!!notice && (
+            <Animated.View
+              style={[
+                styles.noticeBar,
+                {
+                  top: insets.top + 62,
+                  opacity: noticeAnim,
+                  transform: [
+                    { translateY: noticeAnim.interpolate({ inputRange: [0, 1], outputRange: [-12, 0] }) },
+                  ],
+                },
+              ]}
+            >
+              <Text style={styles.noticeText}>{notice}</Text>
+            </Animated.View>
+          )}
+
+          {/* ===== منطقتي ===== */}
+          <View style={[styles.myArea, { paddingBottom: insets.bottom + SPACING.md }]}>
+            <LinearGradient
+              colors={['rgba(10,13,18,0)', 'rgba(10,13,18,0.92)', 'rgba(10,13,18,1)']}
+              style={StyleSheet.absoluteFill}
+              pointerEvents="none"
+            />
+
+            {/* أوراقي — مروحة تنساب من حذاء البطاقات ثم تُقلب عند الكشف */}
+            {myCardsNode}
+
+            {/* شريط الإجراءات */}
+            {actionsNode}
+
+            {/* بانتظار الآخرين */}
+            {waitingNode}
+
+            {/* الكشف */}
+            {showdownNode}
+
+            {/* خروج من الطاولة */}
+            {leaveNode}
+          </View>
+        </>
       )}
 
       {/* ===== طلب كلمة سر الطاولة الخاصة ===== */}
@@ -687,148 +951,6 @@ export default function PokerTableScreen() {
           </View>
         </View>
       </Modal>
-
-      {/* ===== شريط الإشعار ===== */}
-      {!!notice && (
-        <Animated.View
-          style={[
-            styles.noticeBar,
-            {
-              top: insets.top + 62,
-              opacity: noticeAnim,
-              transform: [
-                { translateY: noticeAnim.interpolate({ inputRange: [0, 1], outputRange: [-12, 0] }) },
-              ],
-            },
-          ]}
-        >
-          <Text style={styles.noticeText}>{notice}</Text>
-        </Animated.View>
-      )}
-
-      {/* ===== منطقتي ===== */}
-      <View style={[styles.myArea, { paddingBottom: insets.bottom + SPACING.md }]}>
-        <LinearGradient
-          colors={['rgba(10,13,18,0)', 'rgba(10,13,18,0.92)', 'rgba(10,13,18,1)']}
-          style={StyleSheet.absoluteFill}
-          pointerEvents="none"
-        />
-
-        {/* أوراقي — مروحة تنساب من حذاء البطاقات ثم تُقلب عند الكشف */}
-        {holeCards.length > 0 && (
-          <View style={[styles.myCards, { height: scaleSize(92, sc) }]}>
-            {holeCards.map((c, i) => (
-              <View
-                key={`${c.rank}${c.suit}-${handKey}`}
-                style={[
-                  styles.myCard,
-                  {
-                    transform: [
-                      { rotate: i === 0 ? '-7deg' : '7deg' },
-                      { translateX: i === 0 ? 10 : -10 },
-                    ],
-                    zIndex: i,
-                  },
-                ]}
-              >
-                <FlyCard
-                  dealKey={`mine-${handKey}-${i}`}
-                  origin="shoe"
-                  delay={i * 120}
-                  duration={460}
-                  flip
-                  flipKey={`${handKey}-${isShowdown ? 'show' : 'hide'}`}
-                >
-                  <LiftCard>
-                    <PlayingCard card={c} width={scaleSize(62, sc)} height={scaleSize(88, sc)} />
-                  </LiftCard>
-                </FlyCard>
-              </View>
-            ))}
-          </View>
-        )}
-
-        {/* شريط الإجراءات */}
-        {showActions && (
-          <View style={styles.actions}>
-            <ActionButton
-              label="انسحاب"
-              colors={['#b4233a', '#8e000b'] as const}
-              onPress={() => handleAction('fold')}
-            />
-            <ActionButton
-              label={toCall > 0 ? 'مجاراة' : 'تمرير'}
-              sub={toCall > 0 ? formatNumber(toCall) : undefined}
-              colors={['#5AA0FF', '#1B4EA8'] as const}
-              onPress={() => handleAction(toCall > 0 ? 'call' : 'check')}
-            />
-            <ActionButton
-              label="مضاعفة"
-              sub={formatNumber(Math.max((snapshot?.currentBet || 0) * 2, 80))}
-              colors={['#8FCBB4', '#0A3D2E'] as const}
-              flex={1.15}
-              onPress={() => {
-                // توجيه صحيح حسب حالة الرهان + كل الرصيد عندما لا يكفي المبلغ.
-                const stack = (me?.balance ?? 0) + (me?.currentBet ?? 0);
-                const desired = minRaiseTo;
-                if (desired >= stack) handleAction('all_in');
-                else handleAction((snapshot?.currentBet || 0) > 0 ? 'raise' : 'bet', desired);
-              }}
-            />
-          </View>
-        )}
-
-        {/* بانتظار الآخرين */}
-        {!showActions && !isShowdown && (
-          <View style={styles.waiting}>
-            <Text style={styles.waitingText}>
-              بانتظار {waitingPlayer?.name || 'اللاعبين'}…
-              {turnCountdown !== null ? ` (${turnCountdown} ث)` : ''}
-            </Text>
-            {(!snapshot || (snapshot?.players ?? []).length < 2) && (
-              <View style={styles.waitingHint}>
-                <Text style={styles.waitingHintText}>
-                  تكساس هولدم لعبة بين اللاعبين — لكن يمكنك اللعب وحدك ضد الموزع في:
-                </Text>
-                <GoldButton title="بلاك جاك" onPress={() => router.push('/(app)/blackjack/1')} />
-                <GoldButton title="ثلاث أوراق بوكر" onPress={() => router.push('/(app)/three-card/1')} />
-                <GoldButton title="البوكر الروسي" onPress={() => router.push('/(app)/russian/1')} />
-              </View>
-            )}
-          </View>
-        )}
-
-        {/* الكشف */}
-        {isShowdown && (
-          <View style={styles.showdown}>
-            {!!snapshot?.winners?.length && (
-              <View style={styles.winnerRow}>
-                <Badge
-                  label={`${snapshot.winners[0].name} فاز بـ ${formatNumber(
-                    snapshot.winners[0].amount
-                  )}`}
-                  tone="gold"
-                />
-                <Text style={styles.handName}>{snapshot.winners[0].handName}</Text>
-              </View>
-            )}
-            <ActionButton
-              label="جولة جديدة"
-              colors={['#E3C98A', '#8C6D2F'] as const}
-              darkText
-              onPress={startNewHand}
-            />
-          </View>
-        )}
-
-        {/* خروج من الطاولة */}
-        <GoldButton
-          title="خروج من الطاولة"
-          variant="danger"
-          onPress={handleLeaveTable}
-          style={styles.leaveBtn}
-        />
-      </View>
 
       {/* ===== نافذة التعليمات ===== */}
       <InstructionsModal
@@ -1343,5 +1465,89 @@ const styles = StyleSheet.create({
   },
   pwBtn: {
     flex: 1.4,
+  },
+
+  // ===== الوضع العرضي (landscape) — بادئة lsc =====
+  lscRow: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    gap: SPACING.md,
+  },
+  lscFeltCol: {
+    flex: 1.55,
+  },
+  lscTableArea: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  lscTableRing: {
+    width: '100%',
+    // بيضاوي عريض — يملأ العمود الأيسر
+    aspectRatio: 2.0,
+    maxHeight: '100%',
+    alignSelf: 'center',
+  },
+  lscFelt: {
+    position: 'absolute',
+    top: '8%',
+    bottom: '8%',
+    left: '4%',
+    right: '4%',
+  },
+  lscPanel: {
+    backgroundColor: 'rgba(10,13,18,0.45)',
+    borderLeftWidth: 1,
+    borderLeftColor: COLORS.border,
+    borderRadius: RADIUS.md,
+  },
+  lscPanelContent: {
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.sm,
+    gap: SPACING.sm,
+  },
+  lscActions: {
+    flexDirection: 'column',
+  },
+  lscWinnerRow: {
+    flexDirection: 'column',
+  },
+  lscStatus: {
+    backgroundColor: 'rgba(10,13,18,0.97)',
+    borderWidth: 1,
+    borderColor: 'rgba(201,169,97,0.5)',
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: SPACING.xs,
+    borderRadius: RADIUS.md,
+    alignItems: 'center',
+  },
+  lscStatusError: {
+    backgroundColor: 'rgba(62,0,8,0.97)',
+    borderColor: 'rgba(255,180,171,0.5)',
+  },
+  lscStatusText: {
+    fontFamily: FONTS.ar.semibold,
+    fontSize: 11,
+    lineHeight: 15,
+    color: COLORS.goldLight,
+    textAlign: 'center',
+    includeFontPadding: false,
+  },
+  lscStatusTextError: {
+    color: '#ffdad6',
+  },
+  lscPot: {
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 3,
+    marginTop: SPACING.sm,
+  },
+  lscPotLabel: {
+    fontSize: 8,
+    lineHeight: 10,
+  },
+  lscPotValue: {
+    fontSize: 13,
+    lineHeight: 16,
   },
 });

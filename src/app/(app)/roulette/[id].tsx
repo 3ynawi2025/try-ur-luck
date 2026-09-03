@@ -17,6 +17,7 @@ import SoloTableBar from '../../../components/game/SoloTableBar';
 import { CrownIcon } from '../../../components/icons/GameIcons';
 import { useErrorToast } from '../../../hooks/useErrorToast';
 import { useCountUp } from '../../../hooks/useCountUp';
+import { useLandscapeLock } from '../../../hooks/useOrientationLock';
 import { sfx } from '../../../lib/sounds';
 import {
   RouletteSnapshot,
@@ -293,12 +294,14 @@ function BetCell({
 }
 
 export default function RouletteScreen() {
+  useLandscapeLock();
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
   const [helpOpen, setHelpOpen] = useState(false);
 
   // ===== تكبير/تصغير تلقائي حسب عرض الشاشة (عرض التصميم 390، حد أقصى 1.15) =====
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
+  const landscape = width > height;
   const s = Math.min(width / 390, 1.15);
   const wheelSize = Math.round(WHEEL_SIZE * s);
   const ballStart = Math.round(118 * (wheelSize / 260));
@@ -306,6 +309,11 @@ export default function RouletteScreen() {
   const cellH = Math.round(54 * s);
   const zeroH = Math.round(120 * s);
   const chipSize = Math.round(44 * s);
+
+  // ===== أحجام مخصصة للوضع العرضي: خلايا أقصر وصينية مدمجة =====
+  const lsCellH = 44;
+  const lsZeroH = Math.round(44 * (120 / 54));
+  const lsChip = 36;
 
   const MIN_BET = id === '3' ? 200 : id === '2' ? 50 : 10;
   const TABLE_CHIPS = [MIN_BET, MIN_BET * 2, MIN_BET * 5, MIN_BET * 10];
@@ -541,13 +549,350 @@ export default function RouletteScreen() {
   // صفوف الأرقام: 12 صفًا × 3 أعمدة (1-36)
   const rows = Array.from({ length: 12 }, (_, r) => [r * 3 + 1, r * 3 + 2, r * 3 + 3]);
 
+  /** شبكة الرهانات — تُستخدم في الوضع العرضي بارتفاع خلايا أقصر */
+  const renderTableGrid = (cH: number, zH: number) => (
+    <>
+      {/* صف الأصفار + أول صف */}
+      <View style={styles.gridRow}>
+        <BetCell label="0" numbers={[0]} type="straight" color={CELL_COLOR.green} height={zH} flex={0.9} onPress={() => handleCellPress(0)} total={cellTotal('straight', [0])} others={othersOn('straight', [0])} crowned={!spinning && !!res && res.winningNumber === 0} suggested={suggestedNumbers.has(0)} isAnchor={anchor?.n === 0} />
+        <View style={styles.gridCol}>
+          {rows.map((row, ri) => (
+            <View key={ri} style={styles.gridRow}>
+              {row.map((n) => (
+                <BetCell key={n} label={String(n)} numbers={[n]} type="straight" color={CELL_COLOR[numberColor(n)]} height={cH} onPress={() => handleCellPress(n)} total={cellTotal('straight', [n])} others={othersOn('straight', [n])} crowned={!spinning && !!res && res.winningNumber === n} suggested={suggestedNumbers.has(n)} isAnchor={anchor?.n === n} />
+              ))}
+            </View>
+          ))}
+        </View>
+        {/* أعمدة 2:1 */}
+        <View style={styles.gridCol}>
+          {[3, 2, 1].map((col) => {
+            const nums = Array.from({ length: 12 }, (_, i) => col + i * 3);
+            return (
+              <BetCell key={col} label={`2:1`} numbers={nums} type="column" color="#1B2230" height={cH} onPress={place} total={cellTotal('column', nums)} others={othersOn('column', nums)} />
+            );
+          })}
+        </View>
+      </View>
+
+      {/* الدزينات */}
+      <View style={styles.gridRow}>
+        {[
+          ['1st 12', Array.from({ length: 12 }, (_, i) => i + 1)],
+          ['2nd 12', Array.from({ length: 12 }, (_, i) => i + 13)],
+          ['3rd 12', Array.from({ length: 12 }, (_, i) => i + 25)],
+        ].map(([label, nums]) => (
+          <BetCell key={String(label)} label={String(label)} numbers={nums as number[]} type="dozen" color="#1B2230" height={cH} onPress={place} total={cellTotal('dozen', nums as number[])} others={othersOn('dozen', nums as number[])} />
+        ))}
+      </View>
+
+      {/* الرهانات المتساوية */}
+      <View style={styles.gridRow}>
+        {(
+          [
+            ['1-18', 'low'],
+            ['زوجي', 'even'],
+            ['أحمر', 'red'],
+            ['أسود', 'black'],
+            ['فردي', 'odd'],
+            ['19-36', 'high'],
+          ] as [string, RouletteBetType][]
+        ).map(([label, type]) => (
+          <BetCell key={type} label={label} numbers={[]} type={type} color={type === 'red' ? CELL_COLOR.red : '#1B2230'} height={cH} onPress={place} total={cellTotal(type, [])} others={othersOn(type, [])} />
+        ))}
+      </View>
+
+      {/* الرهانات المعلنة الفرنسية */}
+      <View style={styles.callRow}>
+        {CALL_BETS.map((c) => (
+          <Pressable key={c.label} style={styles.callBtn} onPress={() => placeCallBet(c.units)}>
+            <Text style={styles.callBtnLabel}>{c.label}</Text>
+            <Text style={styles.callBtnHint}>{c.hint}</Text>
+          </Pressable>
+        ))}
+      </View>
+    </>
+  );
+
   return (
     <View style={styles.container}>
       <LinearGradient colors={['#10151E', '#0A0D12', '#070A0F']} style={StyleSheet.absoluteFill} />
 
-      {/* ===== الترويسة الموحدة ===== */}
-      <View style={{ paddingTop: insets.top + SPACING.xs }}>
-        <GameHeader title="الروليت" onBack={() => router.back()} onInfo={() => setHelpOpen(true)} live muted={isMuted} onToggleMute={toggleMute} />
+      {landscape ? (
+        <View style={lsc.root}>
+          {/* ===== الوضع العرضي — ترويسة مدمجة ===== */}
+          <View style={{ paddingTop: insets.top }}>
+            <GameHeader title="الروليت" onBack={() => router.back()} onInfo={() => setHelpOpen(true)} live muted={isMuted} onToggleMute={toggleMute} />
+            <View style={lsc.subheader}>
+              <View style={lsc.soloWrap}>
+                <SoloTableBar
+                  players={players}
+                  isMuted={isMuted}
+                  onToggleMute={toggleMute}
+                  muteAllRemote={muteAllRemote}
+                  onToggleMuteAllRemote={toggleMuteAllRemote}
+                  mutedRemoteUids={mutedRemoteUids}
+                  onToggleRemoteMute={toggleRemoteMute}
+                  isRemoteMuted={isRemoteMuted}
+                />
+              </View>
+              <View style={lsc.stakeRow}>
+                {[
+                  { tid: '1', label: 'منخفضة', min: 10 },
+                  { tid: '2', label: 'متوسطة', min: 50 },
+                  { tid: '3', label: 'عالية', min: 200 },
+                ].map((t) => {
+                  const active = (id ?? '1') === t.tid;
+                  return (
+                    <Pressable
+                      key={t.tid}
+                      onPress={() => router.push(`/(app)/roulette/${t.tid}` as never)}
+                      style={[lsc.stakeTab, active && lsc.stakeTabActive]}
+                    >
+                      <Text style={[lsc.stakeTabText, active && lsc.stakeTabTextActive]}>
+                        {t.label} {t.min}+
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+          </View>
+
+          {/* ===== لوحة الرهان — شبكة أعرض وكروم رأسي أقل ===== */}
+          <View style={[styles.betPanel, lsc.betPanel]}>
+            {/* شريط علوي مضغوط: الرصيد + السجل + حالة الجولة */}
+            <View style={[styles.tableTopBar, lsc.tableTopBar]}>
+              <View style={[styles.glassPill, styles.pillStatic, lsc.pill]}>
+                <Text style={styles.pillLabel}>الرصيد</Text>
+                <Text style={[styles.pillValue, lsc.pillValue]}>{formatCompact(balanceDisplay)}</Text>
+              </View>
+              <View style={[styles.glassPill, styles.pillStatic, lsc.pill]}>
+                <Text style={styles.pillLabel}>آخر الأرقام</Text>
+                <View style={styles.historyRow}>
+                  {snap.history.slice(0, 6).map((n, i) => (
+                    <View key={i} style={[styles.historyBall, { backgroundColor: CELL_COLOR[numberColor(n)] }]}>
+                      <Text style={styles.historyBallText}>{n}</Text>
+                    </View>
+                  ))}
+                  {snap.history.length === 0 && <Text style={styles.pillLabel}>—</Text>}
+                </View>
+              </View>
+              <View style={lsc.topStatus}>
+                {rouletteRoom?.phase === 'betting' ? (
+                  <>
+                    <Text style={lsc.statusLine} numberOfLines={1}>
+                      ⏱️ {countdown !== null ? `أغلق رهاناتك — ${countdown}` : 'نافذة الرهان مفتوحة'}
+                    </Text>
+                    <Text style={lsc.statusSub} numberOfLines={1}>⚙️ الدوران تلقائي — الرهان يُغلق مع انتهاء العداد</Text>
+                  </>
+                ) : rouletteRoom?.phase === 'spinning' ? (
+                  <Text style={lsc.statusLine} numberOfLines={1}>🎡 العجلة تدور…</Text>
+                ) : (
+                  <>
+                    {!spinning && !!res && (
+                      <Text style={lsc.statusLine} numberOfLines={1}>
+                        الرقم الفائز: {res.winningNumber} · {res.netWin >= 0 ? 'ربحت ' : 'خسرت '}{formatCompact(Math.abs(res.netWin))}
+                      </Text>
+                    )}
+                    {rouletteRoom?.phase === 'result' && winners && (
+                      <Text style={lsc.statusSub} numberOfLines={1}>
+                        🏆 الرقم {winners.number} —{' '}
+                        {winners.winners.length > 0
+                          ? winners.winners.slice(0, 3).map((w) => `${w.name} +${formatCompact(w.netWin)}`).join(' · ') +
+                            (winners.winners.length > 3 ? ` وآخرون (${winners.winners.length})` : '')
+                          : 'لا فائزين هذه الدورة'}
+                      </Text>
+                    )}
+                    {rouletteRoom?.phase === 'result' && <Text style={lsc.statusSub} numberOfLines={1}>جولة جديدة خلال ثوانٍ…</Text>}
+                  </>
+                )}
+              </View>
+            </View>
+
+            {/* شريط أوضاع الرهان: رقم / رقمان / ثلاثي / صف / مربع / ستة / جيران */}
+            <View style={[styles.modeRow, lsc.modeRow]}>
+              {MODE_LABELS.map((m) => (
+                <Pressable
+                  key={m.key}
+                  onPress={() => {
+                    setBetMode(m.key);
+                    setAnchor(null);
+                    setPopupOpts(null);
+                  }}
+                  style={[styles.modeChip, betMode === m.key && styles.modeChipActive]}
+                >
+                  <Text style={[styles.modeChipText, betMode === m.key && styles.modeChipTextActive]}>
+                    {m.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+
+            {/* تلميح المرساة: الخلايا المذهّبة تُكمل الرهان */}
+            {anchor && !spinning && roomBetting && (
+              <Text style={[styles.anchorHint, lsc.anchorHint]}>
+                ✦ اضغط خلية مذهّبة لإتمام الرهان — أو اضغط الرقم المحدد للإلغاء
+              </Text>
+            )}
+
+            {/* سطح الطاولة ثلاثي الأبعاد */}
+            <View style={styles.table3d}>
+              <LinearGradient colors={['#0E4635', '#0A3D2E', '#02150F']} style={StyleSheet.absoluteFill} />
+              <LinearGradient
+                colors={['rgba(255,255,255,0.18)', 'rgba(255,255,255,0)']}
+                start={{ x: 0.5, y: 0 }}
+                end={{ x: 0.5, y: 0.32 }}
+                style={StyleSheet.absoluteFill}
+                pointerEvents="none"
+              />
+              <ScrollView contentContainerStyle={[styles.gridWrap, lsc.gridWrap]} showsVerticalScrollIndicator={false}>
+                {renderTableGrid(lsCellH, lsZeroH)}
+              </ScrollView>
+            </View>
+
+            {/* نافذة احتياطية صغيرة عند تعارض خيارين على نفس الخلية */}
+            {popupOpts && !spinning && roomBetting && (
+              <View style={styles.anchorOverlay}>
+                <Text style={styles.anchorTitle}>اختر الرهان المطلوب</Text>
+                <View style={styles.anchorOptions}>
+                  {popupOpts.options.map((opt, i) => (
+                    <Pressable
+                      key={i}
+                      style={styles.anchorChip}
+                      onPress={() => {
+                        place(popupOpts.type, opt);
+                        setPopupOpts(null);
+                        setAnchor(null);
+                      }}
+                    >
+                      <Text style={styles.anchorChipText}>{[...opt].sort((a, b) => a - b).join(' · ')}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+                <Pressable style={styles.anchorCancel} onPress={() => setPopupOpts(null)}>
+                  <Text style={styles.anchorCancelText}>إلغاء</Text>
+                </Pressable>
+              </View>
+            )}
+
+            {/* شريط سفلي مدمج: الصينية + إعادة الرهان + الخروج */}
+            <View style={lsc.bottomStrip}>
+              <View style={styles.totalBox}>
+                <Text style={styles.totalLabel}>إجمالي الرهان</Text>
+                <Text style={[styles.totalValue, lsc.totalValue]}>{snap.totalBet}</Text>
+              </View>
+              {TABLE_CHIPS.map((v) => (
+                <Pressable
+                  key={v}
+                  onPress={() => {
+                    setChip(v);
+                    Haptics.selectionAsync().catch(() => {});
+                  }}
+                  style={[
+                    styles.chipCircle,
+                    { width: lsChip, height: lsChip, borderRadius: Math.round(lsChip / 2) },
+                    chip === v && styles.chipActive,
+                  ]}
+                >
+                  <Text style={styles.chipValue}>{v}</Text>
+                </Pressable>
+              ))}
+              <Pressable style={[styles.clearBtn, lsc.clearBtn]} onPress={clear} disabled={snap.totalBet === 0}>
+                <Text style={[styles.clearText, snap.totalBet === 0 && { opacity: 0.4 }]}>مسح</Text>
+              </Pressable>
+              <Pressable
+                style={[lsc.rebetBtnL, autoRebet && styles.rebetBtnFullActive]}
+                onPress={() => sendAction('autoRebet', { enabled: !autoRebet })}
+              >
+                <Text style={[styles.rebetText, autoRebet && styles.rebetTextActive]}>
+                  🔄 إعادة الرهان تلقائيًا{autoRebet ? ' ✓' : ''}
+                </Text>
+              </Pressable>
+              <Pressable style={lsc.leaveBtnL} onPress={leaveTable}>
+                <Text style={styles.leaveText}>🚪 خروج من الطاولة</Text>
+              </Pressable>
+            </View>
+          </View>
+
+          {/* ===== النافذة السينمائية للقرص — العنصر الأساسي الوحيد عند الدوران ===== */}
+          {wheelVisible && (
+            <View style={styles.wheelOverlay}>
+              <LinearGradient colors={['rgba(7,10,15,0.97)', 'rgba(10,13,18,0.99)']} style={StyleSheet.absoluteFill} />
+
+              <View style={styles.overlayTopRow}>
+                <View style={[styles.glassPill, styles.pillStatic]}>
+                  <Text style={styles.pillLabel}>الرصيد</Text>
+                  <Text style={styles.pillValue}>{formatCompact(balanceDisplay)}</Text>
+                </View>
+                <View style={[styles.glassPill, styles.pillStatic]}>
+                  <Text style={styles.pillLabel}>آخر الأرقام</Text>
+                  <View style={styles.historyRow}>
+                    {snap.history.slice(0, 6).map((n, i) => (
+                      <View key={i} style={[styles.historyBall, { backgroundColor: CELL_COLOR[numberColor(n)] }]}>
+                        <Text style={styles.historyBallText}>{n}</Text>
+                      </View>
+                    ))}
+                    {snap.history.length === 0 && <Text style={styles.pillLabel}>—</Text>}
+                  </View>
+                </View>
+              </View>
+
+              <View style={[styles.wheelStage, { width: wheelSize, height: wheelSize }]}>
+                <Wheel spinAngle={spinAngle} size={wheelSize} />
+                <Animated.View
+                  pointerEvents="none"
+                  style={[
+                    styles.ballOrbit,
+                    {
+                      transform: [
+                        { rotate: ballOrbit.interpolate({ inputRange: [-2160, 0], outputRange: ['-2160deg', '0deg'], extrapolate: 'extend' }) },
+                        { translateX: ballRadius },
+                      ],
+                    },
+                  ]}
+                >
+                  <View style={styles.rouletteBall} />
+                </Animated.View>
+                {!!res && !spinning && (
+                  <Animated.View
+                    pointerEvents="none"
+                    style={[
+                      styles.winBanner,
+                      {
+                        opacity: resultPop,
+                        transform: [{ scale: resultPop.interpolate({ inputRange: [0, 1], outputRange: [0.4, 1] }) }],
+                      },
+                    ]}
+                  >
+                    <CrownIcon size={22} color={COLORS.goldLight} />
+                    <Text style={styles.winBannerText}>الرقم الفائز</Text>
+                    <Text style={styles.winBannerNumber}>{res.winningNumber}</Text>
+                  </Animated.View>
+                )}
+              </View>
+
+              {spinning ? (
+                <Text style={styles.spinningLabel}>العجلة تدور…</Text>
+              ) : !!res ? (
+                <View style={styles.overlayResult}>
+                  <Text style={styles.resultText}>
+                    {res.netWin >= 0 ? 'ربحت ' : 'خسرت '}
+                    <Text style={res.netWin >= 0 ? styles.resultWin : styles.resultLoss}>
+                      {formatCompact(Math.abs(res.netWin))}
+                    </Text>
+                  </Text>
+                  <GoldButton title="متابعة" onPress={() => setWheelDismissedAt(Date.now())} />
+                </View>
+              ) : null}
+            </View>
+          )}
+        </View>
+      ) : (
+        <>
+          {/* ===== الترويسة الموحدة ===== */}
+          <View style={{ paddingTop: insets.top + SPACING.xs }}>
+            <GameHeader title="الروليت" onBack={() => router.back()} onInfo={() => setHelpOpen(true)} live muted={isMuted} onToggleMute={toggleMute} />
         <View style={{ paddingHorizontal: SPACING.lg, marginBottom: SPACING.xs }}>
           <SoloTableBar
             players={players}
@@ -897,6 +1242,8 @@ export default function RouletteScreen() {
           )}
         </View>
       </View>
+        </>
+      )}
 
       {/* لحظة الفوز — أُلغيت جرافيكس الفوز في الروليت حتى لا ينكشف رقم الفوز قبل توقف الكرة */}
       {errorNode}
@@ -1557,5 +1904,117 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.ar.bold,
     fontSize: TYPE.caption.fontSize,
     color: COLORS.crimson,
+  },
+});
+
+// ===== أنماط الوضع العرضي (landscape) — مسبوقة بـ lsc- =====
+const lsc = StyleSheet.create({
+  root: { flex: 1 },
+  subheader: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    paddingHorizontal: SPACING.sm,
+    marginTop: -SPACING.xs,
+  },
+  soloWrap: { flex: 1 },
+  stakeRow: { flexDirection: 'row-reverse', gap: SPACING.xs },
+  stakeTab: {
+    alignItems: 'center',
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: RADIUS.sm,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+  },
+  stakeTabActive: {
+    borderColor: COLORS.gold,
+    backgroundColor: 'rgba(201,169,97,0.10)',
+  },
+  stakeTabText: {
+    fontFamily: FONTS.ar.medium,
+    fontSize: 10,
+    color: COLORS.textDim,
+  },
+  stakeTabTextActive: { color: COLORS.goldLight },
+  betPanel: { padding: 4 },
+  tableTopBar: {
+    paddingHorizontal: SPACING.xs,
+    paddingBottom: SPACING.xs,
+    gap: SPACING.sm,
+  },
+  pill: {
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 2,
+  },
+  pillValue: {
+    fontSize: 16,
+    lineHeight: 20,
+  },
+  topStatus: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  statusLine: {
+    fontFamily: FONTS.ar.medium,
+    fontSize: 11,
+    color: COLORS.goldLight,
+    textAlign: 'center',
+  },
+  statusSub: {
+    fontFamily: FONTS.ar.regular,
+    fontSize: 9,
+    color: COLORS.textFaint,
+    textAlign: 'center',
+    marginTop: 1,
+  },
+  modeRow: {
+    gap: 3,
+    paddingVertical: 2,
+  },
+  anchorHint: {
+    fontSize: 10,
+    paddingVertical: 1,
+  },
+  gridWrap: {
+    padding: SPACING.xs,
+    gap: 3,
+  },
+  bottomStrip: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    paddingVertical: SPACING.xs,
+    paddingHorizontal: SPACING.sm,
+  },
+  totalValue: {
+    fontSize: 18,
+    lineHeight: 22,
+  },
+  clearBtn: {
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 6,
+  },
+  rebetBtnL: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 7,
+    paddingHorizontal: 10,
+    borderRadius: RADIUS.sm,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+  },
+  leaveBtnL: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 7,
+    paddingHorizontal: 10,
+    borderRadius: RADIUS.sm,
+    borderWidth: 1,
+    borderColor: 'rgba(232,169,160,0.35)',
+    backgroundColor: 'rgba(232,169,160,0.08)',
   },
 });

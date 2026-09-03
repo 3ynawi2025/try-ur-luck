@@ -4,7 +4,7 @@
 // ============================================================
 
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, Animated, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Animated, ScrollView, useWindowDimensions } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -24,6 +24,7 @@ import { ThreeCardSnapshot, ThreeCardCategory } from '../../../server/game/three
 import { Card } from '../../../server/game/deck';
 import { useSoloGame } from '../../../hooks/useSoloGame';
 import { useScale, scaleSize } from '../../../hooks/useScale';
+import { useLandscapeLock } from '../../../hooks/useOrientationLock';
 import { sfx } from '../../../lib/sounds';
 import {
   COLORS,
@@ -57,9 +58,12 @@ const FACE_DOWN: PCard = { rank: 'A', suit: 'spades' };
 const toPCard = (c: Card): PCard => ({ rank: c.rank, suit: c.suit });
 
 export default function ThreeCardScreen() {
+  useLandscapeLock();
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
   const sc = useScale();
+  const { width, height } = useWindowDimensions();
+  const landscape = width > height;
   const [helpOpen, setHelpOpen] = useState(false);
 
   const [ante, setAnte] = useState(100);
@@ -147,6 +151,201 @@ export default function ThreeCardScreen() {
     isSettled && round && (round.outcome === 'PLAYER_WINS' || round.outcome === 'DEALER_NOT_QUALIFIED')
       ? { key: `tc-${snap.roundId}`, magnitude: (round.totalNet >= 500 ? 3 : 2) as 1 | 2 | 3 }
       : null;
+
+  // ===== أبعاد الأوراق المضغوطة (وضع أفقي) =====
+  const lscCardW = scaleSize(40, sc);
+  const lscCardH = scaleSize(56, sc);
+
+  // ===== الوضع الأفقي: طاولة + عمود تحكم جانبي =====
+  if (landscape) {
+    return (
+      <View style={styles.lscContainer}>
+        <LinearGradient colors={[COLORS.bgSoft, COLORS.bg, COLORS.surfaceSunken]} style={StyleSheet.absoluteFill} />
+
+        {/* لحظة الفوز */}
+        <WinFX trigger={tcWin} />
+
+        {/* الترويسة الموحدة */}
+        <View
+          style={[
+            styles.lscHeader,
+            { paddingTop: insets.top + SPACING.xs, paddingLeft: insets.left, paddingRight: insets.right },
+          ]}
+        >
+          <GameHeader title="ثلاث أوراق بوكر" onBack={() => router.back()} onInfo={() => setHelpOpen(true)} live muted={isMuted} onToggleMute={toggleMute} />
+          <View style={styles.lscTableBar}>
+            <SoloTableBar
+              players={players}
+              isMuted={isMuted}
+              onToggleMute={toggleMute}
+              muteAllRemote={muteAllRemote}
+              onToggleMuteAllRemote={toggleMuteAllRemote}
+              mutedRemoteUids={mutedRemoteUids}
+              onToggleRemoteMute={toggleRemoteMute}
+              isRemoteMuted={isRemoteMuted}
+            />
+          </View>
+        </View>
+
+        {/* الجسم: الطاولة + عمود التحكم */}
+        <View
+          style={[
+            styles.lscBody,
+            {
+              paddingLeft: insets.left + SPACING.lg,
+              paddingRight: insets.right + SPACING.lg,
+              paddingBottom: insets.bottom + SPACING.md,
+            },
+          ]}
+        >
+          {/* الطاولة: الموزع أعلى واللاعب أسفل */}
+          <FeltTable style={styles.lscFelt} radius={scaleSize(150, sc)} railWidth={scaleSize(11, sc)} watermark="">
+            <View style={styles.lscFeltInner}>
+              <View style={styles.lscSeat}>
+                <Text style={styles.lscSeatLabel}>الموزع</Text>
+                <View style={styles.lscCardRow}>
+                  {snap.dealerCards
+                    ? snap.dealerCards.map((c, i) => (
+                        <PlayingCard key={i} card={toPCard(c)} width={lscCardW} height={lscCardH} animate delay={i * 140} />
+                      ))
+                    : [0, 1, 2].map((i) => (
+                        <PlayingCard key={`back-${i}`} card={FACE_DOWN} faceDown width={lscCardW} height={lscCardH} />
+                      ))}
+                </View>
+                {snap.dealerQualified !== null && (
+                  <View style={styles.dealerQualifyTag}>
+                    <Text style={styles.dealerQualifyText}>
+                      {snap.dealerQualified ? 'تأهل' : 'لم يتأهل'}
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              <View style={styles.lscSeat}>
+                <View style={styles.lscCardRow}>
+                  {(snap.playerCards ?? []).map((c, i) => (
+                    <View key={i} style={{ marginRight: i === 0 ? 0 : -10 }}>
+                      <PlayingCard card={toPCard(c)} width={lscCardW} height={lscCardH} animate delay={i * 130} />
+                    </View>
+                  ))}
+                </View>
+                {!!snap.playerHand && (
+                  <Text style={styles.handName}>{HAND_NAMES[snap.playerHand.category]}</Text>
+                )}
+              </View>
+            </View>
+          </FeltTable>
+
+          {/* عمود التحكم الجانبي */}
+          <ScrollView
+            style={styles.lscSide}
+            contentContainerStyle={styles.lscSideContent}
+            showsVerticalScrollIndicator={false}
+          >
+            <Text style={styles.lscPhase}>
+              {snap.phase === 'BETTING'
+                ? 'ضع رهانك'
+                : snap.phase === 'DECISION'
+                ? 'العب أو انسحب'
+                : isSettled
+                ? 'انتهت الجولة'
+                : '…'}
+            </Text>
+
+            <View style={styles.lscWager}>
+              <Text style={styles.lscWagerLabel}>الرصيد</Text>
+              <Text style={styles.lscWagerValue}>{formatCompact(snap.balance)}</Text>
+              {snap.wagers.ante > 0 && <Chip amount={snap.wagers.ante} size={scaleSize(26, sc)} />}
+            </View>
+
+            {/* مرحلة الرهان */}
+            {snap.phase === 'BETTING' && (
+              <View style={styles.lscPanel}>
+                <View style={styles.lscBetAmountBox}>
+                  <Text style={styles.betLabel}>الرهان الأساسي</Text>
+                  <Text style={styles.betValue}>{ante}</Text>
+                </View>
+                <View style={styles.lscBetRow}>
+                  <ActionButton label="−١٠٠" colors={['#8A94A3', '#4A5568'] as const} onPress={() => setAnte((b) => Math.max(10, b - 100))} />
+                  <ActionButton label="+١٠٠" colors={['#8A94A3', '#4A5568'] as const} onPress={() => setAnte((b) => Math.min(2500, Math.floor(snap.balance / 2), b + 100))} />
+                </View>
+                <View style={styles.lscToggles}>
+                  <Pressable
+                    style={[styles.lscToggle, pairPlusOn && styles.toggleOn]}
+                    onPress={() => setPairPlusOn((v) => !v)}
+                  >
+                    <Text style={[styles.toggleText, pairPlusOn && styles.toggleTextOn]}>الزوج الإضافي (={ante})</Text>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.lscToggle, sixCardOn && styles.toggleOn]}
+                    onPress={() => setSixCardOn((v) => !v)}
+                  >
+                    <Text style={[styles.toggleText, sixCardOn && styles.toggleTextOn]}>بونص ٦ أوراق (={ante})</Text>
+                  </Pressable>
+                </View>
+                <GoldButton title="وزّع الأوراق" onPress={deal} size="sm" />
+              </View>
+            )}
+
+            {/* مرحلة القرار */}
+            {snap.phase === 'DECISION' && (
+              <View style={styles.lscPanel}>
+                <Text style={styles.turnLabel}>
+                  يدك: <Text style={styles.turnScore}>{HAND_NAMES[snap.playerHand!.category]}</Text> — العب أو انسحب؟
+                </Text>
+                {typeof turnRemaining === 'number' && (
+                  <Text style={styles.countdownText}>⏱️ وقتك: {turnRemaining} ثانية</Text>
+                )}
+                <View style={styles.lscActions}>
+                  <ActionButton label="انسحاب" colors={['#7A1F2B', '#5C0F16'] as const} onPress={() => decide(false)} />
+                  <ActionButton
+                    label="لعب"
+                    sub={`+${snap.wagers.ante}`}
+                    colors={['#E3C98A', '#8C6D2F'] as const}
+                    flex={1.3}
+                    darkText
+                    onPress={() => decide(true)}
+                  />
+                </View>
+              </View>
+            )}
+
+            {/* النتيجة */}
+            {isSettled && !!round && (
+              <View style={styles.lscPanel}>
+                <View style={styles.resultsRow}>
+                  <Text style={styles.resultText}>{OUTCOME_LABEL[round.outcome] ?? round.outcome}</Text>
+                  <Text style={[styles.resultAmount, net < 0 && styles.resultLoss]}>
+                    {net >= 0 ? '+' : ''}{formatCompact(net)}
+                  </Text>
+                  {round.anteBonusNet > 0 && (
+                    <Text style={styles.resultBonus}>بونص اليد: {formatCompact(round.anteBonusNet)}</Text>
+                  )}
+                  {round.pairPlusNet > 0 && (
+                    <Text style={styles.resultBonus}>الزوج الإضافي: {formatCompact(round.pairPlusNet)}</Text>
+                  )}
+                  {round.sixCardBonusNet > 0 && (
+                    <Text style={styles.resultBonus}>بونص ٦ أوراق: {formatCompact(round.sixCardBonusNet)}</Text>
+                  )}
+                </View>
+                <GoldButton title="جولة جديدة" onPress={newRound} size="sm" />
+              </View>
+            )}
+          </ScrollView>
+        </View>
+
+        {/* رسالة الخطأ الموحدة */}
+        {errorNode}
+
+        {/* نافذة التعليمات */}
+        <InstructionsModal
+          game="three_card_poker"
+          visible={helpOpen}
+          onClose={() => setHelpOpen(false)}
+        />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -634,5 +833,118 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.ar.semibold,
     fontSize: TYPE.small.fontSize,
     color: '#FFFFFF',
+  },
+
+  // ===== الوضع الأفقي (landscape) =====
+  lscContainer: { flex: 1, backgroundColor: '#070A0F' },
+  lscHeader: {
+    paddingBottom: SPACING.xs,
+  },
+  lscTableBar: {
+    paddingHorizontal: SPACING.lg,
+    marginBottom: SPACING.xs,
+  },
+  lscBody: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    gap: SPACING.md,
+  },
+  lscFelt: {
+    flex: 1.55,
+    alignSelf: 'stretch',
+  },
+  lscFeltInner: {
+    flex: 1,
+    alignSelf: 'stretch',
+    flexDirection: 'column',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.sm,
+  },
+  lscSeat: {
+    alignItems: 'center',
+    gap: SPACING.xs,
+  },
+  lscSeatLabel: {
+    fontFamily: FONTS.ar.semibold,
+    fontSize: TYPE.caption.fontSize,
+    color: COLORS.textDim,
+  },
+  lscCardRow: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  lscSide: {
+    width: 200,
+  },
+  lscSideContent: {
+    paddingBottom: SPACING.lg,
+    gap: SPACING.md,
+  },
+  lscPhase: {
+    fontFamily: FONTS.ar.bold,
+    fontSize: TYPE.body.fontSize,
+    color: COLORS.text,
+    textAlign: 'center',
+  },
+  lscWager: {
+    alignItems: 'center',
+    gap: 2,
+    borderRadius: RADIUS.md,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingVertical: SPACING.sm,
+  },
+  lscWagerLabel: {
+    fontFamily: FONTS.ar.regular,
+    fontSize: TYPE.caption.fontSize,
+    color: COLORS.textDim,
+  },
+  lscWagerValue: {
+    fontFamily: FONTS.num.bold,
+    fontSize: TYPE.h3.fontSize,
+    color: COLORS.goldLight,
+  },
+  lscPanel: {
+    gap: SPACING.md,
+    borderRadius: RADIUS.md,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: SPACING.md,
+  },
+  lscBetAmountBox: {
+    alignItems: 'center',
+    borderRadius: RADIUS.md,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingVertical: SPACING.xs,
+  },
+  lscBetRow: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: SPACING.sm,
+  },
+  lscToggles: {
+    gap: SPACING.sm,
+  },
+  lscToggle: {
+    alignItems: 'center',
+    borderRadius: RADIUS.md,
+    backgroundColor: 'rgba(255,255,255,0.045)',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.sm,
+  },
+  lscActions: {
+    flexDirection: 'row-reverse',
+    gap: SPACING.sm,
   },
 });

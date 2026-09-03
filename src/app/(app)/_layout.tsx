@@ -3,14 +3,20 @@
 // شريط مخصص من ٤ وجهات: الرئيسية | الطاولات | المكافآت | حسابي
 // ============================================================
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Tabs, Redirect } from 'expo-router';
 import TabBar from '../../components/ui/TabBar';
 import { COLORS } from '../../constants/theme';
 import { useAuthStore } from '../../stores/authStore';
+import { lockPortrait } from '../../hooks/useOrientationLock';
 
 export default function AppLayout() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+
+  // اللوبي وبقية التطبيق طولية دائمًا (طاولات اللعب تقفل نفسها عرضيًا)
+  useEffect(() => {
+    lockPortrait();
+  }, []);
 
   // حارس: لا دخول كضيف أبدًا — أي جلسة غير موثّقة تُعاد لشاشة الدخول
   if (!isAuthenticated) {
