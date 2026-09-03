@@ -8,6 +8,7 @@
 // لكل الأجهزة وتعمل بقية الميزات (رهانات الروليت وغيرها) طبيعيًا.
 // ============================================================
 
+import { requireOptionalNativeModule } from 'expo-modules-core';
 import { useSettingsStore } from '../stores/settingsStore';
 
 export type SfxName = 'deal' | 'chip' | 'win' | 'lose' | 'tick' | 'shuffle';
@@ -39,14 +40,24 @@ type AudioLib = {
 
 let lib: AudioLib | null | undefined;
 
-/** تحميل آمن للوحدة الأصلية — يُرجع null في البنى القديمة بلا انهيار */
+/**
+ * تحميل آمن للوحدة الأصلية:
+ * أولًا نفحص وجودها عبر requireOptionalNativeModule (لا ترمي خطأ أبدًا)،
+ * وبعدها فقط نستورد expo-audio — لأن Metro يعترض أي استثناء أثناء
+ * الاستيراد الأول ويحوّله إلى خطأ قاتل ينهار التطبيق حتى مع try/catch.
+ */
 function getAudioLib(): AudioLib | null {
   if (lib === undefined) {
-    try {
-      // استدعاء حرفي حتى يضمّنه Metro في الحزمة
-      lib = require('expo-audio') as AudioLib;
-    } catch {
-      lib = null; // الوحدة الأصلية غير موجودة — أصوات معطّلة بأمان
+    const native = requireOptionalNativeModule('ExpoAudio');
+    if (!native) {
+      lib = null; // بنية قديمة بلا الوحدة الأصلية — أصوات معطّلة بأمان
+    } else {
+      try {
+        // استدعاء حرفي حتى يضمّنه Metro في الحزمة
+        lib = require('expo-audio') as AudioLib;
+      } catch {
+        lib = null;
+      }
     }
   }
   return lib;
